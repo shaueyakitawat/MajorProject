@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from backend.services.data_service import fetch_nifty_data, compute_log_returns
 from backend.services.volatility_service import forecast_volatility
@@ -46,6 +46,9 @@ def run_pipeline():
     # Start performance timer
     start_time = time.perf_counter()
     
+    # Broker adapter integration placeholders
+    option_expiry_date = None  # broker adapter will populate later
+    
     # Step 1: Fetch and prepare data
     data = fetch_nifty_data()
     data_with_returns = compute_log_returns(data)
@@ -67,16 +70,24 @@ def run_pipeline():
     # Step 2: Forecast volatility
     vol_forecast = forecast_volatility(returns_series)
     
-    # Validation: Ensure volatility is positive and valid
-    if vol_forecast <= 0 or not isinstance(vol_forecast, (int, float)):
+    # Validation: Ensure volatility is valid type
+    if not isinstance(vol_forecast, (int, float)):
         raise HTTPException(
             status_code=500,
-            detail=f"Invalid volatility forecast: {vol_forecast}. Volatility must be positive."
+            detail=f"Invalid volatility forecast type: {type(vol_forecast)}. Must be numeric."
         )
     
     # Normalize volatility to decimal format if needed
     if vol_forecast > 1:
         vol_forecast = vol_forecast / 100
+    
+    # Apply volatility sanity guardrails
+    if vol_forecast <= 0:
+        safe_volatility = 0.05  # minimal floor
+    elif vol_forecast > 3:
+        safe_volatility = 3.0   # hard cap at 300%
+    else:
+        safe_volatility = vol_forecast
     
     # Step 3: Extract spot price
     spot = float(data_with_returns["Close"].iloc[-1])
@@ -88,20 +99,58 @@ def run_pipeline():
             detail=f"Invalid spot price: {spot}. Spot price must be positive."
         )
     
-    # Step 4: Calculate fair price (placeholder parameters)
+    # Step 4: Calculate fair price (dynamic parameters)
     strike = spot
-    time_to_expiry = 0.05
+    
+    # Dynamic time to expiry calculation
+    if option_expiry_date is not None:
+        now_utc = datetime.now(timezone.utc)
+        seconds_to_expiry = (option_expiry_date - now_utc).total_seconds()
+        time_to_expiry_years = max(seconds_to_expiry, 0) / (365 * 24 * 3600)
+    else:
+        time_to_expiry_years = 0.1  # temporary fallback (DO NOT REMOVE)
+    
+    expiry_live = option_expiry_date is not None
+    
     risk_free_rate = 0.06
     option_type = "call"
     
-    fair_price = black_scholes_price(
-        spot=spot,
-        strike=strike,
-        time_to_expiry=time_to_expiry,
-        risk_free_rate=risk_free_rate,
-        volatility=vol_forecast,
-        option_type=option_type
-    )
+    # Apply expiry-adjusted volatility scaling using safe_volatility
+    expiry_volatility = safe_volatility * (time_to_expiry_years ** 0.5)
+    
+    # Volatility transformation metadata for transparency
+    volatility_source = {
+        "raw_forecast": vol_forecast,
+        "safe_volatility": safe_volatility,
+        "expiry_adjusted": expiry_volatility,
+        "model_step": "daily",
+        "annualization": "sqrt(252)"
+    }
+    
+    # Validate pricing inputs integrity
+    pricing_integrity = True
+    
+    if expiry_volatility <= 0:
+        pricing_integrity = False
+    
+    if time_to_expiry_years <= 0:
+        pricing_integrity = False
+    
+    if spot <= 0:
+        pricing_integrity = False
+    
+    # Calculate fair price with integrity check
+    if pricing_integrity:
+        fair_price = black_scholes_price(
+            spot=spot,
+            strike=strike,
+            time_to_expiry=time_to_expiry_years,
+            risk_free_rate=risk_free_rate,
+            volatility=expiry_volatility,
+            option_type=option_type
+        )
+    else:
+        fair_price = 0.0
     
     # Validation: Ensure fair price is valid
     if fair_price <= 0 or not isinstance(fair_price, (int, float)):
@@ -110,8 +159,16 @@ def run_pipeline():
             detail=f"Invalid fair price calculation: {fair_price}. Price must be positive."
         )
     
-    # Step 5: Simulate market price and detect mispricing
-    market_price = fair_price * 1.03
+    # Step 5: Determine market price (broker-ready structure)
+    option_mid_price = None  # Placeholder for live broker feed integration
+    
+    if option_mid_price is not None:
+        market_price = option_mid_price
+    else:
+        market_price = fair_price * 1.03  # temporary fallback ONLY
+    
+    market_data_live = option_mid_price is not None
+    
     mispricing_result = detect_mispricing(market_price, fair_price)
     
     # Step 6: Classify volatility regime
@@ -278,7 +335,10 @@ def run_pipeline():
         "spot_price": spot,
         "forecast_volatility": vol_forecast,
         "fair_price": fair_price,
+        "pricing_integrity": pricing_integrity,
         "market_price": market_price,
+        "market_data_live": market_data_live,
+        "expiry_live": expiry_live,
         "mispricing": mispricing_result,
         "regime": regime,
         "regime_score": regime_score,
@@ -307,6 +367,7 @@ def run_pipeline():
             "pricing_model": "Black-Scholes",
             "data_source": "yfinance"
         },
+        "volatility_source": volatility_source,
         "analytics_version": "v1.1",
         "output_schema": "quant_pipeline_v1_locked",
         "analytics_timestamp": _utc_iso_timestamp(),
