@@ -4,3 +4,5 @@ yfinance
 arch
 scipy
 matplotlib
+fastapi
+uvicorn
