@@ -1,14 +1,86 @@
+import json
+import logging
+import re
 import time
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from backend.services.data_service import fetch_nifty_data, compute_log_returns
 from backend.services.volatility_service import forecast_volatility
 from backend.services.pricing_service import black_scholes_price
 from backend.services.mispricing_service import detect_mispricing
 from backend.services.regime_service import classify_volatility_regime
 from backend.services.strategy_service import generate_strategy
+from backend.broker_adapter import fetch_spot, fetch_option_chain, normalize_broker_payload
 
-app = FastAPI()
+app = FastAPI(
+    openapi_tags=[
+        {
+            "name": "Market Data",
+            "description": "Endpoints for fetching raw market data."
+        },
+        {
+            "name": "Pipeline",
+            "description": "Quantitative pipeline stages: log returns, volatility forecast, pricing, mispricing, regime, and strategy."
+        },
+        {
+            "name": "System",
+            "description": "Health checks and operational monitoring endpoints."
+        }
+    ]
+)
+
+# Application identity constants (used for observability and metrics)
+APP_NAME: str = "options-mispricing-backend"
+APP_VERSION: str = "1.1.0"
+
+# Configure structured logger
+logger = logging.getLogger("api")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setLevel(logging.INFO)
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
+
+
+# In-memory metrics store
+METRICS: dict = {
+    "request_count": 0,
+    "per_endpoint": {},
+    "last_status": None,
+    "last_error": None,
+    "last_execution_time_ms": None,
+    "last_timestamp": None
+}
+
+
+def record_request(endpoint: str) -> None:
+    """Increment global and per-endpoint request counters."""
+    METRICS["request_count"] += 1
+    METRICS["per_endpoint"][endpoint] = METRICS["per_endpoint"].get(endpoint, 0) + 1
+
+
+def record_result(
+    endpoint: str,
+    status: str,
+    execution_time_ms: int | None,
+    error_message: str | None
+) -> None:
+    """Update last-result fields in the metrics store."""
+    METRICS["last_status"] = status
+    METRICS["last_error"] = error_message
+    METRICS["last_execution_time_ms"] = execution_time_ms
+    METRICS["last_timestamp"] = _utc_iso_timestamp()
+
+# Structured JSON log helper
+def log_event(event: dict) -> None:
+    """
+    Emit a single structured JSON log line.
+
+    Args:
+        event: Metadata dict. Must not contain large payloads.
+    """
+    event.setdefault("timestamp", _utc_iso_timestamp())
+    logger.info(json.dumps(event, ensure_ascii=False))
 
 
 # Utility function for UTC timestamp generation
@@ -35,11 +107,139 @@ def create_response(data):
     }
 
 
+# Standardized success response for endpoint handlers
+def build_success_response(payload: dict, *, meta: dict | None = None) -> dict:
+    """
+    Wrap a payload dict in the standard success envelope.
+
+    Args:
+        payload: JSON-serializable endpoint data.
+        meta: Optional metadata dict (e.g. execution_time_ms). Included in
+              the response only when provided.
+
+    Returns:
+        dict: {"status": "success", "timestamp": str, "data": payload}
+              with an additional "meta" key when meta is not None.
+    """
+    response = {
+        "status": "success",
+        "timestamp": _utc_iso_timestamp(),
+        "data": payload
+    }
+    if meta is not None:
+        response["meta"] = meta
+    return response
+
+
+# Standardized error response for endpoint handlers
+def error_json(message: str, status_code: int = 500) -> dict:
+    """
+    Return a structured error envelope.
+
+    Args:
+        message: Human-readable error description.
+        status_code: HTTP status code hint (not applied here; caller raises HTTPException).
+
+    Returns:
+        dict: {"status": "error", "timestamp": str, "error": message}
+    """
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "status": "error",
+            "timestamp": _utc_iso_timestamp(),
+            "error": message
+        }
+    )
+
+
+# Symbol input validation helper
+def validate_symbol(symbol: str) -> str:
+    """
+    Validate and normalize a market symbol string.
+
+    Args:
+        symbol: Raw symbol string from query parameter.
+
+    Returns:
+        str: Uppercased, stripped symbol.
+
+    Raises:
+        ValueError: If symbol contains invalid characters.
+    """
+    symbol = symbol.strip().upper()
+    if not re.fullmatch(r"[A-Z0-9\-\^]+", symbol):
+        raise ValueError(
+            f"Invalid symbol format: '{symbol}'. "
+            "Only uppercase letters, digits, '-', and '^' are allowed."
+        )
+    return symbol
+
+
+# Live market data helper — fetches and normalizes broker data for future endpoint use
+def get_live_market_data(symbol: str = "NIFTY") -> dict:
+    """
+    Fetch and normalize live market data via broker_adapter.
+
+    Args:
+        symbol: Ticker symbol to fetch (default: "NIFTY").
+
+    Returns:
+        dict: Normalized payload with shape:
+            {"spot_price": float, "option_chain": list, "timestamp": str}
+    """
+    spot = fetch_spot(symbol=symbol)
+    chain = fetch_option_chain(symbol=symbol)
+    return normalize_broker_payload(spot_payload=spot, chain_payload=chain)
+
+
+# Reusable Swagger response examples
+SUCCESS_EXAMPLE = {
+    "status": "success",
+    "timestamp": "2026-01-01T10:00:00Z",
+    "data": {}
+}
+
+ERROR_EXAMPLE = {
+    "status": "error",
+    "message": "Internal server error",
+    "timestamp": "2026-01-01T10:00:00Z"
+}
+
+_RESPONSES = {
+    200: {
+        "description": "Successful response",
+        "content": {
+            "application/json": {
+                "example": SUCCESS_EXAMPLE
+            }
+        }
+    },
+    500: {
+        "description": "Error response",
+        "content": {
+            "application/json": {
+                "example": ERROR_EXAMPLE
+            }
+        }
+    }
+}
+
+
 # Internal helper function for pipeline execution
-def run_pipeline():
+def run_pipeline(input_data: dict = None, symbol: str = "NIFTY"):
     """
     Execute the complete quantitative pipeline.
-    
+
+    Args:
+        input_data: Optional normalized market data dict from broker_adapter
+            (shape: {"spot_price": float, "option_chain": list, "timestamp": str}).
+            Reserved for future live-data integration. When None, the pipeline
+            fetches data internally via data_service (current default behavior).
+        symbol: Ticker symbol hint for future symbol-aware data fetching.
+            Accepted and stored for forward-compatibility; data_service currently
+            defaults to NIFTY 50. Default: "NIFTY".
+
     Returns:
         dict: Complete analytics results with clean structure
     """
@@ -327,49 +527,288 @@ def run_pipeline():
 def root():
     return create_response({"status": "running"})
 
-@app.get("/nifty")
-def get_nifty_data():
-    pipeline = run_pipeline()
-    return create_response(pipeline["_data"].tail().to_dict(orient="records"))
-
-@app.get("/returns")
-def get_log_returns():
-    pipeline = run_pipeline()
-    return create_response(pipeline["_data_with_returns"].to_dict(orient="records"))
-
-@app.get("/forecast-vol")
-def get_forecast_volatility():
-    pipeline = run_pipeline()
-    return create_response({"forecast_volatility": pipeline["forecast_volatility"]})
-
-@app.get("/fair-price")
-def get_fair_price():
-    pipeline = run_pipeline()
-    return create_response({"fair_price": pipeline["fair_price"]})
-
-@app.get("/mispricing")
-def get_mispricing():
-    pipeline = run_pipeline()
-    return create_response({
-        "fair_price": pipeline["fair_price"],
-        "market_price": pipeline["market_price"],
-        "mispricing": pipeline["mispricing"]
-    })
-
-@app.get("/regime")
-def get_regime():
-    pipeline = run_pipeline()
-    return create_response({
-        "forecast_volatility": pipeline["forecast_volatility"],
-        "regime": pipeline["regime"]
-    })
-
-@app.get("/strategy")
-def get_strategy():
+@app.get(
+    "/health",
+    summary="Health check",
+    description="Lightweight service liveness endpoint for deployment and frontend integration. Does not run the research pipeline.",
+    tags=["System"],
+    responses=_RESPONSES
+)
+def health_check():
+    start = time.perf_counter()
+    record_request("/health")
     try:
-        result = run_pipeline()
-        
-        return create_response({
+        payload = {
+            "service": "options-mispricing-backend",
+            "status": "ok"
+        }
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        record_result("/health", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        record_result("/health", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/metrics",
+    summary="Service metrics",
+    description="Lightweight in-memory counters for monitoring. Not a full metrics system.",
+    tags=["System"],
+    responses=_RESPONSES
+)
+def get_metrics():
+    try:
+        return build_success_response(METRICS)
+    except Exception as e:
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/nifty",
+    summary="Fetch latest NIFTY 50 market data",
+    description=(
+        "Returns the most recent OHLCV records for the NIFTY 50 index sourced from yfinance. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "This is the raw market data that seeds the quantitative pipeline. "
+        "It is intended for data inspection and research purposes, not automated trading decisions."
+    ),
+    tags=["Market Data"],
+    responses=_RESPONSES
+)
+def get_nifty_data(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/nifty")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = pipeline["_data"].tail().to_dict(orient="records")
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/nifty", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/nifty", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/nifty", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/returns",
+    summary="Compute log returns from NIFTY 50 close prices",
+    description=(
+        "Returns the full time series of daily log returns derived from NIFTY 50 closing prices. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "Log returns are the primary input to the EGARCH volatility forecasting model. "
+        "This endpoint is intended for exploratory data analysis and pipeline inspection within a research context."
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
+)
+def get_log_returns(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/returns")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = pipeline["_data_with_returns"].to_dict(orient="records")
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/returns", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/returns", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/returns", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/forecast-vol",
+    summary="Forecast annualized volatility using EGARCH(1,1)",
+    description=(
+        "Returns the one-step-ahead annualized volatility forecast produced by an EGARCH(1,1) model "
+        "fitted on recent NIFTY 50 log returns. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "The output is expressed as a decimal (e.g. 0.18 represents 18% annualized volatility). "
+        "This forecasted volatility is subsequently used as the sole volatility input to the Black-Scholes pricing model. "
+        "Results are intended for research and decision-support only."
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
+)
+def get_forecast_volatility(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/forecast-vol")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = {"forecast_volatility": pipeline["forecast_volatility"]}
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/forecast-vol", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/forecast-vol", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/forecast-vol", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/fair-price",
+    summary="Calculate Black-Scholes theoretical option fair value",
+    description=(
+        "Returns the theoretical fair value of an at-the-money call option computed via the Black-Scholes model. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "Volatility input is the EGARCH(1,1) forecast, not implied volatility. "
+        "Time to expiry is expressed in years as required by the pricing model. "
+        "This fair value serves as the benchmark for mispricing detection in the pipeline. "
+        "Output is for research and analytical decision-support purposes only."
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
+)
+def get_fair_price(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/fair-price")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = {"fair_price": pipeline["fair_price"]}
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/fair-price", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/fair-price", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/fair-price", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/mispricing",
+    summary="Detect option mispricing relative to Black-Scholes fair value",
+    description=(
+        "Compares the observed market price of an option against its Black-Scholes theoretical fair value "
+        "and returns the percentage deviation along with a classification of overpriced, underpriced, or fair. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "A \u00b15% threshold is applied for classification. "
+        "Volatility used in fair value computation is the EGARCH(1,1) forecast. "
+        "This output is a research signal and does not constitute a trading recommendation."
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
+)
+def get_mispricing(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/mispricing")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = {
+            "fair_price": pipeline["fair_price"],
+            "market_price": pipeline["market_price"],
+            "mispricing": pipeline["mispricing"]
+        }
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/mispricing", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/mispricing", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/mispricing", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/regime",
+    summary="Classify the current volatility regime",
+    description=(
+        "Classifies the prevailing market volatility environment into one of four regimes: "
+        "LOW_VOL, NORMAL_VOL, HIGH_VOL, or EXTREME_VOL, based on the EGARCH(1,1) annualized forecast. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "Regime classification is used downstream to modulate strategy recommendations. "
+        "This endpoint is intended for regime-aware research and analytical workflows."
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
+)
+def get_regime(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/regime")
+    try:
+        symbol = validate_symbol(symbol)
+        pipeline = run_pipeline(symbol=symbol)
+        payload = {
+            "forecast_volatility": pipeline["forecast_volatility"],
+            "regime": pipeline["regime"]
+        }
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        record_result("/regime", "ok", duration_ms, None)
+        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/regime", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        record_result("/regime", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=500)
+
+@app.get(
+    "/strategy",
+    summary="Run the full quantitative pipeline and return strategy recommendation",
+    description=(
+        "Executes the complete pipeline — EGARCH(1,1) volatility forecast, Black-Scholes fair pricing "
+        "(with time to expiry in years), mispricing detection, volatility regime classification, "
+        "and rule-based strategy recommendation — in a single request. "
+        "Accepts an optional `symbol` query parameter (default: NIFTY) for forward-compatibility. "
+        "Returns a consolidated response including spot price, forecasted volatility, fair value, "
+        "mispricing classification, regime label, strategy suggestion, and analytics metadata. "
+        "This is a research and decision-support tool; outputs do not constitute automated trading signals."
+    ),    tags=["Pipeline"],    responses=_RESPONSES
+)
+def get_strategy(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+    start = time.perf_counter()
+    record_request("/strategy")
+    try:
+        symbol = validate_symbol(symbol)
+        result = run_pipeline(symbol=symbol)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({
+            "timestamp": _utc_iso_timestamp(),
+            "endpoint": "/strategy",
+            "pipeline_health": "ok",
+            "execution_time_ms": duration_ms
+        })
+        record_result("/strategy", "ok", duration_ms, None)
+        return build_success_response({
             "spot_price": result["spot_price"],
             "forecast_volatility": result["forecast_volatility"],
             "fair_price": result["fair_price"],
@@ -381,7 +820,27 @@ def get_strategy():
             "analytics_summary": result.get("analytics_summary"),
             "pipeline_health": result.get("pipeline_health"),
             "execution_time_ms": result.get("execution_time_ms")
+        }, meta={"execution_time_ms": duration_ms})
+
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({
+            "timestamp": _utc_iso_timestamp(),
+            "endpoint": "/strategy",
+            "pipeline_health": "error",
+            "execution_time_ms": duration_ms,
+            "error_message": str(e)
         })
-    
+        record_result("/strategy", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
     except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_event({
+            "timestamp": _utc_iso_timestamp(),
+            "endpoint": "/strategy",
+            "pipeline_health": "error",
+            "execution_time_ms": duration_ms,
+            "error_message": str(e)
+        })
+        record_result("/strategy", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))
