@@ -1227,7 +1227,7 @@ def get_nifty_data(symbol: str = Query(default="NIFTY", min_length=1, max_length
     try:
         symbol = validate_symbol(symbol)
         pipeline = run_pipeline(symbol=symbol)
-        payload = pipeline["_data"].tail().to_dict(orient="records")
+        payload = pipeline["_data"].to_dict(orient="records")
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "ok", "execution_time_ms": duration_ms})
         record_result("/nifty", "ok", duration_ms, None)
