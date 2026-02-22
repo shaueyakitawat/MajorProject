@@ -285,7 +285,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     option_expiry_date = None  # broker adapter will populate later
     
     # Step 1: Fetch and prepare data
-    data = fetch_nifty_data()
+    data = fetch_nifty_data(symbol=symbol, timeframe=timeframe)
     
     # Normalize dataframe structure for timeframe consistency
     data = normalize_timeframe_dataframe(data, timeframe)
@@ -1253,7 +1253,11 @@ def get_nifty_data(
     try:
         symbol = validate_symbol(symbol)
         pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
-        payload = pipeline["_data"].tail().to_dict(orient="records")
+        candles = pipeline["_data"].reset_index().to_dict(orient="records")
+        payload = {
+            "total_candles": len(candles),
+            "candles": candles
+        }
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "ok", "execution_time_ms": duration_ms})
         record_result("/nifty", "ok", duration_ms, None)
