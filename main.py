@@ -19,6 +19,12 @@ from backend.services.mispricing_service import detect_mispricing
 from backend.services.regime_service import classify_volatility_regime
 from backend.services.strategy_service import generate_strategy
 from backend.broker_adapter import fetch_spot, fetch_option_chain, normalize_broker_payload
+from backend.infrastructure.timeframe_config import (
+    validate_timeframe,
+    get_default_timeframe_for_horizon
+)
+from backend.infrastructure.timeframe_adapter import normalize_timeframe_dataframe
+from backend.infrastructure.annualization_engine import apply_dynamic_annualization
 
 app = FastAPI(
     openapi_tags=[
@@ -235,7 +241,7 @@ _RESPONSES = {
 
 
 # Internal helper function for pipeline execution
-def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon: str = None):
+def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily"):
     """
     Execute the complete quantitative pipeline.
 
@@ -250,10 +256,20 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         trading_horizon: Optional trading horizon classification for volatility interpretation.
             Allowed values: "day_trader", "positional", "long_term".
             When None, uses default interpretation. Default: None.
+        timeframe: Timeframe for analysis. Default: "daily".
+            Supported: "1m", "5m", "15m", "1h", "daily", "weekly".
+            When None, defaults based on trading_horizon.
 
     Returns:
         dict: Complete analytics results with clean structure
     """
+    # Timeframe handling: default based on horizon if None
+    if timeframe is None:
+        timeframe = get_default_timeframe_for_horizon(trading_horizon)
+    
+    # Validate timeframe
+    timeframe = validate_timeframe(timeframe)
+    
     # Validate trading_horizon parameter
     allowed_horizons = ["day_trader", "positional", "long_term", None]
     if trading_horizon not in allowed_horizons:
@@ -270,6 +286,10 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Step 1: Fetch and prepare data
     data = fetch_nifty_data()
+    
+    # Normalize dataframe structure for timeframe consistency
+    data = normalize_timeframe_dataframe(data, timeframe)
+    
     data_with_returns = compute_log_returns(data)
     
     # Validation: Ensure returns series is not empty
@@ -288,6 +308,9 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Step 2: Forecast volatility
     vol_forecast = forecast_volatility(returns_series)
+    
+    # Apply dynamic annualization to convert period volatility to annualized terms
+    vol_forecast = apply_dynamic_annualization(vol_forecast, timeframe)
     
     # Validation: Ensure volatility is valid type
     if not isinstance(vol_forecast, (int, float)):
@@ -1221,13 +1244,16 @@ def get_metrics():
     tags=["Market Data"],
     responses=_RESPONSES
 )
-def get_nifty_data(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+def get_nifty_data(
+    symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
+):
     start = time.perf_counter()
     record_request("/nifty")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol)
-        payload = pipeline["_data"].to_dict(orient="records")
+        pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
+        payload = pipeline["_data"].tail().to_dict(orient="records")
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "ok", "execution_time_ms": duration_ms})
         record_result("/nifty", "ok", duration_ms, None)
@@ -1255,12 +1281,15 @@ def get_nifty_data(symbol: str = Query(default="NIFTY", min_length=1, max_length
     tags=["Pipeline"],
     responses=_RESPONSES
 )
-def get_log_returns(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+def get_log_returns(
+    symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
+):
     start = time.perf_counter()
     record_request("/returns")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol)
+        pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
         payload = pipeline["_data_with_returns"].to_dict(orient="records")
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "ok", "execution_time_ms": duration_ms})
@@ -1291,12 +1320,15 @@ def get_log_returns(symbol: str = Query(default="NIFTY", min_length=1, max_lengt
     tags=["Pipeline"],
     responses=_RESPONSES
 )
-def get_forecast_volatility(symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)")):
+def get_forecast_volatility(
+    symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
+):
     start = time.perf_counter()
     record_request("/forecast-vol")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol)
+        pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
         payload = {"forecast_volatility": pipeline["forecast_volatility"]}
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "ok", "execution_time_ms": duration_ms})
@@ -1330,13 +1362,14 @@ def get_forecast_volatility(symbol: str = Query(default="NIFTY", min_length=1, m
 )
 def get_fair_price(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
-    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term")
+    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
 ):
     start = time.perf_counter()
     record_request("/fair-price")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon)
+        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         payload = {"fair_price": pipeline["fair_price"]}
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "ok", "execution_time_ms": duration_ms})
@@ -1369,13 +1402,14 @@ def get_fair_price(
 )
 def get_mispricing(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
-    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term")
+    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
 ):
     start = time.perf_counter()
     record_request("/mispricing")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon)
+        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         payload = {
             "fair_price": pipeline["fair_price"],
             "market_price": pipeline["market_price"],
@@ -1411,13 +1445,14 @@ def get_mispricing(
 )
 def get_regime(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
-    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term")
+    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
 ):
     start = time.perf_counter()
     record_request("/regime")
     try:
         symbol = validate_symbol(symbol)
-        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon)
+        pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         payload = {
             "forecast_volatility": pipeline["forecast_volatility"],
             "regime": pipeline["regime"]
@@ -1453,13 +1488,14 @@ def get_regime(
 )
 def get_strategy(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
-    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term")
+    trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
 ):
     start = time.perf_counter()
     record_request("/strategy")
     try:
         symbol = validate_symbol(symbol)
-        result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon)
+        result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_event({
             "timestamp": _utc_iso_timestamp(),
