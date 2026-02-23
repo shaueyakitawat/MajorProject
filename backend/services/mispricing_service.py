@@ -14,10 +14,8 @@ def detect_mispricing(market_price: float, fair_price: float) -> dict:
         dict: Contains 'deviation' (float) and 'classification' (str)
               Classification: "underpriced", "fair", or "overpriced"
     """
-    # Calculate percentage deviation
     deviation = (market_price - fair_price) / fair_price
-    
-    # Classify based on thresholds
+
     if deviation > 0.05:
         classification = "overpriced"
     elif deviation < -0.05:

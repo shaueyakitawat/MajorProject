@@ -142,7 +142,6 @@ def fetch_intraday_candles_dhan(
             f"Dhan intraday API error (status={response.status_code}): {response_json}"
         )
 
-    # Validate arrays are present and non-empty as required
     if not response_json.get("timestamp") or not response_json.get("close"):
         raise ValueError("Dhan intraday API returned empty arrays for requested range")
 
@@ -356,7 +355,6 @@ def normalize_broker_payload(*, spot_payload: dict, chain_payload: dict) -> dict
         if isinstance(entry, dict):
             sanitized_chain.append(entry)
 
-    # --- Timestamp ---
     timestamp = _utc_iso_timestamp()
 
     return {

@@ -5,13 +5,19 @@ Future changes should focus only on API formatting or frontend integration.
 ================================================================================
 """
 
+# Standard library imports
 import json
 import logging
 import math
 import re
 import time
 from datetime import datetime, timezone
+
+# Third-party imports
+import dateutil.parser
 from fastapi import FastAPI, HTTPException, Query
+
+# Backend module imports
 from backend.services.data_service import fetch_nifty_data, compute_log_returns
 from backend.services.volatility_service import forecast_volatility
 from backend.services.pricing_service import black_scholes_price
@@ -26,6 +32,9 @@ from backend.infrastructure.timeframe_config import (
 )
 from backend.infrastructure.timeframe_adapter import normalize_timeframe_dataframe
 from backend.infrastructure.annualization_engine import apply_dynamic_annualization
+
+
+# ========== CONFIG ==========
 
 app = FastAPI(
     openapi_tags=[
@@ -86,7 +95,9 @@ def record_result(
     METRICS["last_execution_time_ms"] = execution_time_ms
     METRICS["last_timestamp"] = _utc_iso_timestamp()
 
-# Structured JSON log helper
+
+# ========== HELPERS ==========
+
 def log_event(event: dict) -> None:
     """
     Emit a single structured JSON log line.
@@ -98,23 +109,26 @@ def log_event(event: dict) -> None:
     logger.info(json.dumps(event, ensure_ascii=False))
 
 
-# Utility function for UTC timestamp generation
 def _utc_iso_timestamp():
     """Generate UTC ISO timestamp with Z suffix."""
     return datetime.utcnow().isoformat() + "Z"
 
 
-# Response wrapper for standardized API responses
+def log_endpoint_result(endpoint: str, health: str, duration_ms: int, error_message: str | None = None) -> None:
+    """Log structured endpoint execution result with consistent format."""
+    payload = {
+        "timestamp": _utc_iso_timestamp(),
+        "endpoint": endpoint,
+        "pipeline_health": health,
+        "execution_time_ms": duration_ms
+    }
+    if error_message is not None:
+        payload["error_message"] = error_message
+    log_event(payload)
+
+
 def create_response(data):
-    """
-    Wrap response data in standardized format.
-    
-    Args:
-        data: Response payload
-        
-    Returns:
-        dict: Standardized response with status, timestamp, and data
-    """
+    """Wrap data in the standard success envelope (no meta field)."""
     return {
         "status": "success",
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -122,7 +136,6 @@ def create_response(data):
     }
 
 
-# Standardized success response for endpoint handlers
 def build_success_response(payload: dict, *, meta: dict | None = None) -> dict:
     """
     Wrap a payload dict in the standard success envelope.
@@ -146,7 +159,6 @@ def build_success_response(payload: dict, *, meta: dict | None = None) -> dict:
     return response
 
 
-# Standardized error response for endpoint handlers
 def error_json(message: str, status_code: int = 500) -> dict:
     """
     Return a structured error envelope.
@@ -168,7 +180,6 @@ def error_json(message: str, status_code: int = 500) -> dict:
     )
 
 
-# Symbol input validation helper
 def validate_symbol(symbol: str) -> str:
     """
     Validate and normalize a market symbol string.
@@ -191,7 +202,6 @@ def validate_symbol(symbol: str) -> str:
     return symbol
 
 
-# Live market data helper — fetches and normalizes broker data for future endpoint use
 def get_live_market_data(symbol: str = "NIFTY") -> dict:
     """
     Fetch and normalize live market data via broker_adapter.
@@ -210,32 +220,19 @@ def get_live_market_data(symbol: str = "NIFTY") -> dict:
 
 def get_live_input(symbol: str, timeframe: str) -> dict:
     """
-    Fetch and normalize live market data for pipeline input.
-    
-    This function retrieves spot price and option chain data from the broker
-    and normalizes it into a standardized format suitable for run_pipeline().
-    
+    Fetch and return normalized live market data for pipeline input.
+
     Args:
-        symbol: Ticker symbol to fetch (e.g., "NIFTY", "^NSEI").
+        symbol: Ticker symbol (e.g., "NIFTY", "^NSEI").
         timeframe: Timeframe context for the request (e.g., "5m", "daily").
-            Note: Currently used for logging/context only, as broker APIs
-            return latest available data regardless of timeframe.
-    
+            Used for logging only; broker APIs return latest available data.
+
     Returns:
-        dict: Normalized payload ready for run_pipeline() input_data parameter.
-            Shape: {
-                "spot_price": float,
-                "option_chain": list,
-                "timestamp": str (UTC ISO format with Z suffix)
-            }
-    
+        dict: Normalized payload ready for ``run_pipeline`` input_data.
+            Shape: {"spot_price": float, "option_chain": list, "timestamp": str}
+
     Raises:
         ValueError: If broker API returns invalid or malformed data.
-        HTTPException: If spot price is non-positive or required keys are missing.
-    
-    Example:
-        >>> input_data = get_live_input(symbol="^NSEI", timeframe="5m")
-        >>> result = run_pipeline(input_data=input_data, symbol="NIFTY", timeframe="5m")
     """
     spot = fetch_spot(symbol=symbol)
     chain = fetch_option_chain(symbol=symbol)
@@ -266,12 +263,7 @@ def validate_live_input_data(input_data: dict) -> dict | None:
     Example:
         >>> input_data = get_live_input(symbol="^NSEI", timeframe="5m")
         >>> validated = validate_live_input_data(input_data)
-        >>> if validated:
-        >>>     result = run_pipeline(input_data=validated, ...)
-        >>> else:
-        >>>     result = run_pipeline(input_data=None, ...)  # fallback
     """
-    # Guard: input_data must be dict
     if not isinstance(input_data, dict):
         log_event({
             "timestamp": _utc_iso_timestamp(),
@@ -358,14 +350,12 @@ def validate_live_input_data(input_data: dict) -> dict | None:
         
         if bid is not None and ask is not None:
             try:
-                bid_float = float(bid)
-                ask_float = float(ask)
-                if bid_float > 0 and ask_float > 0:
+                if float(bid) > 0 and float(ask) > 0:
                     has_valid_pricing = True
                     break
             except (TypeError, ValueError):
                 continue
-    
+
     if not has_valid_pricing:
         log_event({
             "timestamp": _utc_iso_timestamp(),
@@ -382,12 +372,10 @@ def validate_live_input_data(input_data: dict) -> dict | None:
         if not isinstance(opt, dict):
             continue
         
-        # Check common expiry field names
         expiry_fields = ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]
         for field in expiry_fields:
             if field in opt and opt[field] is not None:
                 expiry_value = opt[field]
-                # Test if it's parseable (string, int, or float)
                 if isinstance(expiry_value, (str, int, float)):
                     has_parseable_expiry = True
                     break
@@ -411,7 +399,6 @@ def validate_live_input_data(input_data: dict) -> dict | None:
         })
         # Don't fail validation - expiry has fallback logic
     
-    # All critical validations passed
     log_event({
         "timestamp": _utc_iso_timestamp(),
         "event": "live_input_validation_passed",
@@ -449,11 +436,9 @@ def parse_option_expiry(raw_expiry) -> datetime | None:
         return None
     
     try:
-        # Handle string input
         if isinstance(raw_expiry, str):
             # Try python-dateutil parser (handles most formats)
             try:
-                import dateutil.parser
                 expiry_dt = dateutil.parser.parse(raw_expiry)
                 # Ensure timezone-aware (assume UTC if naive)
                 if expiry_dt.tzinfo is None:
@@ -480,7 +465,6 @@ def parse_option_expiry(raw_expiry) -> datetime | None:
                 except (ValueError, TypeError):
                     pass
         
-        # Handle timestamp input (int or float)
         elif isinstance(raw_expiry, (int, float)):
             try:
                 return datetime.fromtimestamp(raw_expiry, tz=timezone.utc)
@@ -488,9 +472,8 @@ def parse_option_expiry(raw_expiry) -> datetime | None:
                 pass
     
     except Exception:
-        # Catch any unexpected exceptions and return None
         pass
-    
+
     return None
 
 
@@ -519,21 +502,12 @@ def sanitize_volatility(vol: float, fallback_safe_volatility: float = 0.15) -> f
         >>> sanitize_volatility(3.5)  # Returns 2.0 (cap)
         >>> sanitize_volatility(float('nan'))  # Returns 0.15 (fallback)
     """
-    import math
-    
-    # Handle NaN or infinite values
     if not math.isfinite(vol):
         return fallback_safe_volatility
-    
-    # Apply floor
     if vol < 0.01:
         return 0.01
-    
-    # Apply cap
     if vol > 2.0:
         return 2.0
-    
-    # Return valid volatility as-is
     return vol
 
 
@@ -595,55 +569,42 @@ def select_atm_option(option_chain: list, spot: float) -> dict | None:
     valid_contracts = []
     
     for opt in call_options:
-        # Extract strike
         strike = opt.get("strike") or opt.get("strikePrice")
         if strike is None:
             continue
-        
         try:
             strike = float(strike)
         except (TypeError, ValueError):
             continue
-        
-        # Extract bid and ask
+
         bid = opt.get("bid") or opt.get("bidPrice")
         ask = opt.get("ask") or opt.get("askPrice")
-        
-        # Ignore if bid or ask missing
         if bid is None or ask is None:
             continue
-        
         try:
             bid = float(bid)
             ask = float(ask)
         except (TypeError, ValueError):
             continue
-        
-        # Validate bid/ask are positive and bid <= ask
+
+        # Validate bid/ask are positive and spread is not inverted
         if bid <= 0 or ask <= 0 or bid > ask:
             continue
-        
+
         # Check if contract is expired
         is_expired = False
         expiry_value = None
-        
-        # Try to extract expiry
         expiry_fields = ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]
         for field in expiry_fields:
             if field in opt and opt[field] is not None:
                 expiry_value = opt[field]
                 break
-        
-        # Parse expiry using resilient helper
         expiry_dt = parse_option_expiry(expiry_value)
         if expiry_dt is not None and expiry_dt < now_utc:
             is_expired = True
-        
-        # Ignore expired contracts
         if is_expired:
             continue
-        
-        # Add to valid contracts
+
         valid_contracts.append({
             "strike": strike,
             "bid": bid,
@@ -656,6 +617,7 @@ def select_atm_option(option_chain: list, spot: float) -> dict | None:
         return None
     
     # Step 3: Select strike closest to spot (ATM)
+    # GUARDRAIL: Ensure closest strike selection is accurate
     min_distance = float('inf')
     atm_contract = None
     
@@ -667,8 +629,12 @@ def select_atm_option(option_chain: list, spot: float) -> dict | None:
     
     if atm_contract is None:
         return None
-    
-    # Return contract with required fields
+
+    # Reject if ATM strike is more than 10% from spot (data quality guard)
+    strike_deviation = abs(atm_contract["strike"] - spot) / spot
+    if strike_deviation > 0.10:
+        return None
+
     return {
         "strike": atm_contract["strike"],
         "bid": atm_contract["bid"],
@@ -710,7 +676,51 @@ _RESPONSES = {
 }
 
 
-# Internal helper function for pipeline execution
+# ========== PIPELINE LOOKUP CONSTANTS ==========
+# Defined at module level so they are built once, not on every run_pipeline() call.
+
+_REGIME_SCORE: dict[str, int] = {
+    "LOW_VOL": 1, "NORMAL_VOL": 2, "HIGH_VOL": 3, "EXTREME_VOL": 4
+}
+_STRATEGY_STRENGTH_DEGRADE: dict[str, str] = {
+    "STRONG": "MODERATE", "MODERATE": "WEAK"
+}
+_VOL_DIRECTION: dict[str, str] = {
+    "EXPANDING_VOL": "EXPANDING", "CONTRACTING_VOL": "CONTRACTING"
+}
+_VOLATILITY_FOCUS: dict = {
+    "day_trader": "short_memory",
+    "positional":  "medium_memory",
+    "long_term":   "long_memory",
+    None:          "standard",
+}
+_HORIZON_META: dict = {
+    "day_trader": ("HIGH_RISK",     0.85),
+    "positional":  ("MODERATE_RISK", 0.60),
+    "long_term":   ("LOW_RISK",      0.35),
+}
+_RISK_TAG: dict[str, str] = {
+    "EXTREME_VOL": "HIGH_RISK", "HIGH_VOL": "ELEVATED_RISK", "LOW_VOL": "LOW_RISK"
+}
+_MARKET_BIAS: dict[str, str] = {
+    "overpriced": "SELL_BIAS", "underpriced": "BUY_BIAS"
+}
+_SIGNAL_DIR: dict[str, str] = {
+    "BUY_BIAS": "LONG_SIGNAL", "SELL_BIAS": "SHORT_SIGNAL"
+}
+_STRATEGY_INTENT: dict[str, str] = {
+    "LONG_SIGNAL": "ENTER_LONG_VOL", "SHORT_SIGNAL": "ENTER_SHORT_VOL"
+}
+_EXECUTION_PROFILE: dict[str, str] = {
+    "HIGH": "AGGRESSIVE", "MEDIUM": "BALANCED"
+}
+_DASHBOARD_COLOR: dict[str, str] = {
+    "BUY_BIAS": "GREEN", "SELL_BIAS": "RED"
+}
+
+
+# ========== PIPELINE ==========
+
 def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily"):
     """
     Execute the complete quantitative pipeline.
@@ -749,76 +759,67 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
             detail=f"Invalid trading_horizon: '{trading_horizon}'. Allowed values: {[h for h in allowed_horizons if h is not None]}"
         )
     
-    # Start performance timer
+    # One timestamp shared across all log_event calls in this request
     start_time = time.perf_counter()
+    request_ts = _utc_iso_timestamp()
+
+    provider_used = "live" if input_data is not None else "historical"
+    data_source_live = input_data is not None
     
     # Step 1: Fetch and prepare data
-    # Support both live broker data and historical data fetching
     broker_spot_price = None
     broker_option_chain = None
-    broker_data_healthy = True  # Track broker data validation status
-    input_data_provided = input_data is not None  # Track if broker data was originally provided
-    
+    broker_data_healthy = True
+    input_data_provided = input_data is not None
+
     if input_data is not None:
-        # Validate input_data using safe validation layer
         validated_input = validate_live_input_data(input_data)
-        
+
         if validated_input is not None:
-            # Validation passed - extract broker data
             broker_spot_price = float(validated_input["spot_price"])
             broker_option_chain = validated_input["option_chain"]
         else:
-            # Validation failed - log and continue with fallback (historical data)
             broker_data_healthy = False
             log_event({
-                "timestamp": _utc_iso_timestamp(),
+                "timestamp": request_ts,
                 "event": "broker_data_validation_failed",
                 "action": "falling_back_to_historical_data",
                 "symbol": symbol,
-                "timeframe": timeframe
+                "timeframe": timeframe,
+                "provider_used": "historical",
+                "data_source_live": False
             })
-            # Set input_data to None to trigger fallback logic throughout pipeline
             input_data = None
-    
-    # Set LIVE_DATA_HEALTH flag based on broker data validation
+
     if input_data_provided and broker_data_healthy:
-        LIVE_DATA_HEALTH = "HEALTHY"
+        live_data_health = "HEALTHY"
     elif input_data_provided and not broker_data_healthy:
-        LIVE_DATA_HEALTH = "DEGRADED"
+        live_data_health = "DEGRADED"
     else:
-        LIVE_DATA_HEALTH = "NOT_APPLICABLE"  # No broker data provided
+        live_data_health = "NOT_APPLICABLE"
     
-    # Performance optimization: Check cache before expensive data operations
-    # Cache key includes symbol and timeframe for proper invalidation
+    # Check cache (key = symbol + timeframe) before expensive data operations
     cache_key = f"{symbol}_{timeframe}"
     current_time = time.perf_counter()
-    
-    # Check if cached data exists and is still valid (within TTL)
+
     cache_entry = run_pipeline.cache.get(cache_key)
     cache_hit = False
-    
+
     if cache_entry is not None:
         cached_time = cache_entry.get("timestamp", 0)
         time_elapsed = current_time - cached_time
-        
+
         if time_elapsed < run_pipeline.cache_ttl_seconds:
-            # Cache hit - reuse cached dataframes
             data = cache_entry["data"]
             data_with_returns = cache_entry["data_with_returns"]
             cache_hit = True
-    
-    # Cache miss or expired - fetch and process data
+
     if not cache_hit:
-        # Fetch historical candles for EGARCH volatility forecasting
-        # (Always needed for returns computation, regardless of live data availability)
+        # Historical candles always required for EGARCH, even when live spot is available
         data = fetch_nifty_data(symbol=symbol, timeframe=timeframe)
-        
-        # Normalize dataframe structure for timeframe consistency
         data = normalize_timeframe_dataframe(data, timeframe)
-        
         data_with_returns = compute_log_returns(data)
-        
-        # Store in cache for future calls
+
         run_pipeline.cache[cache_key] = {
             "data": data,
             "data_with_returns": data_with_returns,
@@ -839,10 +840,29 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
             detail="Insufficient return data: need at least 2 data points for volatility forecast"
         )
     
+    # EGARCH(1,1) requires ≥100 observations for stable estimation
+    if len(returns_series) < 100:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Insufficient data for EGARCH: {len(returns_series)} points. Minimum 100 required for stable estimation."
+        )
+
+    if returns_series.isna().any():
+        raise HTTPException(
+            status_code=500,
+            detail="Returns contain NaN values. Cannot compute EGARCH volatility forecast."
+        )
+    
+    if not returns_series.apply(lambda x: math.isfinite(x)).all():
+        raise HTTPException(
+            status_code=500,
+            detail="Returns contain infinite values. Cannot compute EGARCH volatility forecast."
+        )
+    
     # Step 2: Forecast volatility
     vol_forecast = forecast_volatility(returns_series)
-    
-    # Apply dynamic annualization to convert period volatility to annualized terms
+
+    # Annualize to target timeframe
     vol_forecast = apply_dynamic_annualization(vol_forecast, timeframe)
     
     # Validation: Ensure volatility is valid type
@@ -851,32 +871,35 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
             status_code=500,
             detail=f"Invalid volatility forecast type: {type(vol_forecast)}. Must be numeric."
         )
-    
+
+    # Guard: isinstance passes for float('nan') and float('inf') — check finiteness explicitly
+    if not math.isfinite(vol_forecast):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Volatility forecast is not finite: {vol_forecast}. Cannot proceed with pipeline."
+        )
+
     # Normalize volatility to decimal format if needed
     if vol_forecast > 1:
         vol_forecast = vol_forecast / 100
     
-    # Apply volatility sanity filter (floor=0.01, cap=2.0, handles NaN/inf)
+    # Clamp to [0.01, 2.0]; returns fallback on non-finite input
     safe_volatility = sanitize_volatility(vol_forecast, fallback_safe_volatility=0.15)
-    
-    # Trading horizon interpretation (influences volatility perception without altering EGARCH)
+
+    # Horizon scale factor — does not modify EGARCH output
     horizon_multiplier = 1.0
     horizon_interpretation = "standard"
-    
+
     if trading_horizon == "day_trader":
-        # Day traders: emphasize short-term volatility, higher sensitivity
         horizon_multiplier = 1.15
         horizon_interpretation = "short_term_sensitive"
     elif trading_horizon == "positional":
-        # Positional traders: balanced medium-term view
         horizon_multiplier = 1.0
         horizon_interpretation = "medium_term_balanced"
     elif trading_horizon == "long_term":
-        # Long-term investors: dampen short-term noise
         horizon_multiplier = 0.85
         horizon_interpretation = "long_term_smoothed"
-    
-    # Apply horizon-adjusted interpretation to safe_volatility
+
     horizon_adjusted_volatility = safe_volatility * horizon_multiplier
     
     # Step 3: Extract spot price
@@ -886,49 +909,48 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     else:
         spot = float(data_with_returns["Close"].iloc[-1])
     
-    # Validation: Ensure spot price is positive
-    if spot <= 0:
+    # Validation: Ensure spot price is a finite positive number
+    # NaN comparisons always return False, so `<= 0` alone does not catch NaN
+    if not math.isfinite(spot) or spot <= 0:
         raise HTTPException(
             status_code=500,
-            detail=f"Invalid spot price: {spot}. Spot price must be positive."
+            detail=f"Invalid spot price: {spot}. Spot price must be a finite positive number."
         )
     
     # Step 4: Calculate fair price (dynamic parameters)
     strike = spot
-    
-    # Dynamic time to expiry calculation - extract from option chain if available
-    option_expiry_date = None  # Will be extracted from broker_option_chain
+
+    # Derive time-to-expiry from chain; falls back to 0.1y
+    option_expiry_date = None
     
     if broker_option_chain is not None and len(broker_option_chain) > 0:
-        # Try to extract expiry date from option chain
         try:
-            # Strategy 1: Check for explicit expiry fields in first option
+            # Strategy 1: explicit expiry field
             first_option = broker_option_chain[0]
             expiry_str = None
-            
-            # Try common field names
+
             for field_name in ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]:
                 if field_name in first_option and first_option[field_name] is not None:
                     expiry_str = first_option[field_name]
                     break
-            
-            # Strategy 2: Extract from contractSymbol if no explicit field
-            # Format: "NIFTY240229C23000" or similar where date is embedded
+
+            # Strategy 2: YYMMDD embedded in contractSymbol (e.g. "NIFTY240229C23000")
             if expiry_str is None:
                 contract_symbol = first_option.get("contractSymbol", "")
                 if isinstance(contract_symbol, str) and len(contract_symbol) > 6:
-                    # Try to extract date portion (typically YYMMDD after ticker)
-                    # Look for 6 consecutive digits
                     date_match = re.search(r'\d{6}', contract_symbol)
                     if date_match:
                         expiry_str = date_match.group(0)
-            
-            # Parse expiry string to datetime using resilient helper
+
             if expiry_str is not None:
                 option_expiry_date = parse_option_expiry(expiry_str)
-        
+
+                if option_expiry_date is not None:
+                    now_utc = datetime.now(timezone.utc)
+                    if option_expiry_date <= now_utc:
+                        option_expiry_date = None
+
         except (TypeError, ValueError, KeyError, AttributeError):
-            # Failed to extract expiry, will use fallback
             pass
     
     # Calculate time to expiry in years
@@ -944,10 +966,9 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     risk_free_rate = 0.06
     option_type = "call"
     
-    # Apply expiry-adjusted volatility scaling using horizon-adjusted volatility
+    # Scale vol by sqrt(T) for Black-Scholes input
     expiry_volatility = horizon_adjusted_volatility * (time_to_expiry_years ** 0.5)
-    
-    # Volatility transformation metadata for transparency
+
     volatility_source = {
         "raw_forecast": vol_forecast,
         "safe_volatility": safe_volatility,
@@ -960,7 +981,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "horizon_interpretation": horizon_interpretation
     }
     
-    # Validate pricing inputs integrity
+    # Guard Black-Scholes inputs
     pricing_integrity = True
     
     if expiry_volatility <= 0:
@@ -972,7 +993,6 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     if spot <= 0:
         pricing_integrity = False
     
-    # Calculate fair price with integrity check
     if pricing_integrity:
         fair_price = black_scholes_price(
             spot=spot,
@@ -993,99 +1013,57 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         )
     
     # Step 5: Determine market price from option chain or fallback
-    option_mid_price = None  # Will be computed from broker_option_chain if available
-    atm_strike_selected = None  # Track ATM strike for pipeline_trace
-    
+    option_mid_price = None
+    atm_strike_selected = None
+
     if broker_option_chain is not None and len(broker_option_chain) > 0:
-        # Validate option chain before processing
-        validation_passed = True
-        validation_errors = []
-        
-        # Validation 1: Ensure list is not empty (already checked above but for clarity)
-        if len(broker_option_chain) == 0:
-            validation_passed = False
-            validation_errors.append("option_chain is empty")
-        
-        # Validation 2: Check if at least one option has bid and ask fields
-        has_valid_pricing = False
-        if validation_passed:
-            for opt in broker_option_chain:
-                if not isinstance(opt, dict):
-                    continue
-                # Check for bid/ask in various field names
-                bid = opt.get("bid") or opt.get("bidPrice")
-                ask = opt.get("ask") or opt.get("askPrice")
-                if bid is not None and ask is not None:
-                    has_valid_pricing = True
-                    break
-            
-            if not has_valid_pricing:
-                validation_passed = False
-                validation_errors.append("no options with valid bid/ask prices found")
-        
-        # Validation 3: Ensure spot price is valid float (already validated in Step 3)
-        if not isinstance(spot, (int, float)) or spot <= 0:
-            validation_passed = False
-            validation_errors.append(f"invalid spot price: {spot}")
-        
-        # Log validation failure and continue with fallback
-        if not validation_passed:
-            log_event({
-                "timestamp": _utc_iso_timestamp(),
-                "event": "option_chain_validation_failed",
-                "validation_errors": validation_errors,
-                "option_chain_length": len(broker_option_chain) if broker_option_chain else 0,
-                "spot_price": spot,
-                "fallback": "using fair_price * 1.03"
-            })
-        
-        # Extract ATM call option from broker option chain if validation passed
-        if validation_passed:
-            try:
-                # Use helper function to select ATM option
-                atm_option = select_atm_option(broker_option_chain, spot)
-                
-                if atm_option is not None:
-                    # Extract bid and ask from selected ATM option
-                    bid = atm_option["bid"]
-                    ask = atm_option["ask"]
-                    atm_strike_selected = atm_option["strike"]  # Track for pipeline_trace
-                    
-                    # Compute mid price
-                    option_mid_price = (bid + ask) / 2.0
-                    
-                    # Log successful ATM selection
-                    log_event({
-                        "timestamp": _utc_iso_timestamp(),
+        # select_atm_option filters by bid/ask validity, expiry, and strike proximity
+        try:
+            atm_option = select_atm_option(broker_option_chain, spot)
+
+            if atm_option is not None:
+                bid = atm_option["bid"]
+                ask = atm_option["ask"]
+                atm_strike_selected = atm_option["strike"]
+                option_mid_price = (bid + ask) / 2.0
+
+                log_event({
+                        "timestamp": request_ts,
                         "event": "atm_option_selected",
                         "strike": atm_option["strike"],
                         "bid": bid,
                         "ask": ask,
                         "mid_price": option_mid_price,
-                        "spot": spot
-                    })
-                else:
-                    # Log no valid ATM option found
-                    log_event({
-                        "timestamp": _utc_iso_timestamp(),
-                        "event": "no_valid_atm_option",
-                        "reason": "no contracts passed filters (bid/ask/expiry)",
-                        "option_chain_length": len(broker_option_chain),
                         "spot": spot,
-                        "fallback": "using fair_price * 1.03"
+                        "timeframe_used": timeframe,
+                        "provider_used": provider_used,
+                        "data_source_live": data_source_live
                     })
-            
-            except (TypeError, ValueError, KeyError, AttributeError) as e:
-                # Failed to extract market price from option chain, log and use fallback
+            else:
                 log_event({
-                    "timestamp": _utc_iso_timestamp(),
-                    "event": "option_chain_extraction_failed",
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "fallback": "using fair_price * 1.03"
+                    "timestamp": request_ts,
+                    "event": "no_valid_atm_option",
+                    "reason": "no contracts passed filters (bid/ask/expiry)",
+                    "option_chain_length": len(broker_option_chain),
+                    "spot": spot,
+                    "fallback": "using fair_price * 1.03",
+                    "timeframe_used": timeframe,
+                    "provider_used": provider_used,
+                    "data_source_live": data_source_live
                 })
+        
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            log_event({
+                "timestamp": request_ts,
+                "event": "option_chain_extraction_failed",
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "fallback": "using fair_price * 1.03",
+                "timeframe_used": timeframe,
+                "provider_used": provider_used,
+                "data_source_live": data_source_live
+            })
     
-    # Set market_price based on availability of live data
     if option_mid_price is not None:
         market_price = option_mid_price
     else:
@@ -1103,25 +1081,21 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         mispricing_result["classification"],
         regime
     )
-    # Determine regime score for numeric representation
-    if regime == "LOW_VOL":
-        regime_score = 1
-    elif regime == "NORMAL_VOL":
-        regime_score = 2
-    elif regime == "HIGH_VOL":
-        regime_score = 3
-    else:
-        regime_score = 4
-    
-    # Calculate execution time
+    regime_score = _REGIME_SCORE.get(regime, 4)
+
     end_time = time.perf_counter()
     execution_time_ms = round((end_time - start_time) * 1000, 2)
     
-    # Compute analytics summary
-    signal_strength = abs(mispricing_result["deviation"]) * vol_forecast
-    confidence_score = min(1.0, abs(mispricing_result["deviation"]) * 5)
+    # Unpack mispricing result; pre-compute shared derived values
+    mispricing_deviation = mispricing_result["deviation"]
+    mispricing_classification = mispricing_result["classification"]
+    mispricing_deviation_abs = abs(mispricing_deviation)
+    vol_forecast_pct = vol_forecast * 100
+    sqrt_252 = 15.8745  # Pre-computed sqrt(252) for annualization
     
-    # Determine strategy strength based on confidence
+    signal_strength = mispricing_deviation_abs * vol_forecast
+    confidence_score = min(1.0, mispricing_deviation_abs * 5)
+
     if confidence_score >= 0.7:
         strategy_strength = "STRONG"
     elif confidence_score >= 0.4:
@@ -1129,17 +1103,11 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     else:
         strategy_strength = "WEAK"
     
-    # Degrade strategy_strength if broker data validation failed
-    if LIVE_DATA_HEALTH == "DEGRADED":
-        if strategy_strength == "STRONG":
-            strategy_strength = "MODERATE"
-        elif strategy_strength == "MODERATE":
-            strategy_strength = "WEAK"
-        # WEAK stays WEAK
-    
-    # Calculate volatility context
-    # Normalize historical std to annualized scale
-    rolling_std = returns_series.std() * (252 ** 0.5)
+    if live_data_health == "DEGRADED":
+        strategy_strength = _STRATEGY_STRENGTH_DEGRADE.get(strategy_strength, strategy_strength)
+
+    # Annualized historical std for regime comparison
+    rolling_std = returns_series.std() * sqrt_252
     
     if vol_forecast > rolling_std * 1.3:
         volatility_context = "EXPANDING_VOL"
@@ -1149,28 +1117,25 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         volatility_context = "STABLE_VOL"
     
     analytics_summary = {
-        "volatility_percent": round(vol_forecast * 100, 2),
-        "mispricing_percent": round(mispricing_result["deviation"] * 100, 2),
-        "is_overpriced": mispricing_result["classification"] == "overpriced",
-        "is_underpriced": mispricing_result["classification"] == "underpriced",
+        "volatility_percent": round(vol_forecast_pct, 2),
+        "mispricing_percent": round(mispricing_deviation * 100, 2),
+        "is_overpriced": mispricing_classification == "overpriced",
+        "is_underpriced": mispricing_classification == "underpriced",
         "signal_strength": round(signal_strength, 4),
         "volatility_context": volatility_context,
         "confidence_score": round(confidence_score, 3)
     }
-    # Calculate signal priority score early so downstream analytics can use it
     signal_priority_score = regime_score * confidence_score
-    
-    # Compute quantitative diagnostics for research interpretability
-    # Metric 1: Volatility change ratio (forecast vs historical rolling volatility)
+
+    # Quantitative diagnostics
+    # Metric 1: forecast vs historical rolling vol ratio
     volatility_change_ratio = round(vol_forecast / rolling_std, 4) if rolling_std > 0 else 1.0
-    
-    # Metric 2: Signal strength normalized to [0, 1] scale using empirical threshold
+
+    # Metric 2: signal strength normalised to [0, 1]
     signal_strength_normalized = round(min(1.0, signal_strength / 0.5), 4)
-    
-    # Metric 3: Regime confidence estimate based on distance from regime boundaries
-    # Regime boundaries: LOW < 0.15, NORMAL [0.15, 0.25), HIGH [0.25, 0.40), EXTREME >= 0.40
+
+    # Metric 3: distance from nearest regime boundary (LOW<0.15, NORMAL[0.15,0.25), HIGH[0.25,0.40), EXTREME>=0.40)
     if regime == "LOW_VOL":
-        # Distance from upper boundary (0.15)
         distance_from_boundary = 0.15 - vol_forecast
         regime_width = 0.15
     elif regime == "NORMAL_VOL":
@@ -1190,8 +1155,8 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         distance_from_boundary = vol_forecast - 0.40
         regime_width = 0.20  # arbitrary width for unbounded regime
     
-    regime_confidence_estimate = round(min(1.0, distance_from_boundary / (regime_width / 2)), 4)
-    
+    regime_confidence_estimate = round(min(1.0, distance_from_boundary / (regime_width / 2)), 4) if regime_width > 0 else 0.0
+
     diagnostics = {
         "volatility_change_ratio": volatility_change_ratio,
         "signal_strength_normalized": signal_strength_normalized,
@@ -1215,8 +1180,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         pricing_integrity  # Also check that pricing inputs were valid
     )
     
-    # Check 3: Regime label must match volatility threshold logic from regime_service
-    # Regime boundaries: LOW < 0.15, NORMAL [0.15, 0.25), HIGH [0.25, 0.40), EXTREME >= 0.40
+    # Check 3: Regime label matches vol thresholds (LOW<0.15, NORMAL[0.15,0.25), HIGH[0.25,0.40), EXTREME>=0.40)
     expected_regime = None
     if vol_forecast < 0.15:
         expected_regime = "LOW_VOL"
@@ -1229,16 +1193,14 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     regime_valid = (regime == expected_regime)
     
-    # Check 4: Signal consistency - mispricing classification aligns with deviation
+    # Check 4: Mispricing classification aligns with deviation sign/magnitude
     signal_valid = True
-    deviation = mispricing_result.get("deviation", 0)
-    classification = mispricing_result.get("classification", "")
     
-    if classification == "overpriced" and deviation <= 0.05:
+    if mispricing_classification == "overpriced" and mispricing_deviation <= 0.05:
         signal_valid = False
-    elif classification == "underpriced" and deviation >= -0.05:
+    elif mispricing_classification == "underpriced" and mispricing_deviation >= -0.05:
         signal_valid = False
-    elif classification == "fair" and (deviation > 0.05 or deviation < -0.05):
+    elif mispricing_classification == "fair" and (mispricing_deviation > 0.05 or mispricing_deviation < -0.05):
         signal_valid = False
     
     quant_validation = {
@@ -1248,19 +1210,14 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "signal_valid": signal_valid
     }
     
-    # Compute quant_stability_score from existing diagnostics and validation
-    # Combine: volatility validity, pricing integrity, signal strength
-    # Each validation contributes equally to base score
+    # Stability score: average of 3 validation flags weighted by signal quality
     validation_score = sum([
         1.0 if volatility_valid else 0.0,
         1.0 if pricing_valid else 0.0,
         1.0 if signal_valid else 0.0
-    ]) / 3.0  # Average of 3 key validations
-    
-    # Weight by signal strength normalized (0-1) to factor in signal quality
+    ]) / 3.0
     quant_stability_score = round(validation_score * signal_strength_normalized, 4)
-    
-    # Determine status based on score thresholds
+
     if quant_stability_score >= 0.7:
         stability_status = "STABLE"
     elif quant_stability_score >= 0.4:
@@ -1274,16 +1231,9 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     }
     
     # Horizon context metadata for API response
-    volatility_focus_map = {
-        "day_trader": "short_memory",
-        "positional": "medium_memory",
-        "long_term": "long_memory",
-        None: "standard"
-    }
-    
     horizon_context = {
         "horizon": trading_horizon,
-        "volatility_focus": volatility_focus_map.get(trading_horizon, "standard")
+        "volatility_focus": _VOLATILITY_FOCUS.get(trading_horizon, "standard")
     }
     
     # Compute sensitivity indicators using existing fair_price and volatility values
@@ -1292,7 +1242,6 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Indicator 2: Mispricing adjusted for volatility regime
     # Normalizes mispricing deviation by volatility level to account for regime context
-    mispricing_deviation = mispricing_result.get("deviation", 0)
     mispricing_adjusted_for_volatility = round(mispricing_deviation / vol_forecast, 4) if vol_forecast > 0 else 0.0
     
     sensitivity_indicators = {
@@ -1302,12 +1251,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Volatility behavior insights using existing volatility and regime values
     # Insight 1: Volatility direction derived from volatility_context
-    if volatility_context == "EXPANDING_VOL":
-        volatility_direction = "EXPANDING"
-    elif volatility_context == "CONTRACTING_VOL":
-        volatility_direction = "CONTRACTING"
-    else:
-        volatility_direction = "STABLE"
+    volatility_direction = _VOL_DIRECTION.get(volatility_context, "STABLE")
     
     # Insight 2: Volatility intensity score (0-1 scale based on magnitude)
     # Maps volatility to intensity: LOW=0-0.25, NORMAL=0.25-0.5, HIGH=0.5-0.75, EXTREME=0.75-1.0
@@ -1333,7 +1277,6 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Derived signal analytics using existing mispricing deviation
     # Metric 1: Mispricing strength score (0-1 scale based on deviation magnitude)
-    mispricing_deviation_abs = abs(mispricing_result.get("deviation", 0))
     # Normalize: 0% deviation = 0.0, 10% deviation = 0.5, 20%+ deviation = 1.0
     mispricing_strength_score = round(min(1.0, mispricing_deviation_abs / 0.20), 4)
     
@@ -1360,26 +1303,8 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     }
     
     # Horizon impact analytics using existing trading_horizon context
-    # Metric 1: Horizon risk bias (risk appetite by horizon)
-    if trading_horizon == "day_trader":
-        horizon_risk_bias = "HIGH_RISK"  # Day traders accept higher risk for quick gains
-    elif trading_horizon == "positional":
-        horizon_risk_bias = "MODERATE_RISK"  # Positional traders balance risk-reward
-    elif trading_horizon == "long_term":
-        horizon_risk_bias = "LOW_RISK"  # Long-term investors prefer stability
-    else:
-        horizon_risk_bias = "NEUTRAL"  # No specific horizon bias
-    
-    # Metric 2: Horizon volatility weight (relative importance of volatility by horizon)
-    # Day traders care most about volatility, long-term least
-    if trading_horizon == "day_trader":
-        horizon_volatility_weight = 0.85  # High weight on volatility movements
-    elif trading_horizon == "positional":
-        horizon_volatility_weight = 0.60  # Moderate weight
-    elif trading_horizon == "long_term":
-        horizon_volatility_weight = 0.35  # Lower weight, focus on fundamentals
-    else:
-        horizon_volatility_weight = 0.50  # Default balanced weight
+    # Metrics 1 & 2: Horizon risk bias + volatility weight (single lookup pass)
+    horizon_risk_bias, horizon_volatility_weight = _HORIZON_META.get(trading_horizon, ("NEUTRAL", 0.50))
     
     # Metric 3: Horizon strategy alignment (compatibility with strategy type)
     strategy_type = strategy_result.get("strategy", "")
@@ -1409,43 +1334,41 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     # Quantitative reasoning - human-readable explanations using existing computed values
     
     # Explanation 1: Volatility regime meaning
-    vol_percent = round(vol_forecast * 100, 2)
     if regime == "LOW_VOL":
         volatility_explanation = (
-            f"The current volatility forecast of {vol_percent}% indicates a LOW volatility regime. "
+            f"The current volatility forecast of {vol_forecast_pct:.2f}% indicates a LOW volatility regime. "
             "This suggests a calm market environment with relatively stable price movements. "
             "Options are typically cheaper in low volatility conditions."
         )
     elif regime == "NORMAL_VOL":
         volatility_explanation = (
-            f"The current volatility forecast of {vol_percent}% indicates a NORMAL volatility regime. "
+            f"The current volatility forecast of {vol_forecast_pct:.2f}% indicates a NORMAL volatility regime. "
             "This represents typical market conditions with moderate price fluctuations. "
             "Option pricing reflects standard risk-reward parameters."
         )
     elif regime == "HIGH_VOL":
         volatility_explanation = (
-            f"The current volatility forecast of {vol_percent}% indicates a HIGH volatility regime. "
+            f"The current volatility forecast of {vol_forecast_pct:.2f}% indicates a HIGH volatility regime. "
             "This suggests elevated market uncertainty with significant price swings. "
             "Options are more expensive, reflecting increased risk."
         )
     else:  # EXTREME_VOL
         volatility_explanation = (
-            f"The current volatility forecast of {vol_percent}% indicates an EXTREME volatility regime. "
+            f"The current volatility forecast of {vol_forecast_pct:.2f}% indicates an EXTREME volatility regime. "
             "This represents exceptional market stress with very large price movements. "
             "Options are considerably more expensive due to heightened risk."
         )
     
     # Explanation 2: Mispricing implication
-    mispricing_pct = round(mispricing_result["deviation"] * 100, 2)
-    classification = mispricing_result["classification"]
+    mispricing_pct = round(mispricing_deviation * 100, 2)
     
-    if classification == "overpriced":
+    if mispricing_classification == "overpriced":
         mispricing_explanation = (
             f"The option is trading {abs(mispricing_pct)}% above its theoretical fair value, "
             "indicating it is OVERPRICED. This suggests a potential selling opportunity, "
             "as the market premium exceeds the model's valuation."
         )
-    elif classification == "underpriced":
+    elif mispricing_classification == "underpriced":
         mispricing_explanation = (
             f"The option is trading {abs(mispricing_pct)}% below its theoretical fair value, "
             "indicating it is UNDERPRICED. This suggests a potential buying opportunity, "
@@ -1508,9 +1431,9 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         regime_reason = "The EXTREME volatility regime creates uncertain conditions where waiting or defensive strategies are prudent."
     
     mispricing_reason = ""
-    if classification == "overpriced":
+    if mispricing_classification == "overpriced":
         mispricing_reason = "Since the option is OVERPRICED relative to fair value, strategies that sell premium or avoid buying are preferred."
-    elif classification == "underpriced":
+    elif mispricing_classification == "underpriced":
         mispricing_reason = "Since the option is UNDERPRICED relative to fair value, buying strategies offer potential value capture."
     else:
         mispricing_reason = "With FAIR pricing, there is no significant mispricing edge to exploit."
@@ -1538,38 +1461,12 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         pipeline_health = "CHECK_DATA"
     
     # Determine risk tag based on regime
-    if regime == "EXTREME_VOL":
-        risk_tag = "HIGH_RISK"
-    elif regime == "HIGH_VOL":
-        risk_tag = "ELEVATED_RISK"
-    elif regime == "LOW_VOL":
-        risk_tag = "LOW_RISK"
-    else:
-        risk_tag = "NORMAL_RISK"
-    
-    # Determine market bias based on mispricing
-    if mispricing_result["classification"] == "overpriced":
-        market_bias = "SELL_BIAS"
-    elif mispricing_result["classification"] == "underpriced":
-        market_bias = "BUY_BIAS"
-    else:
-        market_bias = "NEUTRAL"
-    
-    # Determine signal direction based on market bias
-    if market_bias == "BUY_BIAS":
-        signal_direction = "LONG_SIGNAL"
-    elif market_bias == "SELL_BIAS":
-        signal_direction = "SHORT_SIGNAL"
-    else:
-        signal_direction = "NO_SIGNAL"
-    
-    # Determine strategy intent based on signal direction
-    if signal_direction == "LONG_SIGNAL":
-        strategy_intent = "ENTER_LONG_VOL"
-    elif signal_direction == "SHORT_SIGNAL":
-        strategy_intent = "ENTER_SHORT_VOL"
-    else:
-        strategy_intent = "WAIT_AND_WATCH"
+    risk_tag = _RISK_TAG.get(regime, "NORMAL_RISK")
+
+    # Determine market bias, signal direction, and strategy intent via lookup maps
+    market_bias      = _MARKET_BIAS.get(mispricing_classification, "NEUTRAL")
+    signal_direction = _SIGNAL_DIR.get(market_bias, "NO_SIGNAL")
+    strategy_intent  = _STRATEGY_INTENT.get(signal_direction, "WAIT_AND_WATCH")
     
     
     
@@ -1608,21 +1505,10 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     display_signal = f"{market_bias} | {regime} | {strategy_strength}"
     
     # Determine execution profile based on urgency
-    if strategy_urgency == "HIGH":
-        execution_profile = "AGGRESSIVE"
-    elif strategy_urgency == "MEDIUM":
-        execution_profile = "BALANCED"
-    else:
-        execution_profile = "PASSIVE"
-    
-   
+    execution_profile = _EXECUTION_PROFILE.get(strategy_urgency, "PASSIVE")
+
     # Determine dashboard color hint for UI
-    if market_bias == "BUY_BIAS":
-        dashboard_color_hint = "GREEN"
-    elif market_bias == "SELL_BIAS":
-        dashboard_color_hint = "RED"
-    else:
-        dashboard_color_hint = "YELLOW"
+    dashboard_color_hint = _DASHBOARD_COLOR.get(market_bias, "YELLOW")
     
     # Determine analytics stability
     if confidence_score >= 0.7 and pipeline_health == "OK":
@@ -1636,7 +1522,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     # Extract key signals from existing analytics without new computations
     quant_summary = {
         "regime": regime,
-        "mispricing_classification": classification,
+        "mispricing_classification": mispricing_classification,
         "horizon": trading_horizon if trading_horizon else "not_specified",
         "strategy_intent": strategy_intent,
         "signal_direction": signal_direction,
@@ -1646,7 +1532,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     # Create decision_snapshot - compact summary of key decision outputs
     decision_snapshot = {
         "regime": regime,
-        "mispricing_classification": classification,
+        "mispricing_classification": mispricing_classification,
         "strategy_name": strategy_result.get("strategy", "No strategy"),
         "signal_direction": signal_direction,
         "horizon": trading_horizon if trading_horizon else "not_specified"
@@ -1654,9 +1540,8 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Generate research_tags based on existing analytics values
     research_tags = []
-    
-    # Data health tags
-    if LIVE_DATA_HEALTH == "DEGRADED":
+
+    if live_data_health == "DEGRADED":
         research_tags.append("FALLBACK_MODE")
     
     # Volatility behavior tags
@@ -1666,11 +1551,11 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         research_tags.append("VOLATILITY_CONTRACTION")
     
     # Mispricing tags
-    if classification != "fair":
+    if mispricing_classification != "fair":
         research_tags.append("MISPRICING_SIGNAL")
-    if classification == "overpriced":
+    if mispricing_classification == "overpriced":
         research_tags.append("OVERPRICED_SIGNAL")
-    elif classification == "underpriced":
+    elif mispricing_classification == "underpriced":
         research_tags.append("UNDERPRICED_SIGNAL")
     
     # Strong mispricing tag
@@ -1735,19 +1620,8 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     elif fair_price <= 0:
         consistency_issues.append("fair_price_not_positive")
     
-    # Check 3: Regime matches volatility range
-    # Regime boundaries: LOW < 0.15, NORMAL [0.15, 0.25), HIGH [0.25, 0.40), EXTREME >= 0.40
-    regime_consistency = True
-    if regime == "LOW_VOL" and vol_forecast >= 0.15:
-        regime_consistency = False
-    elif regime == "NORMAL_VOL" and (vol_forecast < 0.15 or vol_forecast >= 0.25):
-        regime_consistency = False
-    elif regime == "HIGH_VOL" and (vol_forecast < 0.25 or vol_forecast >= 0.40):
-        regime_consistency = False
-    elif regime == "EXTREME_VOL" and vol_forecast < 0.40:
-        regime_consistency = False
-    
-    if not regime_consistency:
+    # Check 3: Regime matches volatility range — reuse expected_regime from quant_validation above
+    if regime != expected_regime:
         consistency_issues.append("regime_mismatch")
     
     # Check 4: Horizon value is valid
@@ -1821,7 +1695,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "quant_validation": quant_validation,
         "quant_stability": quant_stability,
         "quant_warning": quant_warning,
-        "LIVE_DATA_HEALTH": LIVE_DATA_HEALTH,
+        "LIVE_DATA_HEALTH": live_data_health,
         
         # ========== DERIVED ANALYTICS ==========
         "sensitivity_indicators": sensitivity_indicators,
@@ -1841,7 +1715,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
             "timeframe_used": timeframe,
             "horizon_multiplier": horizon_multiplier,
             "annualization_factor": get_annualization_factor(timeframe),
-            "broker_mode": "live" if LIVE_DATA_HEALTH == "HEALTHY" else ("degraded" if LIVE_DATA_HEALTH == "DEGRADED" else "historical"),
+            "broker_mode": "live" if live_data_health == "HEALTHY" else ("degraded" if live_data_health == "DEGRADED" else "historical"),
             "atm_strike_selected": atm_strike_selected
         },
         
@@ -1856,7 +1730,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "horizon_context": horizon_context,
         "analytics_version": "v1.1",
         "output_schema": "quant_pipeline_v1_locked",
-        "analytics_timestamp": _utc_iso_timestamp(),
+        "analytics_timestamp": request_ts,
         "pipeline_health": pipeline_health,
         "analytics_health_score": analytics_health_score,
         "analytics_stability": analytics_stability,
@@ -1869,7 +1743,6 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "execution_time_ms": execution_time_ms,
         
         # ========== RAW DATA ==========
-        # Performance optimization: compute tail once instead of twice
         "_data": data.tail(50),
         "_data_with_returns": data_with_returns.tail(50),
         
@@ -1878,12 +1751,12 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     }
 
 
-# Initialize function-scoped cache for run_pipeline performance optimization
-# Cache stores processed dataframes to avoid redundant fetch/compute operations
-# No global cache - attached to function object for encapsulation
+# Function-scoped cache: avoids redundant data fetches across repeated calls
 run_pipeline.cache = {}
-run_pipeline.cache_ttl_seconds = 300  # 5-minute TTL for cache invalidation
+run_pipeline.cache_ttl_seconds = 300  # 5-minute TTL
 
+
+# ========== ENDPOINTS ==========
 
 @app.get("/")
 def root():
@@ -1920,8 +1793,10 @@ def health_check():
     responses=_RESPONSES
 )
 def get_metrics():
+    start = time.perf_counter()
     try:
-        return build_success_response(METRICS)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        return build_success_response(METRICS, meta={"execution_time_ms": duration_ms})
     except Exception as e:
         return error_json(str(e), status_code=500)
 
@@ -1952,17 +1827,21 @@ def get_nifty_data(
             "candles": candles
         }
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/nifty", "ok", duration_ms)
         record_result("/nifty", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/nifty", "error", duration_ms, str(e))
         record_result("/nifty", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/nifty", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/nifty", "error", duration_ms, str(e))
         record_result("/nifty", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -1989,17 +1868,21 @@ def get_log_returns(
         pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
         payload = pipeline["_data_with_returns"].to_dict(orient="records")
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/returns", "ok", duration_ms)
         record_result("/returns", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/returns", "error", duration_ms, str(e))
         record_result("/returns", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/returns", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/returns", "error", duration_ms, str(e))
         record_result("/returns", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -2028,17 +1911,21 @@ def get_forecast_volatility(
         pipeline = run_pipeline(symbol=symbol, timeframe=timeframe)
         payload = {"forecast_volatility": pipeline["forecast_volatility"]}
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/forecast-vol", "ok", duration_ms)
         record_result("/forecast-vol", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/forecast-vol", "error", duration_ms, str(e))
         record_result("/forecast-vol", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/forecast-vol", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/forecast-vol", "error", duration_ms, str(e))
         record_result("/forecast-vol", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -2069,17 +1956,21 @@ def get_fair_price(
         pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         payload = {"fair_price": pipeline["fair_price"]}
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/fair-price", "ok", duration_ms)
         record_result("/fair-price", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/fair-price", "error", duration_ms, str(e))
         record_result("/fair-price", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/fair-price", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/fair-price", "error", duration_ms, str(e))
         record_result("/fair-price", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -2113,17 +2004,21 @@ def get_mispricing(
             "mispricing": pipeline["mispricing"]
         }
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/mispricing", "ok", duration_ms)
         record_result("/mispricing", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/mispricing", "error", duration_ms, str(e))
         record_result("/mispricing", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/mispricing", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/mispricing", "error", duration_ms, str(e))
         record_result("/mispricing", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -2155,17 +2050,21 @@ def get_regime(
             "regime": pipeline["regime"]
         }
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "ok", "execution_time_ms": duration_ms})
+        log_endpoint_result("/regime", "ok", duration_ms)
         record_result("/regime", "ok", duration_ms, None)
-        return build_success_response(payload, meta={"execution_time_ms": duration_ms})
+        return build_success_response(payload, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": pipeline["pipeline_trace"]["timeframe_used"],
+            "provider": "historical"
+        })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/regime", "error", duration_ms, str(e))
         record_result("/regime", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({"timestamp": _utc_iso_timestamp(), "endpoint": "/regime", "pipeline_health": "error", "execution_time_ms": duration_ms, "error_message": str(e)})
+        log_endpoint_result("/regime", "error", duration_ms, str(e))
         record_result("/regime", "error", duration_ms, str(e))
         return error_json(str(e), status_code=500)
 
@@ -2182,7 +2081,9 @@ def get_regime(
         "Returns a consolidated response including spot price, forecasted volatility, fair value, "
         "mispricing classification, regime label, strategy suggestion, and analytics metadata. "
         "This is a research and decision-support tool; outputs do not constitute automated trading signals."
-    ),    tags=["Pipeline"],    responses=_RESPONSES
+    ),
+    tags=["Pipeline"],
+    responses=_RESPONSES
 )
 def get_strategy(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
@@ -2207,12 +2108,7 @@ def get_strategy(
         else:
             result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "endpoint": "/strategy",
-            "pipeline_health": "ok",
-            "execution_time_ms": duration_ms
-        })
+        log_endpoint_result("/strategy", "ok", duration_ms)
         record_result("/strategy", "ok", duration_ms, None)
         return build_success_response({
             "spot_price": result["spot_price"],
@@ -2224,29 +2120,20 @@ def get_strategy(
             "strategy": result["strategy"],
             "model_info": result.get("model_info"),
             "analytics_summary": result.get("analytics_summary"),
-            "pipeline_health": result.get("pipeline_health"),
-            "execution_time_ms": result.get("execution_time_ms")
-        }, meta={"execution_time_ms": duration_ms})
+            "pipeline_health": result.get("pipeline_health")
+        }, meta={
+            "execution_time_ms": duration_ms,
+            "timeframe_used": result["pipeline_trace"]["timeframe_used"],
+            "provider": provider if provider else "historical"
+        })
 
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "endpoint": "/strategy",
-            "pipeline_health": "error",
-            "execution_time_ms": duration_ms,
-            "error_message": str(e)
-        })
+        log_endpoint_result("/strategy", "error", duration_ms, str(e))
         record_result("/strategy", "error", duration_ms, str(e))
         return error_json(str(e), status_code=400)
     except Exception as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "endpoint": "/strategy",
-            "pipeline_health": "error",
-            "execution_time_ms": duration_ms,
-            "error_message": str(e)
-        })
+        log_endpoint_result("/strategy", "error", duration_ms, str(e))
         record_result("/strategy", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))

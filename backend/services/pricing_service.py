@@ -27,11 +27,9 @@ def black_scholes_price(
     Returns:
         float: Theoretical option price (fair value)
     """
-    # Calculate d1 and d2
     d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * volatility**2) * time_to_expiry) / (volatility * np.sqrt(time_to_expiry))
     d2 = d1 - volatility * np.sqrt(time_to_expiry)
-    
-    # Calculate option price based on type
+
     if option_type.lower() == "call":
         price = spot * norm.cdf(d1) - strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)
     elif option_type.lower() == "put":

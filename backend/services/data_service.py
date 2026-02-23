@@ -4,7 +4,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 
 TARGET_CANDLES = 2000
