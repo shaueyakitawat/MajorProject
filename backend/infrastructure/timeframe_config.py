@@ -21,6 +21,10 @@ TIMEFRAME_CONFIG = {
         "annualization": 252 * 26,  # 252 trading days * 26 15-min bars per day
         "horizon_group": "day_trader"
     },
+    "30m": {
+        "annualization": 252 * 13,  # 252 trading days * 13 30-min bars per day
+        "horizon_group": "day_trader"
+    },
     "1h": {
         "annualization": 252 * 6.5,  # 252 trading days * 6.5 hours per day
         "horizon_group": "positional"

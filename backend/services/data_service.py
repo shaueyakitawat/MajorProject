@@ -4,19 +4,46 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta, timezone
 
 
-def fetch_nifty_data() -> pd.DataFrame:
+TARGET_CANDLES = 2000
+
+
+def _map_symbol_for_provider(symbol: str) -> str:
+    symbol_map = {
+        "NIFTY": "^NSEI"
+    }
+    return symbol_map.get(symbol.upper(), symbol)
+
+
+def _get_fetch_window_for_timeframe(timeframe: str) -> tuple[str, str]:
+    timeframe_window_map = {
+        "1m": ("7d", "1m"),
+        "5m": ("60d", "5m"),
+        "15m": ("60d", "15m"),
+        "30m": ("60d", "30m"),
+        "1h": ("730d", "60m"),
+        "daily": ("10y", "1d"),
+        "weekly": ("max", "1wk"),
+    }
+    return timeframe_window_map.get(timeframe, ("7d", "1m"))
+
+
+def fetch_nifty_data(symbol: str = "NIFTY", timeframe: str = "1m") -> pd.DataFrame:
     """
-    Fetch NIFTY 50 index intraday data (1-minute interval) for the last 5 days.
+    Fetch market data for the requested symbol and timeframe.
     
     Returns:
         pd.DataFrame: DataFrame with Date, Open, High, Low, Close, Volume columns
     """
+    ticker_symbol = _map_symbol_for_provider(symbol)
+    period, interval = _get_fetch_window_for_timeframe(timeframe)
+
     data = yf.download(
-        "^NSEI",
-        period="5d",
-        interval="1m",
+        ticker_symbol,
+        period=period,
+        interval=interval,
         auto_adjust=True,
         progress=False,
     )
@@ -28,7 +55,17 @@ def fetch_nifty_data() -> pd.DataFrame:
     data = data.dropna(how="all")
 
     if data.empty:
-        raise ValueError("No intraday data returned from yfinance for the given symbol")
+        raise ValueError(
+            f"No data returned from yfinance for symbol '{symbol}' and timeframe '{timeframe}'"
+        )
+
+    if len(data) < TARGET_CANDLES:
+        raise ValueError(
+            f"Insufficient candles for timeframe '{timeframe}'. "
+            f"Required={TARGET_CANDLES}, fetched={len(data)}"
+        )
+
+    data = data.tail(TARGET_CANDLES)
 
     # Ensure timezone-aware index for stable downstream timestamp handling
     if isinstance(data.index, pd.DatetimeIndex) and data.index.tz is None:
@@ -39,7 +76,7 @@ def fetch_nifty_data() -> pd.DataFrame:
         data.index = data.index.tz_convert("Asia/Kolkata")
 
     print(
-        f"[DATA] 1m data fetched | rows={len(data)} | "
+        f"[DATA] timeframe={timeframe} period={period} interval={interval} | rows={len(data)} | "
         f"start={data.index.min()} | end={data.index.max()}"
     )
     

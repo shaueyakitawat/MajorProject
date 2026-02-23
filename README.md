@@ -95,6 +95,31 @@ docker run -d --name option-project-api -p 8000:8000 option-project:latest
 docker rmi option-project:latest
 ```
 
+## Dhan Provider (broker_adapter)
+
+The Dhan integration is currently added in `backend/broker_adapter.py` and is not yet wired into `main.py` routes.
+
+### Required environment variables
+
+```bash
+export DHAN_ACCESS_TOKEN="<your_token>"
+export DHAN_SECURITY_ID="13"
+export DHAN_EXCHANGE_SEGMENT="IDX_I"
+export DHAN_INSTRUMENT="INDEX"
+export DHAN_INTERVAL_MIN="1"
+```
+
+### Quick adapter test (without changing API routes)
+
+```bash
+python - << 'PY'
+from backend.broker_adapter import fetch_spot
+print(fetch_spot(provider="dhan", symbol="NIFTY"))
+PY
+```
+
+If token/config is valid, this returns a payload containing `spot_price`, `provider="dhan"`, and timestamp.
+
 ## API Endpoints
 
 - `GET /` : Service running check
