@@ -286,6 +286,12 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     
     # Step 1: Fetch and prepare data
     data = fetch_nifty_data()
+    # Safety guard: current data_service still returns daily candles
+    if timeframe in ["1m", "5m", "15m", "1h"]:
+        log_event({
+            "warning": "intraday_timeframe_requested_but_daily_data_source",
+            "timeframe": timeframe
+        })
     
     # Normalize dataframe structure for timeframe consistency
     data = normalize_timeframe_dataframe(data, timeframe)
@@ -386,7 +392,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "safe_volatility": safe_volatility,
         "horizon_adjusted": horizon_adjusted_volatility,
         "expiry_adjusted": expiry_volatility,
-        "model_step": "daily",
+        "model_step": timeframe,
         "annualization": "sqrt(252)",
         "trading_horizon": trading_horizon,
         "horizon_multiplier": horizon_multiplier,
@@ -472,7 +478,9 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         strategy_strength = "WEAK"
     
     # Calculate volatility context
-    rolling_std = returns_series.std()
+    # Normalize historical std to annualized scale
+    rolling_std = returns_series.std() * (252 ** 0.5)
+    
     if vol_forecast > rolling_std * 1.3:
         volatility_context = "EXPANDING_VOL"
     elif vol_forecast < rolling_std * 0.7:
@@ -1187,8 +1195,8 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "execution_time_ms": execution_time_ms,
         
         # ========== RAW DATA ==========
-        "_data": data,
-        "_data_with_returns": data_with_returns
+        "_data": data.tail(50),
+        "_data_with_returns": data_with_returns.tail(50)
     }
 
 
