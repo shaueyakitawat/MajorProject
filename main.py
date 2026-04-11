@@ -24,7 +24,9 @@ from backend.services.pricing_service import black_scholes_price
 from backend.services.mispricing_service import detect_mispricing
 from backend.services.regime_service import classify_volatility_regime
 from backend.services.strategy_service import generate_strategy
-from backend.broker_adapter import fetch_spot, fetch_option_chain, normalize_broker_payload
+from backend.services.option_chain_service import get_spot_price, fetch_option_chain, get_atm_option
+from backend.services.implied_volatility_service import calculate_implied_volatility, classify_vol_spread
+from backend.services.backtest_service import run_backtest
 from backend.infrastructure.timeframe_config import (
     validate_timeframe,
     get_default_timeframe_for_horizon,
@@ -202,447 +204,6 @@ def validate_symbol(symbol: str) -> str:
     return symbol
 
 
-def get_live_market_data(symbol: str = "NIFTY") -> dict:
-    """
-    Fetch and normalize live market data via broker_adapter.
-
-    Args:
-        symbol: Ticker symbol to fetch (default: "NIFTY").
-
-    Returns:
-        dict: Normalized payload with shape:
-            {"spot_price": float, "option_chain": list, "timestamp": str}
-    """
-    spot = fetch_spot(symbol=symbol)
-    chain = fetch_option_chain(symbol=symbol)
-    return normalize_broker_payload(spot_payload=spot, chain_payload=chain)
-
-
-def get_live_input(symbol: str, timeframe: str) -> dict:
-    """
-    Fetch and return normalized live market data for pipeline input.
-
-    Args:
-        symbol: Ticker symbol (e.g., "NIFTY", "^NSEI").
-        timeframe: Timeframe context for the request (e.g., "5m", "daily").
-            Used for logging only; broker APIs return latest available data.
-
-    Returns:
-        dict: Normalized payload ready for ``run_pipeline`` input_data.
-            Shape: {"spot_price": float, "option_chain": list, "timestamp": str}
-
-    Raises:
-        ValueError: If broker API returns invalid or malformed data.
-    """
-    spot = fetch_spot(symbol=symbol)
-    chain = fetch_option_chain(symbol=symbol)
-    return normalize_broker_payload(spot_payload=spot, chain_payload=chain)
-
-
-def validate_live_input_data(input_data: dict) -> dict | None:
-    """
-    Validate broker input_data before feeding into pipeline.
-    
-    This function performs safe validation without raising exceptions.
-    If validation fails, returns None to trigger fallback logic.
-    
-    Validations:
-        1. spot_price exists and is positive
-        2. option_chain exists and is a non-empty list
-        3. At least one option has numeric bid and ask
-        4. At least one option has parseable expiry
-    
-    Args:
-        input_data: Broker data dict with shape:
-            {"spot_price": float, "option_chain": list, "timestamp": str}
-    
-    Returns:
-        dict: Validated input_data if all checks pass
-        None: If any validation fails (triggers fallback logic)
-    
-    Example:
-        >>> input_data = get_live_input(symbol="^NSEI", timeframe="5m")
-        >>> validated = validate_live_input_data(input_data)
-    """
-    if not isinstance(input_data, dict):
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "input_data is not a dict",
-            "type": type(input_data).__name__,
-            "fallback": "using historical data"
-        })
-        return None
-    
-    # Validation 1: spot_price exists and is positive
-    if "spot_price" not in input_data:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "missing spot_price key",
-            "keys_present": list(input_data.keys()),
-            "fallback": "using historical data"
-        })
-        return None
-    
-    try:
-        spot_price = float(input_data["spot_price"])
-        if spot_price <= 0:
-            log_event({
-                "timestamp": _utc_iso_timestamp(),
-                "event": "live_input_validation_failed",
-                "reason": "spot_price not positive",
-                "spot_price": spot_price,
-                "fallback": "using historical data"
-            })
-            return None
-    except (TypeError, ValueError) as e:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "spot_price not numeric",
-            "spot_price_raw": input_data.get("spot_price"),
-            "error": str(e),
-            "fallback": "using historical data"
-        })
-        return None
-    
-    # Validation 2: option_chain exists and is non-empty list
-    if "option_chain" not in input_data:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "missing option_chain key",
-            "keys_present": list(input_data.keys()),
-            "fallback": "using historical data"
-        })
-        return None
-    
-    option_chain = input_data["option_chain"]
-    if not isinstance(option_chain, list):
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "option_chain is not a list",
-            "type": type(option_chain).__name__,
-            "fallback": "using historical data"
-        })
-        return None
-    
-    if len(option_chain) == 0:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "option_chain is empty",
-            "fallback": "using historical data"
-        })
-        return None
-    
-    # Validation 3: At least one option has numeric bid and ask
-    has_valid_pricing = False
-    for opt in option_chain:
-        if not isinstance(opt, dict):
-            continue
-        
-        # Check various field names for bid/ask
-        bid = opt.get("bid") or opt.get("bidPrice")
-        ask = opt.get("ask") or opt.get("askPrice")
-        
-        if bid is not None and ask is not None:
-            try:
-                if float(bid) > 0 and float(ask) > 0:
-                    has_valid_pricing = True
-                    break
-            except (TypeError, ValueError):
-                continue
-
-    if not has_valid_pricing:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_failed",
-            "reason": "no options with valid numeric bid/ask found",
-            "option_chain_length": len(option_chain),
-            "fallback": "using historical data"
-        })
-        return None
-    
-    # Validation 4: At least one option has parseable expiry
-    has_parseable_expiry = False
-    for opt in option_chain:
-        if not isinstance(opt, dict):
-            continue
-        
-        expiry_fields = ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]
-        for field in expiry_fields:
-            if field in opt and opt[field] is not None:
-                expiry_value = opt[field]
-                if isinstance(expiry_value, (str, int, float)):
-                    has_parseable_expiry = True
-                    break
-        
-        if has_parseable_expiry:
-            break
-        
-        # Also check contractSymbol for embedded date
-        contract_symbol = opt.get("contractSymbol", "")
-        if isinstance(contract_symbol, str) and re.search(r'\d{6}', contract_symbol):
-            has_parseable_expiry = True
-            break
-    
-    if not has_parseable_expiry:
-        log_event({
-            "timestamp": _utc_iso_timestamp(),
-            "event": "live_input_validation_warning",
-            "reason": "no parseable expiry found in option_chain",
-            "option_chain_length": len(option_chain),
-            "note": "will use fallback expiry (0.1 years)"
-        })
-        # Don't fail validation - expiry has fallback logic
-    
-    log_event({
-        "timestamp": _utc_iso_timestamp(),
-        "event": "live_input_validation_passed",
-        "spot_price": spot_price,
-        "option_chain_length": len(option_chain),
-        "has_parseable_expiry": has_parseable_expiry
-    })
-    
-    return input_data
-
-
-def parse_option_expiry(raw_expiry) -> datetime | None:
-    """
-    Parse option expiry into UTC datetime with resilient error handling.
-    
-    This function uses python-dateutil parser for maximum flexibility and
-    never raises exceptions. Supports multiple input formats.
-    
-    Args:
-        raw_expiry: Expiry value in various formats:
-            - str: ISO date, common date formats, or YYMMDD format
-            - int/float: Unix timestamp
-            - None: Returns None
-    
-    Returns:
-        datetime: UTC timezone-aware datetime object
-        None: If parsing fails or input is None
-    
-    Example:
-        >>> expiry = parse_option_expiry("2026-03-27")
-        >>> expiry = parse_option_expiry("240327")  # YYMMDD
-        >>> expiry = parse_option_expiry(1711497600)  # Unix timestamp
-    """
-    if raw_expiry is None:
-        return None
-    
-    try:
-        if isinstance(raw_expiry, str):
-            # Try python-dateutil parser (handles most formats)
-            try:
-                expiry_dt = dateutil.parser.parse(raw_expiry)
-                # Ensure timezone-aware (assume UTC if naive)
-                if expiry_dt.tzinfo is None:
-                    expiry_dt = expiry_dt.replace(tzinfo=timezone.utc)
-                return expiry_dt
-            except (ImportError, ValueError, TypeError):
-                pass
-            
-            # Fallback to manual parsing for common formats
-            for date_format in ["%Y-%m-%d", "%Y%m%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d"]:
-                try:
-                    expiry_dt = datetime.strptime(raw_expiry, date_format)
-                    return expiry_dt.replace(tzinfo=timezone.utc)
-                except ValueError:
-                    continue
-            
-            # Try YYMMDD format (common in option symbols like "NIFTY240229C23000")
-            if len(raw_expiry) == 6 and raw_expiry.isdigit():
-                try:
-                    year = int("20" + raw_expiry[0:2])
-                    month = int(raw_expiry[2:4])
-                    day = int(raw_expiry[4:6])
-                    return datetime(year, month, day, tzinfo=timezone.utc)
-                except (ValueError, TypeError):
-                    pass
-        
-        elif isinstance(raw_expiry, (int, float)):
-            try:
-                return datetime.fromtimestamp(raw_expiry, tz=timezone.utc)
-            except (ValueError, OSError, OverflowError):
-                pass
-    
-    except Exception:
-        pass
-
-    return None
-
-
-def sanitize_volatility(vol: float, fallback_safe_volatility: float = 0.15) -> float:
-    """
-    Apply sanity filters to volatility with strict bounds.
-    
-    This function ensures volatility is within reasonable bounds after
-    EGARCH forecasting and annualization. Handles edge cases like NaN/inf.
-    
-    Args:
-        vol: Raw volatility value from EGARCH + annualization
-        fallback_safe_volatility: Fallback value if vol is NaN/infinite (default: 0.15)
-    
-    Returns:
-        float: Sanitized volatility value within [0.01, 2.0] bounds
-    
-    Rules:
-        - Floor: 0.01 (1%)
-        - Cap: 2.0 (200%)
-        - NaN/inf: Returns fallback_safe_volatility
-    
-    Example:
-        >>> sanitize_volatility(0.25)  # Returns 0.25 (valid)
-        >>> sanitize_volatility(-0.05)  # Returns 0.01 (floor)
-        >>> sanitize_volatility(3.5)  # Returns 2.0 (cap)
-        >>> sanitize_volatility(float('nan'))  # Returns 0.15 (fallback)
-    """
-    if not math.isfinite(vol):
-        return fallback_safe_volatility
-    if vol < 0.01:
-        return 0.01
-    if vol > 2.0:
-        return 2.0
-    return vol
-
-
-def select_atm_option(option_chain: list, spot: float) -> dict | None:
-    """
-    Select the at-the-money (ATM) call option from option chain.
-    
-    This function filters and selects the best ATM call option based on:
-    - Valid bid and ask prices (both must be present and numeric)
-    - Non-expired contracts
-    - Strike price closest to spot
-    
-    Args:
-        option_chain: List of option contracts (dicts)
-        spot: Current spot price (float)
-    
-    Returns:
-        dict: Selected ATM option contract with keys:
-            - "strike": float
-            - "bid": float
-            - "ask": float
-            - "expiry": str | int | float | None (if available)
-        None: If no valid contract found
-    
-    Example:
-        >>> atm = select_atm_option(option_chain, spot=23500.0)
-        >>> if atm:
-        >>>     mid_price = (atm["bid"] + atm["ask"]) / 2.0
-    """
-    if not isinstance(option_chain, list) or len(option_chain) == 0:
-        return None
-    
-    # Step 1: Filter for CALL options
-    call_options = []
-    
-    for opt in option_chain:
-        if not isinstance(opt, dict):
-            continue
-        
-        # Method 1: Check contractSymbol for 'C' indicator (e.g., "NIFTY240229C23000")
-        contract_symbol = opt.get("contractSymbol", "")
-        if isinstance(contract_symbol, str) and "C" in contract_symbol.upper():
-            # Additional validation: typically format is like "TICKER[DATE]C[STRIKE]"
-            # The 'C' should not be part of ticker name, look for pattern with digits
-            if any(char.isdigit() for char in contract_symbol):
-                call_options.append(opt)
-                continue
-        
-        # Method 2: Check explicit type field
-        opt_type = opt.get("type", "").lower() or opt.get("optionType", "").lower()
-        if opt_type == "call":
-            call_options.append(opt)
-    
-    if not call_options:
-        return None
-    
-    # Step 2: Filter for contracts with valid bid/ask and non-expired
-    now_utc = datetime.now(timezone.utc)
-    valid_contracts = []
-    
-    for opt in call_options:
-        strike = opt.get("strike") or opt.get("strikePrice")
-        if strike is None:
-            continue
-        try:
-            strike = float(strike)
-        except (TypeError, ValueError):
-            continue
-
-        bid = opt.get("bid") or opt.get("bidPrice")
-        ask = opt.get("ask") or opt.get("askPrice")
-        if bid is None or ask is None:
-            continue
-        try:
-            bid = float(bid)
-            ask = float(ask)
-        except (TypeError, ValueError):
-            continue
-
-        # Validate bid/ask are positive and spread is not inverted
-        if bid <= 0 or ask <= 0 or bid > ask:
-            continue
-
-        # Check if contract is expired
-        is_expired = False
-        expiry_value = None
-        expiry_fields = ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]
-        for field in expiry_fields:
-            if field in opt and opt[field] is not None:
-                expiry_value = opt[field]
-                break
-        expiry_dt = parse_option_expiry(expiry_value)
-        if expiry_dt is not None and expiry_dt < now_utc:
-            is_expired = True
-        if is_expired:
-            continue
-
-        valid_contracts.append({
-            "strike": strike,
-            "bid": bid,
-            "ask": ask,
-            "expiry": expiry_value,
-            "original": opt
-        })
-    
-    if not valid_contracts:
-        return None
-    
-    # Step 3: Select strike closest to spot (ATM)
-    # GUARDRAIL: Ensure closest strike selection is accurate
-    min_distance = float('inf')
-    atm_contract = None
-    
-    for contract in valid_contracts:
-        distance = abs(contract["strike"] - spot)
-        if distance < min_distance:
-            min_distance = distance
-            atm_contract = contract
-    
-    if atm_contract is None:
-        return None
-
-    # Reject if ATM strike is more than 10% from spot (data quality guard)
-    strike_deviation = abs(atm_contract["strike"] - spot) / spot
-    if strike_deviation > 0.10:
-        return None
-
-    return {
-        "strike": atm_contract["strike"],
-        "bid": atm_contract["bid"],
-        "ask": atm_contract["ask"],
-        "expiry": atm_contract["expiry"]
-    }
-
-
 # Reusable Swagger response examples
 SUCCESS_EXAMPLE = {
     "status": "success",
@@ -721,16 +282,20 @@ _DASHBOARD_COLOR: dict[str, str] = {
 
 # ========== PIPELINE ==========
 
-def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily"):
+def sanitize_volatility(vol: float, fallback_safe_volatility: float = 0.15) -> float:
+    if not math.isfinite(vol):
+        return fallback_safe_volatility
+    if vol < 0.01:
+        return 0.01
+    if vol > 2.0:
+        return 2.0
+    return vol
+
+def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily"):
     """
     Execute the complete quantitative pipeline.
 
     Args:
-        input_data: Optional normalized market data dict from broker_adapter
-            (shape: {"spot_price": float, "option_chain": list, "timestamp": str}).
-            When provided, uses live spot_price and stores option_chain for later use.
-            Historical candles are still fetched for EGARCH volatility forecasting.
-            When None, fetches all data internally via data_service (yfinance).
         symbol: Ticker symbol hint for future symbol-aware data fetching.
             Accepted and stored for forward-compatibility; data_service currently
             defaults to NIFTY 50. Default: "NIFTY".
@@ -763,41 +328,11 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
     start_time = time.perf_counter()
     request_ts = _utc_iso_timestamp()
 
-    provider_used = "live" if input_data is not None else "historical"
-    data_source_live = input_data is not None
+    provider_used = "historical"
+    data_source_live = False
     
     # Step 1: Fetch and prepare data
-    broker_spot_price = None
-    broker_option_chain = None
-    broker_data_healthy = True
-    input_data_provided = input_data is not None
-
-    if input_data is not None:
-        validated_input = validate_live_input_data(input_data)
-
-        if validated_input is not None:
-            broker_spot_price = float(validated_input["spot_price"])
-            broker_option_chain = validated_input["option_chain"]
-        else:
-            broker_data_healthy = False
-            log_event({
-                "timestamp": request_ts,
-                "event": "broker_data_validation_failed",
-                "action": "falling_back_to_historical_data",
-                "symbol": symbol,
-                "timeframe": timeframe,
-                "provider_used": "historical",
-                "data_source_live": False
-            })
-            input_data = None
-
-    if input_data_provided and broker_data_healthy:
-        live_data_health = "HEALTHY"
-    elif input_data_provided and not broker_data_healthy:
-        live_data_health = "DEGRADED"
-    else:
-        live_data_health = "NOT_APPLICABLE"
-    
+    live_data_health = "NOT_APPLICABLE"
     # Check cache (key = symbol + timeframe) before expensive data operations
     cache_key = f"{symbol}_{timeframe}"
     current_time = time.perf_counter()
@@ -860,10 +395,20 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         )
     
     # Step 2: Forecast volatility
-    vol_forecast = forecast_volatility(returns_series)
+    raw_vol = forecast_volatility(returns_series)
 
-    # Annualize to target timeframe
-    vol_forecast = apply_dynamic_annualization(vol_forecast, timeframe)
+    # Annualize to target timeframe using centralized engine
+    vol_forecast = apply_dynamic_annualization(raw_vol, timeframe)
+    
+    # Debug log: raw vs annualized
+    log_event({
+        "timestamp": request_ts,
+        "event": "volatility_scaling",
+        "raw_vol": raw_vol,
+        "annualized_vol": vol_forecast,
+        "timeframe": timeframe,
+        "scale_factor": round(vol_forecast / raw_vol, 4) if raw_vol > 0 else 0
+    })
     
     # Validation: Ensure volatility is valid type
     if not isinstance(vol_forecast, (int, float)):
@@ -878,10 +423,6 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
             status_code=500,
             detail=f"Volatility forecast is not finite: {vol_forecast}. Cannot proceed with pipeline."
         )
-
-    # Normalize volatility to decimal format if needed
-    if vol_forecast > 1:
-        vol_forecast = vol_forecast / 100
     
     # Clamp to [0.01, 2.0]; returns fallback on non-finite input
     safe_volatility = sanitize_volatility(vol_forecast, fallback_safe_volatility=0.15)
@@ -902,70 +443,60 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
 
     horizon_adjusted_volatility = safe_volatility * horizon_multiplier
     
-    # Step 3: Extract spot price
-    # Use broker live data if available, otherwise extract from historical candles
-    if broker_spot_price is not None:
-        spot = broker_spot_price
-    else:
-        spot = float(data_with_returns["Close"].iloc[-1])
-    
-    # Validation: Ensure spot price is a finite positive number
-    # NaN comparisons always return False, so `<= 0` alone does not catch NaN
-    if not math.isfinite(spot) or spot <= 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Invalid spot price: {spot}. Spot price must be a finite positive number."
-        )
-    
-    # Step 4: Calculate fair price (dynamic parameters)
-    strike = spot
-
-    # Derive time-to-expiry from chain; falls back to 0.1y
-    option_expiry_date = None
-    
-    if broker_option_chain is not None and len(broker_option_chain) > 0:
-        try:
-            # Strategy 1: explicit expiry field
-            first_option = broker_option_chain[0]
-            expiry_str = None
-
-            for field_name in ["expiration", "expirationDate", "expiry", "expiryDate", "lastExpiration"]:
-                if field_name in first_option and first_option[field_name] is not None:
-                    expiry_str = first_option[field_name]
-                    break
-
-            # Strategy 2: YYMMDD embedded in contractSymbol (e.g. "NIFTY240229C23000")
-            if expiry_str is None:
-                contract_symbol = first_option.get("contractSymbol", "")
-                if isinstance(contract_symbol, str) and len(contract_symbol) > 6:
-                    date_match = re.search(r'\d{6}', contract_symbol)
-                    if date_match:
-                        expiry_str = date_match.group(0)
-
-            if expiry_str is not None:
-                option_expiry_date = parse_option_expiry(expiry_str)
-
-                if option_expiry_date is not None:
-                    now_utc = datetime.now(timezone.utc)
-                    if option_expiry_date <= now_utc:
-                        option_expiry_date = None
-
-        except (TypeError, ValueError, KeyError, AttributeError):
-            pass
-    
-    # Calculate time to expiry in years
-    if option_expiry_date is not None:
-        now_utc = datetime.now(timezone.utc)
-        seconds_to_expiry = (option_expiry_date - now_utc).total_seconds()
+    # Step 3, 4, 5: Fetch Real Option Market Data & Calculate Fair Price
+    try:
+        # Fetch Real Live Data
+        real_spot = get_spot_price("^NSEI")
+        chain = fetch_option_chain("^NSEI")
+        atm_call = get_atm_option(chain, real_spot, "call")
+        
+        spot = real_spot
+        strike = atm_call["strike"]
+        atm_strike_selected = strike
+        market_price = atm_call["ltp"]
+        market_data_live = True
+        
+        # Log Debug info
+        log_event({
+            "timestamp": request_ts,
+            "event": "real_option_market_data",
+            "spot_price": spot,
+            "strike": strike,
+            "expiry": str(chain["expiry"]),
+            "market_price": market_price
+        })
+        
+        # Calculate time to expiry using the active chain
+        import dateutil.parser
+        import dateutil.tz
+        from datetime import datetime
+        now_local = datetime.now()
+        # Parse expiry from chain
+        expiry_dt = dateutil.parser.parse(str(chain["expiry"]))
+        if expiry_dt.tzinfo is None:
+            expiry_dt = expiry_dt.replace(tzinfo=dateutil.tz.tzlocal())
+        now_local = now_local.replace(tzinfo=dateutil.tz.tzlocal())
+        
+        seconds_to_expiry = (expiry_dt - now_local).total_seconds()
         time_to_expiry_years = max(seconds_to_expiry, 0) / (365 * 24 * 3600)
-    else:
-        time_to_expiry_years = 0.1  # temporary fallback (DO NOT REMOVE)
-    
-    expiry_live = option_expiry_date is not None
-    
-    risk_free_rate = 0.06
-    option_type = "call"
-    
+        
+    except Exception as e:
+        log_event({
+            "timestamp": request_ts,
+            "event": "live_data_fallback",
+            "error": str(e),
+            "fallback": "synthetic pricing"
+        })
+        
+        logger.warning(f"Failed to fetch real market data, utilizing synthetic fallback: {str(e)}")
+        # FALLBACK LOGIC
+        spot = float(data_with_returns["Close"].iloc[-1])
+        strike = spot
+        atm_strike_selected = strike
+        time_to_expiry_years = 0.1
+        market_price = None  # Will be assigned synthetic price after fair calculation
+        market_data_live = False
+        
     # Scale vol by sqrt(T) for Black-Scholes input
     expiry_volatility = horizon_adjusted_volatility * (time_to_expiry_years ** 0.5)
 
@@ -981,96 +512,44 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "horizon_interpretation": horizon_interpretation
     }
     
-    # Guard Black-Scholes inputs
+    # Calculate Fair Price
     pricing_integrity = True
-    
-    if expiry_volatility <= 0:
+    if expiry_volatility <= 0 or time_to_expiry_years <= 0 or spot <= 0:
         pricing_integrity = False
-    
-    if time_to_expiry_years <= 0:
-        pricing_integrity = False
-    
-    if spot <= 0:
-        pricing_integrity = False
-    
-    if pricing_integrity:
+        fair_price = 0.0
+    else:
         fair_price = black_scholes_price(
             spot=spot,
             strike=strike,
             time_to_expiry=time_to_expiry_years,
-            risk_free_rate=risk_free_rate,
+            risk_free_rate=0.06,
             volatility=expiry_volatility,
-            option_type=option_type
+            option_type="call"
         )
-    else:
-        fair_price = 0.0
-    
-    # Validation: Ensure fair price is valid
-    if fair_price <= 0 or not isinstance(fair_price, (int, float)):
-        raise HTTPException(
-            status_code=500,
-            detail=f"Invalid fair price calculation: {fair_price}. Price must be positive."
-        )
-    
-    # Step 5: Determine market price from option chain or fallback
-    option_mid_price = None
-    atm_strike_selected = None
-
-    if broker_option_chain is not None and len(broker_option_chain) > 0:
-        # select_atm_option filters by bid/ask validity, expiry, and strike proximity
-        try:
-            atm_option = select_atm_option(broker_option_chain, spot)
-
-            if atm_option is not None:
-                bid = atm_option["bid"]
-                ask = atm_option["ask"]
-                atm_strike_selected = atm_option["strike"]
-                option_mid_price = (bid + ask) / 2.0
-
-                log_event({
-                        "timestamp": request_ts,
-                        "event": "atm_option_selected",
-                        "strike": atm_option["strike"],
-                        "bid": bid,
-                        "ask": ask,
-                        "mid_price": option_mid_price,
-                        "spot": spot,
-                        "timeframe_used": timeframe,
-                        "provider_used": provider_used,
-                        "data_source_live": data_source_live
-                    })
-            else:
-                log_event({
-                    "timestamp": request_ts,
-                    "event": "no_valid_atm_option",
-                    "reason": "no contracts passed filters (bid/ask/expiry)",
-                    "option_chain_length": len(broker_option_chain),
-                    "spot": spot,
-                    "fallback": "using fair_price * 1.03",
-                    "timeframe_used": timeframe,
-                    "provider_used": provider_used,
-                    "data_source_live": data_source_live
-                })
         
-        except (TypeError, ValueError, KeyError, AttributeError) as e:
-            log_event({
-                "timestamp": request_ts,
-                "event": "option_chain_extraction_failed",
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "fallback": "using fair_price * 1.03",
-                "timeframe_used": timeframe,
-                "provider_used": provider_used,
-                "data_source_live": data_source_live
-            })
+    if fair_price <= 0 or not isinstance(fair_price, (int, float)):
+        raise HTTPException(status_code=500, detail=f"Invalid fair price: {fair_price}")
+        
+    # Set fallback market price ONLY if we are in fallback mode
+    if market_price is None:
+        market_price = fair_price * 1.03
     
-    if option_mid_price is not None:
-        market_price = option_mid_price
-    else:
-        market_price = fair_price * 1.03  # temporary fallback ONLY
+    # Step 5b: Implied Volatility & Vol Spread Signal
+    iv = calculate_implied_volatility(
+        S=spot, K=strike, T=time_to_expiry_years,
+        r=0.06, market_price=market_price, option_type="call"
+    )
+    vol_spread, vol_signal = classify_vol_spread(iv, safe_volatility)
     
-    market_data_live = option_mid_price is not None
-    
+    log_event({
+        "timestamp": request_ts,
+        "event": "iv_comparison",
+        "implied_volatility": iv,
+        "egarch_volatility": safe_volatility,
+        "vol_spread": vol_spread,
+        "vol_signal": vol_signal
+    })
+        
     mispricing_result = detect_mispricing(market_price, fair_price)
     
     # Step 6: Classify volatility regime
@@ -1665,7 +1144,7 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "pricing_integrity": pricing_integrity,
         "market_price": market_price,
         "market_data_live": market_data_live,
-        "expiry_live": expiry_live,
+        "expiry_live": market_data_live,
         "mispricing": mispricing_result,
         "regime": regime,
         "regime_score": regime_score,
@@ -1677,6 +1156,12 @@ def run_pipeline(input_data: dict = None, symbol: str = "NIFTY", trading_horizon
         "strategy_strength": strategy_strength,
         "strategy_category": strategy_category,
         "strategy_urgency": strategy_urgency,
+        
+        # ========== IMPLIED VOLATILITY SIGNAL ==========
+        "implied_volatility": iv,
+        "forecasted_volatility": safe_volatility,
+        "vol_spread": vol_spread,
+        "vol_signal": vol_signal,
         
         # ========== ANALYTICS SUMMARY & FLAGS ==========
         "analytics_summary": analytics_summary,
@@ -2088,25 +1573,14 @@ def get_regime(
 def get_strategy(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
     trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
-    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly"),
-    provider: str = Query(default=None, description="Data provider: dhan for live broker data, None for historical data")
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
 ):
     start = time.perf_counter()
     record_request("/strategy")
     try:
         symbol = validate_symbol(symbol)
         
-        # Use live broker data if provider is specified
-        if provider == "dhan":
-            live_input = get_live_input(symbol=symbol, timeframe=timeframe or "daily")
-            result = run_pipeline(
-                input_data=live_input,
-                symbol=symbol,
-                trading_horizon=trading_horizon,
-                timeframe=timeframe
-            )
-        else:
-            result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
+        result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/strategy", "ok", duration_ms)
         record_result("/strategy", "ok", duration_ms, None)
@@ -2120,11 +1594,15 @@ def get_strategy(
             "strategy": result["strategy"],
             "model_info": result.get("model_info"),
             "analytics_summary": result.get("analytics_summary"),
-            "pipeline_health": result.get("pipeline_health")
+            "pipeline_health": result.get("pipeline_health"),
+            "implied_volatility": result.get("implied_volatility"),
+            "forecasted_volatility": result.get("forecasted_volatility"),
+            "vol_spread": result.get("vol_spread"),
+            "vol_signal": result.get("vol_signal")
         }, meta={
             "execution_time_ms": duration_ms,
             "timeframe_used": result["pipeline_trace"]["timeframe_used"],
-            "provider": provider if provider else "historical"
+            "provider": "historical"
         })
 
     except ValueError as e:
@@ -2136,4 +1614,112 @@ def get_strategy(
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/strategy", "error", duration_ms, str(e))
         record_result("/strategy", "error", duration_ms, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(
+    "/debug-option",
+    summary="Debug Option Chain Fetching",
+    description="Fetch live spot price, closest expiry, and ATM call/put details directly from yfinance.",
+    tags=["System"]
+)
+def debug_option(
+    symbol: str = Query(default="^NSEI", min_length=1, max_length=20, description="Market symbol")
+):
+    start = time.perf_counter()
+    record_request("/debug-option")
+    try:
+        spot_price = get_spot_price(symbol)
+        chain = fetch_option_chain(symbol)
+        atm_call = get_atm_option(chain, spot_price, "call")
+        atm_put = get_atm_option(chain, spot_price, "put")
+        
+        # Compute expiry T for IV solver
+        import dateutil.parser as _dp
+        _expiry_dt = _dp.parse(str(chain["expiry"]))
+        _now = datetime.now(timezone.utc)
+        if _expiry_dt.tzinfo is None:
+            _expiry_dt = _expiry_dt.replace(tzinfo=timezone.utc)
+        _T = max((_expiry_dt - _now).total_seconds(), 0) / (365 * 24 * 3600)
+        
+        # Run EGARCH for comparison (quick pipeline call)
+        from backend.services.data_service import fetch_nifty_data, compute_log_returns
+        from backend.services.volatility_service import forecast_volatility
+        _data = fetch_nifty_data(symbol="NIFTY", timeframe="daily")
+        _returns = compute_log_returns(_data)["log_return"]
+        _egarch_vol = forecast_volatility(_returns)
+        _egarch_vol = apply_dynamic_annualization(_egarch_vol, "daily")
+        _egarch_vol = max(0.01, min(2.0, _egarch_vol))
+        
+        # Solve IV for the call
+        _iv = calculate_implied_volatility(
+            S=spot_price, K=atm_call["strike"], T=_T,
+            r=0.06, market_price=atm_call["ltp"], option_type="call"
+        )
+        _vol_spread, _vol_signal = classify_vol_spread(_iv, _egarch_vol)
+        
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/debug-option", "ok", duration_ms)
+        record_result("/debug-option", "ok", duration_ms, None)
+        
+        return build_success_response({
+            "spot_price": spot_price,
+            "expiry": str(chain["expiry"]),
+            "atm_call": {
+                "strike": atm_call["strike"],
+                "ltp": atm_call["ltp"],
+                "iv": atm_call["iv"]
+            },
+            "atm_put": {
+                "strike": atm_put["strike"],
+                "ltp": atm_put["ltp"],
+                "iv": atm_put["iv"]
+            },
+            "implied_volatility": _iv,
+            "egarch_vol": _egarch_vol,
+            "vol_spread": _vol_spread,
+            "vol_signal": _vol_signal
+        })
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/debug-option", "error", duration_ms, str(e))
+        record_result("/debug-option", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/debug-option", "error", duration_ms, str(e))
+        record_result("/debug-option", "error", duration_ms, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(
+    "/backtest",
+    summary="Walk-Forward Backtest",
+    description=(
+        "Run a statistically sound walk-forward backtest that validates the composite "
+        "trading signal across different timeframes. Uses rolling EGARCH volatility, "
+        "Black-Scholes pricing, and implied volatility comparison. "
+        "Returns Sharpe ratio, t-statistic, hit rate, and number of trades."
+    ),
+    tags=["Pipeline"]
+)
+def backtest_endpoint(
+    symbol: str = Query(default="^NSEI", description="Market symbol"),
+    timeframe: str = Query(default="1d", description="Timeframe: 1m, 5m, 15m, 1d")
+):
+    start = time.perf_counter()
+    record_request("/backtest")
+    try:
+        result = run_backtest(symbol=symbol, timeframe=timeframe)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/backtest", "ok", duration_ms)
+        record_result("/backtest", "ok", duration_ms, None)
+        return build_success_response(result, meta={"execution_time_ms": duration_ms})
+    except ValueError as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/backtest", "error", duration_ms, str(e))
+        record_result("/backtest", "error", duration_ms, str(e))
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        log_endpoint_result("/backtest", "error", duration_ms, str(e))
+        record_result("/backtest", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))
