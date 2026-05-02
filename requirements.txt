@@ -10,4 +10,4 @@ uvicorn
 python-dateutil
 py_vollib
 pytz
-dhanhq
+requests

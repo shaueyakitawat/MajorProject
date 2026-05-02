@@ -1,24 +1,19 @@
+"""
+Upstox-based option chain data service.
+Fetches NIFTY 50 option chain data via Upstox API.
+"""
+
 import os
 import datetime as dt
 import logging
 import math
+import json
 from typing import Any
-from pathlib import Path
 
 import dateutil.parser
 import requests
 
 logger = logging.getLogger(__name__)
-
-# Load .env file
-env_file = Path(__file__).parent.parent.parent / ".env"
-if env_file.exists():
-    with open(env_file) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                os.environ[key.strip()] = value.strip()
 
 UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
 UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY")
@@ -27,7 +22,7 @@ UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY")
 UPSTOX_API_BASE = "https://api.upstox.com/v2"
 
 if not UPSTOX_ACCESS_TOKEN:
-    logger.warning("UPSTOX_ACCESS_TOKEN not set. Configure it via: python scripts/upstox_token.py")
+    logger.warning("UPSTOX_ACCESS_TOKEN not set. Option chain features may not work.")
 
 
 class OptionChainFetchError(Exception):
@@ -40,7 +35,7 @@ _CHAIN_CACHE: dict[str, tuple[dict, dt.datetime]] = {}
 def _make_upstox_request(endpoint: str, params: dict | None = None) -> dict:
     """Make an authenticated request to Upstox API."""
     if not UPSTOX_ACCESS_TOKEN:
-        raise OptionChainFetchError("UPSTOX_ACCESS_TOKEN not configured. Run: python scripts/upstox_token.py")
+        raise OptionChainFetchError("UPSTOX_ACCESS_TOKEN is not configured")
 
     url = f"{UPSTOX_API_BASE}{endpoint}"
     headers = {
@@ -80,112 +75,99 @@ def _parse_int(value: Any) -> int | None:
 
 
 def _get_nifty_spot_price() -> float:
-    """Fetch current NIFTY 50 spot price from yfinance."""
+    """Fetch current NIFTY 50 spot price from Upstox."""
     try:
-        import yfinance as yf
-        # Use yfinance for reliable spot price (faster than fixing Upstox API)
-        nifty = yf.Ticker("^NSEI")
-        data = nifty.history(period="1d")
-        spot = float(data['Close'].iloc[-1]) if not data.empty else None
+        # NIFTY 50 instrument key in Upstox
+        data = _make_upstox_request("/market-quote/quotes/", params={
+            "mode": "LTP",
+            "instrumentKeys": "NIFTY_INDEX"
+        })
         
-        if spot is not None:
-            logger.info(f"NIFTY spot from yfinance: ₹{spot}")
-            return spot
+        if data.get("status") == "success" and "data" in data:
+            quotes = data["data"].get("instrumentQuotes", {})
+            if quotes:
+                # Get the first (and typically only) quote
+                quote_data = list(quotes.values())[0] if isinstance(quotes, dict) else None
+                if quote_data and "ltp" in quote_data:
+                    spot = _parse_float(quote_data["ltp"])
+                    if spot is not None:
+                        return spot
         
-        raise OptionChainFetchError("Could not fetch NIFTY spot price")
+        raise OptionChainFetchError("Could not fetch NIFTY spot price from Upstox")
     except Exception as exc:
         raise OptionChainFetchError(f"Failed to get NIFTY spot price: {exc}") from exc
+
+
+def _get_option_instruments(symbol: str = "NIFTY") -> list[dict]:
+    """
+    Fetch available option instruments for the given symbol.
+    Returns list of option instrument details.
+    """
+    try:
+        # Search for options on the symbol
+        data = _make_upstox_request("/search/", params={
+            "q": f"{symbol} options",
+            "instrumentType": "optionchain"
+        })
+        
+        if data.get("status") == "success" and "data" in data:
+            return data["data"]
+        
+        return []
+    except Exception as exc:
+        logger.warning(f"Could not fetch option instruments: {exc}")
+        return []
 
 
 def _fetch_nifty_option_quotes(expiry_date: str | None = None) -> list[dict]:
     """
     Fetch NIFTY option quotes from Upstox.
-    Calls /option/chain endpoint with correct instrument key and expiry.
+    Groups all available NIFTY options and their quotes.
     """
     try:
-        # Use default expiry if none provided
-        if not expiry_date:
-            expiry_date = "2026-05-05"  # Next Tuesday (has data)
-        
-        # Correct instrument key: "NSE_INDEX|Nifty 50" (with space!)
-        data = _make_upstox_request("/option/chain", params={
-            "instrument_key": "NSE_INDEX|Nifty 50",
-            "expiry_date": expiry_date
+        # Try to get all NIFTY option quotes
+        # Upstox groups options by underlying
+        data = _make_upstox_request("/market-quote/quotes/", params={
+            "mode": "FULL",
+            "instrumentKeys": "NIFTY_OPTIONS"
         })
         
         if data.get("status") == "success" and "data" in data:
-            chain_data = data["data"]
+            quotes = data["data"].get("instrumentQuotes", {})
             options = []
             
-            # API returns array where each item is one STRIKE
-            if not isinstance(chain_data, list):
-                logger.warning(f"Unexpected response format: {type(chain_data)}")
-                return []
-            
-            for strike_item in chain_data:
-                if not isinstance(strike_item, dict):
+            for instrument_key, quote in quotes.items():
+                if not isinstance(quote, dict):
                     continue
                 
+                # Parse the instrument key to get strike, expiry, type
+                # Typical format: NIFTY25000PE20250529 or similar
                 try:
-                    strike_price = strike_item.get("strike_price")
-                    if not strike_price:
-                        continue
-                    
-                    # Extract call option data
-                    call_data = strike_item.get("call_options", {})
-                    if call_data and "market_data" in call_data:
-                        call_market = call_data["market_data"]
-                        call_greeks = call_data.get("option_greeks", {})
+                    # Extract info from quote metadata if available
+                    if "instrumentToken" in quote and "metadata" in quote:
+                        metadata = quote["metadata"]
                         options.append({
-                            "strike": strike_price,
-                            "expiry": expiry_date,
-                            "option_type": "CE",
-                            "instrument_key": call_data.get("instrument_key", ""),
-                            "ltp": call_market.get("ltp"),
-                            "oi": call_market.get("oi"),
-                            "volume": call_market.get("volume"),
-                            "bid": call_market.get("bid_price"),
-                            "ask": call_market.get("ask_price"),
-                            "iv": call_greeks.get("iv"),
-                            "delta": call_greeks.get("delta"),
-                            "gamma": call_greeks.get("gamma"),
-                            "theta": call_greeks.get("theta"),
-                            "vega": call_greeks.get("vega"),
-                        })
-                    
-                    # Extract put option data
-                    put_data = strike_item.get("put_options", {})
-                    if put_data and "market_data" in put_data:
-                        put_market = put_data["market_data"]
-                        put_greeks = put_data.get("option_greeks", {})
-                        options.append({
-                            "strike": strike_price,
-                            "expiry": expiry_date,
-                            "option_type": "PE",
-                            "instrument_key": put_data.get("instrument_key", ""),
-                            "ltp": put_market.get("ltp"),
-                            "oi": put_market.get("oi"),
-                            "volume": put_market.get("volume"),
-                            "bid": put_market.get("bid_price"),
-                            "ask": put_market.get("ask_price"),
-                            "iv": put_greeks.get("iv"),
-                            "delta": put_greeks.get("delta"),
-                            "gamma": put_greeks.get("gamma"),
-                            "theta": put_greeks.get("theta"),
-                            "vega": put_greeks.get("vega"),
+                            "instrument_key": instrument_key,
+                            "strike": metadata.get("strikePrice"),
+                            "expiry": metadata.get("expiryDate"),
+                            "option_type": metadata.get("optionType"),
+                            "ltp": quote.get("ltp"),
+                            "oi": quote.get("oi"),
+                            "volume": quote.get("volume"),
+                            "bid": quote.get("bid"),
+                            "ask": quote.get("ask"),
+                            "bid_qty": quote.get("bidQty"),
+                            "ask_qty": quote.get("askQty"),
                         })
                 except Exception as e:
-                    logger.debug(f"Could not parse strike {strike_item.get('strike_price')}: {e}")
+                    logger.debug(f"Could not parse option quote {instrument_key}: {e}")
                     continue
             
-            logger.info(f"Fetched {len(options)} options for NIFTY expiry {expiry_date}")
             return options
         
-        logger.warning(f"Upstox API error: {data.get('status')}")
         return []
     except Exception as exc:
-        logger.warning(f"Could not fetch options from Upstox: {exc}")
-        return []
+        raise OptionChainFetchError(f"Failed to fetch NIFTY options: {exc}") from exc
 
 
 def _extract_expiries(options: list[dict]) -> list[str]:
@@ -209,7 +191,7 @@ def _select_expiry(expiries: list[str], requested: str | None) -> str:
     if requested and requested in expiries:
         return requested
     if not expiries:
-        raise OptionChainFetchError("No expiry dates found in Upstox data")
+        raise OptionChainFetchError("No expiry dates found")
     
     today = dt.date.today()
     future_expiries = [exp for exp in expiries if dateutil.parser.parse(exp).date() >= today]
@@ -218,12 +200,12 @@ def _select_expiry(expiries: list[str], requested: str | None) -> str:
     return expiries[-1]
 
 
-def _normalize_chain(options: list[dict], selected_expiry: str) -> list[dict]:
+def _normalize_option_chain(options: list[dict], selected_expiry: str) -> list[dict]:
     """
     Normalize option data into chain format.
     Groups by strike and combines call/put data.
     """
-    chain_map: dict[int, dict] = {}
+    chain_map: dict[float, dict] = {}
     
     for option in options:
         # Filter by expiry
@@ -259,16 +241,20 @@ def _normalize_chain(options: list[dict], selected_expiry: str) -> list[dict]:
         ltp = _parse_float(option.get("ltp"))
         oi = _parse_int(option.get("oi"))
         volume = _parse_int(option.get("volume"))
+        
+        # Calculate IV if not provided (can use Black-Scholes inverse)
         iv = _parse_float(option.get("iv"))
         
         if ltp is None or oi is None:
             continue
         
+        # Handle missing volume/iv
         if volume is None:
             volume = 0
         if iv is None:
             iv = 0.25  # Default IV estimate
         
+        # Build chain entry
         entry = chain_map.setdefault(strike, {"strike": strike})
         entry[leg] = {
             "ltp": ltp,
@@ -296,13 +282,13 @@ def _normalize_chain(options: list[dict], selected_expiry: str) -> list[dict]:
 def get_spot_price(symbol: str = "NIFTY") -> float:
     """Get current spot price of the underlying."""
     if symbol.upper() != "NIFTY":
-        raise ValueError("Only NIFTY spot is supported via Upstox")
+        raise ValueError("Only NIFTY spot is supported")
     return _get_nifty_spot_price()
 
 
 def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 20) -> dict:
     """
-    Fetch complete NIFTY option chain from Upstox.
+    Fetch complete NIFTY option chain.
     
     Returns:
         dict with keys:
@@ -321,50 +307,38 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
     if cached is not None:
         cached_data, cached_time = cached
         if (now - cached_time).total_seconds() < 15:
-            logger.info(f"Using cached chain (age: {(now - cached_time).total_seconds():.1f}s)")
+            logger.info(f"Returning cached chain data (age: {(now - cached_time).total_seconds():.1f}s)")
             return cached_data
     
-    logger.info(f"Fetching NIFTY option chain from Upstox (expiry={expiry_date})")
+    logger.info(f"Fetching fresh NIFTY option chain from Upstox (expiry={expiry_date})")
     
     # Get spot price
     spot = _get_nifty_spot_price()
+    logger.info(f"NIFTY spot price: {spot}")
     
     # Fetch option quotes
     options = _fetch_nifty_option_quotes(expiry_date)
     if not options:
-        logger.warning("No option quotes from Upstox, using empty chain")
-        options = []
+        raise OptionChainFetchError("No option data fetched from Upstox")
     
     # Extract and select expiry
-    expiries = _extract_expiries(options) if options else []
-    
+    expiries = _extract_expiries(options)
     if not expiries:
-        # Return minimal valid response even without data
-        logger.warning("No expiry dates found, returning default response")
-        result = {
-            "spot_price": spot,
-            "atm_strike": None,
-            "expiry_date": None,
-            "available_expiries": [],
-            "pcr": 0,
-            "chain": [],
-            "timestamp": dt.datetime.now().isoformat()
-        }
-        return result
+        raise OptionChainFetchError("Could not extract expiry dates")
     
     selected_expiry = _select_expiry(expiries, expiry_date)
     logger.info(f"Using expiry: {selected_expiry} (available: {expiries})")
     
     # Normalize chain
-    chain_list = _normalize_chain(options, selected_expiry)
+    chain_list = _normalize_option_chain(options, selected_expiry)
     logger.info(f"Normalized {len(chain_list)} strikes")
     
     # Get ATM strike
     strikes = [entry["strike"] for entry in chain_list]
-    atm_strike = min(strikes, key=lambda k: abs(k - spot)) if strikes else None
+    atm_strike = min(strikes, key=lambda k: abs(k - spot))
     
     # Apply depth filter
-    if depth and depth > 0 and atm_strike:
+    if depth and depth > 0:
         half_depth = depth // 2
         try:
             atm_idx = strikes.index(atm_strike)
@@ -385,7 +359,7 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
     else:
         pcr = 0
     
-    logger.info(f"PCR: {pcr} | Call OI: {total_call_oi} | Put OI: {total_put_oi}")
+    logger.info(f"PCR: {pcr} (Call OI: {total_call_oi}, Put OI: {total_put_oi})")
     
     result = {
         "spot_price": spot,
@@ -417,30 +391,21 @@ def get_available_expiries(symbol: str = "NIFTY") -> list[str]:
     options = _fetch_nifty_option_quotes()
     expiries = _extract_expiries(options)
     if not expiries:
-        raise OptionChainFetchError("Could not fetch expiries from Upstox")
+        raise OptionChainFetchError("Could not fetch expiries")
     return expiries
 
 
-def get_atm_option(chain_dict: dict, spot_price: float, option_type: str = "call") -> dict:
-    """Get ATM option from chain dict."""
-    chain_list = chain_dict.get("chain", [])
-    if not chain_list:
-        raise ValueError("Option chain is empty")
-
-    closest = min(chain_list, key=lambda x: abs(x["strike"] - spot_price))
-    if option_type == "call":
-        data = closest.get("call")
-    else:
-        data = closest.get("put")
-
-    if not data:
-        raise ValueError("ATM option data missing")
-
-    return {
-        "strike": closest["strike"],
-        "price": data["ltp"],
-        "ltp": data["ltp"],
-        "iv": data["iv"]
-    }
-
-
+def get_atm_option(symbol: str = "NIFTY", expiry: str | None = None, option_type: str = "CE") -> dict:
+    """Get ATM option for the given symbol and expiry."""
+    data = get_full_chain(symbol, expiry)
+    atm_strike = data["atm_strike"]
+    
+    # Find ATM strike in chain
+    for entry in data["chain"]:
+        if entry["strike"] == atm_strike:
+            if option_type.upper() == "CE":
+                return {**entry["call"], "strike": atm_strike, "expiry": data["expiry_date"]}
+            else:
+                return {**entry["put"], "strike": atm_strike, "expiry": data["expiry_date"]}
+    
+    raise OptionChainFetchError(f"ATM {option_type} not found")

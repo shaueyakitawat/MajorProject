@@ -4,6 +4,17 @@ import os
 import sys
 import urllib.parse
 import urllib.request
+from pathlib import Path
+
+# Load .env file
+env_file = Path(__file__).parent.parent / ".env"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                os.environ[key.strip()] = value.strip()
 
 TOKEN_URL = "https://api-v2.upstox.com/login/authorization/token"
 

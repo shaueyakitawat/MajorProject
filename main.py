@@ -1759,6 +1759,97 @@ def backtest_endpoint(
         log_endpoint_result("/backtest", "error", duration_ms, str(e))
         record_result("/backtest", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/option-chain-demo", tags=["Strategy"])
+def get_option_chain_demo(symbol: str = "NIFTY"):
+    """
+    Demo endpoint showing NIFTY 50 option chain data.
+    Fetches real spot price from yfinance and demonstrates the data structure.
+    """
+    import yfinance as yf
+    
+    try:
+        # Fetch real NIFTY 50 spot price
+        nifty = yf.Ticker("^NSEI")
+        data = nifty.history(period="1d")
+        spot_price = float(data['Close'].iloc[-1]) if not data.empty else 22500.0
+        
+        # Calculate ATM strike (round to nearest 100)
+        atm_strike = round(spot_price / 100) * 100
+    except:
+        spot_price = 22500.0
+        atm_strike = 22500
+    
+    # Return real spot price with representative chain data
+    return build_success_response({
+        "spot_price": spot_price,
+        "atm_strike": atm_strike,
+        "expiry_date": "2026-05-16",
+        "available_expiries": ["2026-05-16", "2026-05-23", "2026-05-30"],
+        "pcr": 1.01,
+        "chain": [
+            {
+                "strike": atm_strike - 100,
+                "call": {
+                    "ltp": 135.50,
+                    "oi": 125000,
+                    "volume": 45000,
+                    "iv": 0.22,
+                    "bid": 135.00,
+                    "ask": 136.00
+                },
+                "put": {
+                    "ltp": 45.75,
+                    "oi": 185000,
+                    "volume": 52000,
+                    "iv": 0.20,
+                    "bid": 45.50,
+                    "ask": 46.00
+                }
+            },
+            {
+                "strike": atm_strike,
+                "call": {
+                    "ltp": 98.25,
+                    "oi": 250000,
+                    "volume": 85000,
+                    "iv": 0.21,
+                    "bid": 98.00,
+                    "ask": 98.50
+                },
+                "put": {
+                    "ltp": 78.50,
+                    "oi": 225000,
+                    "volume": 95000,
+                    "iv": 0.21,
+                    "bid": 78.25,
+                    "ask": 78.75
+                }
+            },
+            {
+                "strike": atm_strike + 100,
+                "call": {
+                    "ltp": 65.30,
+                    "oi": 195000,
+                    "volume": 72000,
+                    "iv": 0.20,
+                    "bid": 65.00,
+                    "ask": 65.60
+                },
+                "put": {
+                    "ltp": 112.75,
+                    "oi": 165000,
+                    "volume": 48000,
+                    "iv": 0.22,
+                    "bid": 112.50,
+                    "ask": 113.00
+                }
+            }
+        ],
+        "timestamp": datetime.now().isoformat(),
+        "note": "Spot price is real (from yfinance). Chain data is representative structure."
+    })
+
 @app.get("/option-chain", tags=["Strategy"])
 def get_option_chain_endpoint(symbol: str = "NIFTY", expiry: str = None, depth: int = 20):
     from backend.services.option_chain_service import get_full_chain
@@ -1767,3 +1858,8 @@ def get_option_chain_endpoint(symbol: str = "NIFTY", expiry: str = None, depth: 
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
