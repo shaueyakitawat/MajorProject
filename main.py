@@ -291,7 +291,7 @@ def sanitize_volatility(vol: float, fallback_safe_volatility: float = 0.15) -> f
         return 2.0
     return vol
 
-def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily"):
+def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: str = "daily", expiry: str = None, expiry_type: str = "nearest"):
     """
     Execute the complete quantitative pipeline.
 
@@ -444,17 +444,21 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     horizon_adjusted_volatility = safe_volatility * horizon_multiplier
     
     # Step 3, 4, 5: Fetch Real Option Market Data & Calculate Fair Price
+    selected_expiry = None
+    available_expiries = []
     try:
         # Fetch Real Live Data
-        real_spot = get_spot_price("^NSEI")
-        chain = fetch_option_chain("^NSEI")
+        real_spot = get_spot_price("NIFTY")
+        chain = fetch_option_chain("NIFTY", expiry=expiry, expiry_type=expiry_type)
         atm_call = get_atm_option(chain, real_spot, "call")
         
         spot = real_spot
         strike = atm_call["strike"]
         atm_strike_selected = strike
-        market_price = atm_call["ltp"]
+        market_price = atm_call["price"]
         market_data_live = True
+        selected_expiry = chain.get("selected_expiry", chain.get("expiry"))
+        available_expiries = chain.get("available_expiries", [])
         
         # Log Debug info
         log_event({
@@ -462,7 +466,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
             "event": "real_option_market_data",
             "spot_price": spot,
             "strike": strike,
-            "expiry": str(chain["expiry"]),
+            "expiry": selected_expiry,
             "market_price": market_price
         })
         
@@ -496,6 +500,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         time_to_expiry_years = 0.1
         market_price = None  # Will be assigned synthetic price after fair calculation
         market_data_live = False
+        selected_expiry = "synthetic_fallback"
         
     # Scale vol by sqrt(T) for Black-Scholes input
     expiry_volatility = horizon_adjusted_volatility * (time_to_expiry_years ** 0.5)
@@ -1139,6 +1144,8 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         
         # ========== CORE ANALYTICS RESULTS ==========
         "spot_price": spot,
+        "selected_expiry": selected_expiry,
+        "available_expiries": available_expiries,
         "forecast_volatility": vol_forecast,
         "fair_price": fair_price,
         "pricing_integrity": pricing_integrity,
@@ -1573,18 +1580,22 @@ def get_regime(
 def get_strategy(
     symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol (e.g., NIFTY)"),
     trading_horizon: str = Query(default=None, description="Trading horizon: day_trader, positional, or long_term"),
-    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly")
+    timeframe: str = Query(default=None, description="Supported timeframes: 1m, 5m, 15m, 1h, daily, weekly"),
+    expiry: str = Query(default=None, description="Specific expiry date (YYYY-MM-DD)"),
+    expiry_type: str = Query(default="nearest", description="Selection type if expiry not provided: nearest, weekly, monthly")
 ):
     start = time.perf_counter()
     record_request("/strategy")
     try:
         symbol = validate_symbol(symbol)
         
-        result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
+        result = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe, expiry=expiry, expiry_type=expiry_type)
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/strategy", "ok", duration_ms)
         record_result("/strategy", "ok", duration_ms, None)
         return build_success_response({
+            "selected_expiry": result.get("selected_expiry"),
+            "available_expiries": result.get("available_expiries"),
             "spot_price": result["spot_price"],
             "forecast_volatility": result["forecast_volatility"],
             "fair_price": result["fair_price"],
@@ -1623,13 +1634,15 @@ def get_strategy(
     tags=["System"]
 )
 def debug_option(
-    symbol: str = Query(default="^NSEI", min_length=1, max_length=20, description="Market symbol")
+    symbol: str = Query(default="NIFTY", min_length=1, max_length=20, description="Market symbol"),
+    expiry: str = Query(default=None, description="Specific expiry date (YYYY-MM-DD)"),
+    expiry_type: str = Query(default="nearest", description="Selection type: nearest, weekly, monthly")
 ):
     start = time.perf_counter()
     record_request("/debug-option")
     try:
         spot_price = get_spot_price(symbol)
-        chain = fetch_option_chain(symbol)
+        chain = fetch_option_chain(symbol, expiry=expiry, expiry_type=expiry_type)
         atm_call = get_atm_option(chain, spot_price, "call")
         atm_put = get_atm_option(chain, spot_price, "put")
         
@@ -1690,6 +1703,29 @@ def debug_option(
         record_result("/debug-option", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get(
+    "/expiries",
+    summary="Fetch Available Expiries",
+    description="Returns all available option expiry dates for the given symbol.",
+    tags=["Market Data"]
+)
+def get_available_expiries(
+    symbol: str = Query(default="NIFTY", description="Market symbol")
+):
+    try:
+        symbol = validate_symbol(symbol)
+        from backend.services.option_chain_service import get_available_expiries
+        expiries = get_available_expiries(symbol)
+        return build_success_response({
+            "symbol": symbol,
+            "available_expiries": expiries
+        })
+    except ValueError as e:
+        return error_json(str(e), status_code=400)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get(
     "/backtest",
     summary="Walk-Forward Backtest",
@@ -1722,4 +1758,12 @@ def backtest_endpoint(
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/backtest", "error", duration_ms, str(e))
         record_result("/backtest", "error", duration_ms, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/option-chain", tags=["Strategy"])
+def get_option_chain_endpoint(symbol: str = "NIFTY", expiry: str = None, depth: int = 20):
+    from backend.services.option_chain_service import get_full_chain
+    try:
+        return get_full_chain(symbol=symbol, expiry_date=expiry, depth=depth)
+    except Exception as e:
+        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))

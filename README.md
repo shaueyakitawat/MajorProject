@@ -120,6 +120,25 @@ PY
 
 If token/config is valid, this returns a payload containing `spot_price`, `provider="dhan"`, and timestamp.
 
+## Upstox (auth + access token)
+
+Add these values to .env (do not commit your real secrets):
+
+```bash
+UPSTOX_API_KEY="<your_api_key>"
+UPSTOX_API_SECRET="<your_api_secret>"
+UPSTOX_REDIRECT_URI="http://localhost:8000/callback"
+UPSTOX_ACCESS_TOKEN="<fill_after_exchange>"
+```
+
+Exchange the one-time authorization code for an access token:
+
+```bash
+python scripts/upstox_token.py --code "<authorization_code>"
+```
+
+Copy the `access_token` from the output into `UPSTOX_ACCESS_TOKEN` in .env.
+
 ## API Endpoints
 
 - `GET /` : Service running check
