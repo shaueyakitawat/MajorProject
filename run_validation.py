@@ -26,7 +26,6 @@ from backend.services.option_chain_service import get_spot_price, fetch_option_c
 from backend.services.volatility_service import forecast_volatility
 from backend.services.pricing_service import black_scholes_price
 from backend.services.implied_volatility_service import calculate_implied_volatility
-from backend.infrastructure.annualization_engine import apply_dynamic_annualization
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -131,12 +130,15 @@ def audit_vol_layer(data: dict) -> tuple[str, dict]:
     ohlcv = ohlcv.dropna(how="all")
     log_ret = np.log(ohlcv["Close"] / ohlcv["Close"].shift(1)).dropna()
 
-    raw_vol = forecast_volatility(log_ret)
-    egarch_vol = apply_dynamic_annualization(raw_vol, TIMEFRAME)
-    egarch_vol = max(0.01, min(2.0, egarch_vol))
+    vol_payload = forecast_volatility(log_ret, price_series_5min=ohlcv["Close"])
+    egarch_vol = max(0.01, min(2.0, vol_payload["final_vol"]))
 
-    print(f"  Raw EGARCH:     {raw_vol:.6f}")
-    print(f"  Annualized:     {egarch_vol:.4f} ({egarch_vol*100:.2f}%)")
+    print(f"  Daily Vol:      {vol_payload['daily_vol']:.6f}")
+    if vol_payload["intraday_vol"] is not None:
+        print(f"  Intraday Vol:   {vol_payload['intraday_vol']:.6f}")
+    else:
+        print("  Intraday Vol:   N/A")
+    print(f"  Final Vol:      {egarch_vol:.4f} ({egarch_vol*100:.2f}%)")
 
     # Stability: run on 5 rolling sub-windows
     vols = []
@@ -148,10 +150,10 @@ def audit_vol_layer(data: dict) -> tuple[str, dict]:
             break
         window = log_ret.iloc[start_idx:end_idx]
         try:
-            rv = forecast_volatility(window)
-            if rv > 0:
-                av = apply_dynamic_annualization(rv, TIMEFRAME)
-                vols.append(av)
+            rv_payload = forecast_volatility(window)
+            rv_final = rv_payload["final_vol"]
+            if rv_final > 0:
+                vols.append(rv_final)
         except Exception:
             pass
 

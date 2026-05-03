@@ -26,6 +26,7 @@ from backend.services.regime_service import classify_volatility_regime
 from backend.services.strategy_service import generate_strategy
 from backend.services.option_chain_service import get_spot_price, fetch_option_chain, get_atm_option
 from backend.services.implied_volatility_service import calculate_implied_volatility, classify_vol_spread
+from backend.services.vrp_service import compute_vrp
 from backend.services.backtest_service import run_backtest
 from backend.infrastructure.timeframe_config import (
     validate_timeframe,
@@ -394,20 +395,49 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
             detail="Returns contain infinite values. Cannot compute EGARCH volatility forecast."
         )
     
-    # Step 2: Forecast volatility
-    raw_vol = forecast_volatility(returns_series)
+    # Step 2: Forecast volatility (daily EGARCH + intraday realized fusion)
+    intraday_prices = None
+    try:
+        intraday_cache_key = f"{symbol}_5m"
+        intraday_entry = run_pipeline.cache.get(intraday_cache_key)
+        if intraday_entry is not None:
+            cached_time = intraday_entry.get("timestamp", 0)
+            if (current_time - cached_time) < run_pipeline.cache_ttl_seconds:
+                intraday_data = intraday_entry["data"]
+            else:
+                intraday_data = None
+        else:
+            intraday_data = None
 
-    # Annualize to target timeframe using centralized engine
-    vol_forecast = apply_dynamic_annualization(raw_vol, timeframe)
-    
-    # Debug log: raw vs annualized
+        if intraday_data is None:
+            intraday_data = fetch_nifty_data(symbol=symbol, timeframe="5m")
+            intraday_data = normalize_timeframe_dataframe(intraday_data, "5m")
+            intraday_entry = {
+                "data": intraday_data,
+                "data_with_returns": compute_log_returns(intraday_data),
+                "timestamp": current_time
+            }
+            run_pipeline.cache[intraday_cache_key] = intraday_entry
+
+        intraday_prices = intraday_data["Close"]
+    except Exception as e:
+        log_event({
+            "timestamp": request_ts,
+            "event": "intraday_vol_data_unavailable",
+            "error": str(e)
+        })
+
+    vol_payload = forecast_volatility(returns_series, price_series_5min=intraday_prices)
+    vol_forecast = vol_payload["final_vol"]
+    sqrt_252 = 15.8745  # Pre-computed sqrt(252) for annualization
+
     log_event({
         "timestamp": request_ts,
-        "event": "volatility_scaling",
-        "raw_vol": raw_vol,
-        "annualized_vol": vol_forecast,
-        "timeframe": timeframe,
-        "scale_factor": round(vol_forecast / raw_vol, 4) if raw_vol > 0 else 0
+        "event": "volatility_fusion",
+        "daily_vol": vol_payload["daily_vol"],
+        "intraday_vol": vol_payload["intraday_vol"],
+        "final_vol": vol_payload["final_vol"],
+        "timeframe": timeframe
     })
     
     # Validation: Ensure volatility is valid type
@@ -517,7 +547,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         "horizon_interpretation": horizon_interpretation
     }
     
-    # Calculate Fair Price
+    # Calculate Fair Price (base, for fallback market price)
     pricing_integrity = True
     if expiry_volatility <= 0 or time_to_expiry_years <= 0 or spot <= 0:
         pricing_integrity = False
@@ -529,7 +559,8 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
             time_to_expiry=time_to_expiry_years,
             risk_free_rate=0.06,
             volatility=expiry_volatility,
-            option_type="call"
+            option_type="call",
+            use_adjusted_vol=False
         )
         
     if fair_price <= 0 or not isinstance(fair_price, (int, float)):
@@ -545,6 +576,21 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         r=0.06, market_price=market_price, option_type="call"
     )
     vol_spread, vol_signal = classify_vol_spread(iv, safe_volatility)
+    vrp_payload = compute_vrp(iv, vol_forecast)
+    expected_vrp = vrp_payload.get("expected_vrp") if vrp_payload else None
+    expected_vrp_expiry = expected_vrp * (time_to_expiry_years ** 0.5) if expected_vrp is not None else None
+
+    if pricing_integrity:
+        fair_price = black_scholes_price(
+            spot=spot,
+            strike=strike,
+            time_to_expiry=time_to_expiry_years,
+            risk_free_rate=0.06,
+            volatility=expiry_volatility,
+            option_type="call",
+            expected_vrp=expected_vrp_expiry,
+            use_adjusted_vol=True
+        )
     
     log_event({
         "timestamp": request_ts,
@@ -555,15 +601,35 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         "vol_signal": vol_signal
     })
         
-    mispricing_result = detect_mispricing(market_price, fair_price)
+    mispricing_result = detect_mispricing(
+        market_price,
+        fair_price,
+        vega=atm_call.get("vega") if market_data_live else None,
+        gamma=atm_call.get("gamma") if market_data_live else None,
+        tci=vol_payload.get("tci"),
+        current_vrp=vrp_payload.get("vrp") if vrp_payload else None,
+        expected_vrp=expected_vrp
+    )
     
     # Step 6: Classify volatility regime
-    regime = classify_volatility_regime(vol_forecast)
+    rolling_vol_series = None
+    try:
+        rolling_vol_series = returns_series.rolling(window=60).std() * sqrt_252
+        rolling_vol_series = rolling_vol_series.dropna()
+    except Exception:
+        rolling_vol_series = None
+
+    regime_payload = classify_volatility_regime(vol_forecast, vol_series=rolling_vol_series)
+    regime = regime_payload["regime_label"]
     
     # Step 7: Generate strategy recommendation
     strategy_result = generate_strategy(
         mispricing_result["classification"],
-        regime
+        regime,
+        sigma_adj=horizon_adjusted_volatility,
+        iv=iv,
+        z_score=mispricing_result.get("z_score"),
+        atm_strike=atm_strike_selected
     )
     regime_score = _REGIME_SCORE.get(regime, 4)
 
@@ -575,8 +641,6 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     mispricing_classification = mispricing_result["classification"]
     mispricing_deviation_abs = abs(mispricing_deviation)
     vol_forecast_pct = vol_forecast * 100
-    sqrt_252 = 15.8745  # Pre-computed sqrt(252) for annualization
-    
     signal_strength = mispricing_deviation_abs * vol_forecast
     confidence_score = min(1.0, mispricing_deviation_abs * 5)
 
@@ -1006,6 +1070,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     # Extract key signals from existing analytics without new computations
     quant_summary = {
         "regime": regime,
+        "regime_detail": regime_payload,
         "mispricing_classification": mispricing_classification,
         "horizon": trading_horizon if trading_horizon else "not_specified",
         "strategy_intent": strategy_intent,
@@ -1539,7 +1604,8 @@ def get_regime(
         pipeline = run_pipeline(symbol=symbol, trading_horizon=trading_horizon, timeframe=timeframe)
         payload = {
             "forecast_volatility": pipeline["forecast_volatility"],
-            "regime": pipeline["regime"]
+            "regime": pipeline["regime"],
+            "regime_detail": pipeline.get("regime_detail")
         }
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/regime", "ok", duration_ms)
@@ -1659,9 +1725,8 @@ def debug_option(
         from backend.services.volatility_service import forecast_volatility
         _data = fetch_nifty_data(symbol="NIFTY", timeframe="daily")
         _returns = compute_log_returns(_data)["log_return"]
-        _egarch_vol = forecast_volatility(_returns)
-        _egarch_vol = apply_dynamic_annualization(_egarch_vol, "daily")
-        _egarch_vol = max(0.01, min(2.0, _egarch_vol))
+        _vol_payload = forecast_volatility(_returns)
+        _egarch_vol = max(0.01, min(2.0, _vol_payload["final_vol"]))
         
         # Solve IV for the call
         _iv = calculate_implied_volatility(
@@ -1687,10 +1752,11 @@ def debug_option(
                 "ltp": atm_put["ltp"],
                 "iv": atm_put["iv"]
             },
-            "implied_volatility": _iv,
-            "egarch_vol": _egarch_vol,
-            "vol_spread": _vol_spread,
-            "vol_signal": _vol_signal
+            "implied_volatility": iv,
+            "forecasted_volatility": vol_forecast,
+            "vol_spread": vol_spread,
+            "vol_signal": vol_signal,
+            "vrp": vrp_payload,
         })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -1715,12 +1781,8 @@ def get_available_expiries(
 ):
     try:
         symbol = validate_symbol(symbol)
-        from backend.services.option_chain_service import get_available_expiries
-        expiries = get_available_expiries(symbol)
-        return build_success_response({
-            "symbol": symbol,
-            "available_expiries": expiries
-        })
+        from backend.services.option_chain_service import get_available_expiries_payload
+        return build_success_response(get_available_expiries_payload(symbol))
     except ValueError as e:
         return error_json(str(e), status_code=400)
     except Exception as e:

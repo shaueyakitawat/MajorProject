@@ -11,7 +11,9 @@ def black_scholes_price(
     time_to_expiry: float,
     risk_free_rate: float,
     volatility: float,
-    option_type: str
+    option_type: str,
+    expected_vrp: float | None = None,
+    use_adjusted_vol: bool = True
 ) -> float:
     """
     Calculate theoretical option price using Black-Scholes model.
@@ -27,8 +29,12 @@ def black_scholes_price(
     Returns:
         float: Theoretical option price (fair value)
     """
-    d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * volatility**2) * time_to_expiry) / (volatility * np.sqrt(time_to_expiry))
-    d2 = d1 - volatility * np.sqrt(time_to_expiry)
+    sigma = volatility
+    if use_adjusted_vol and expected_vrp is not None and np.isfinite(expected_vrp):
+        sigma = volatility + expected_vrp
+
+    d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
+    d2 = d1 - sigma * np.sqrt(time_to_expiry)
 
     if option_type.lower() == "call":
         price = spot * norm.cdf(d1) - strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)

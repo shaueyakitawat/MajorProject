@@ -42,6 +42,7 @@ class OptionChainFetchError(Exception):
 
 
 _CHAIN_CACHE: dict[str, tuple[dict, dt.datetime]] = {}
+FALLBACK_EXPIRY_COUNT = int(os.getenv("FALLBACK_EXPIRY_COUNT", "4"))
 
 
 def _make_upstox_request(endpoint: str, params: dict | None = None) -> dict:
@@ -225,6 +226,24 @@ def _select_expiry(expiries: list[str], requested: str | None) -> str:
     return expiries[-1]
 
 
+def _next_weekday(start: dt.date, weekday: int) -> dt.date:
+    days_ahead = (weekday - start.weekday()) % 7
+    return start + dt.timedelta(days=days_ahead)
+
+
+def _fallback_expiries(count: int = FALLBACK_EXPIRY_COUNT) -> list[str]:
+    """
+    Generate near-term NIFTY expiries when broker expiry discovery is unavailable.
+    NIFTY weekly expiry is treated as Tuesday for this project data setup.
+    """
+    today = dt.date.today()
+    first_expiry = _next_weekday(today, 1)
+    return [
+        (first_expiry + dt.timedelta(days=7 * offset)).isoformat()
+        for offset in range(max(count, 1))
+    ]
+
+
 def _normalize_chain(options: list[dict], selected_expiry: str) -> list[dict]:
     """
     Normalize option data into chain format.
@@ -282,6 +301,10 @@ def _normalize_chain(options: list[dict], selected_expiry: str) -> list[dict]:
             "oi": oi,
             "volume": volume,
             "iv": iv,
+            "delta": _parse_float(option.get("delta")),
+            "gamma": _parse_float(option.get("gamma")),
+            "theta": _parse_float(option.get("theta")),
+            "vega": _parse_float(option.get("vega")),
             "bid": option.get("bid"),
             "ask": option.get("ask"),
         }
@@ -372,15 +395,17 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
     
     if not expiries:
         # Return minimal valid response even without data
-        logger.warning("No expiry dates found, returning default response")
+        fallback_expiries = _fallback_expiries()
+        logger.warning("No expiry dates found, returning fallback expiries")
         result = {
             "spot_price": spot,
             "atm_strike": None,
-            "expiry_date": None,
-            "available_expiries": [],
+            "expiry_date": fallback_expiries[0] if fallback_expiries else None,
+            "available_expiries": fallback_expiries,
             "pcr": 0,
             "chain": [],
-            "timestamp": dt.datetime.now().isoformat()
+            "timestamp": dt.datetime.now().isoformat(),
+            "expiry_source": "fallback"
         }
         return result
     
@@ -402,7 +427,8 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
             "available_expiries": expiries,
             "pcr": 0,
             "chain": [],
-            "timestamp": dt.datetime.now().isoformat()
+            "timestamp": dt.datetime.now().isoformat(),
+            "expiry_source": "upstox"
         }
         _CHAIN_CACHE[cache_key] = (result, now)
         return result
@@ -442,7 +468,8 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
         "available_expiries": expiries,
         "pcr": pcr,
         "chain": chain_list,
-        "timestamp": dt.datetime.now().isoformat()
+        "timestamp": dt.datetime.now().isoformat(),
+        "expiry_source": "upstox"
     }
     
     _CHAIN_CACHE[cache_key] = (result, now)
@@ -456,17 +483,32 @@ def fetch_option_chain(symbol: str, expiry: str | None = None, expiry_type: str 
         "expiry": data["expiry_date"],
         "selected_expiry": data["expiry_date"],
         "available_expiries": data["available_expiries"],
-        "chain": data["chain"]
+        "chain": data["chain"],
+        "expiry_source": data.get("expiry_source", "upstox")
     }
 
 
 def get_available_expiries(symbol: str = "NIFTY") -> list[str]:
     """Get list of available option expiries."""
+    return get_available_expiries_payload(symbol)["available_expiries"]
+
+
+def get_available_expiries_payload(symbol: str = "NIFTY") -> dict:
+    """Get available option expiries with source metadata."""
     options = _fetch_nifty_option_quotes()
     expiries = _extract_expiries(options)
     if not expiries:
-        raise OptionChainFetchError("Could not fetch expiries from Upstox")
-    return expiries
+        logger.warning("Could not fetch expiries from Upstox; using fallback expiries")
+        return {
+            "symbol": symbol,
+            "available_expiries": _fallback_expiries(),
+            "expiry_source": "fallback",
+        }
+    return {
+        "symbol": symbol,
+        "available_expiries": expiries,
+        "expiry_source": "upstox",
+    }
 
 
 def get_atm_option(chain_dict: dict, spot_price: float, option_type: str = "call") -> dict:
@@ -488,7 +530,9 @@ def get_atm_option(chain_dict: dict, spot_price: float, option_type: str = "call
         "strike": closest["strike"],
         "price": data["ltp"],
         "ltp": data["ltp"],
-        "iv": data["iv"]
+        "iv": data["iv"],
+        "delta": data.get("delta"),
+        "gamma": data.get("gamma"),
+        "theta": data.get("theta"),
+        "vega": data.get("vega"),
     }
-
-
