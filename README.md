@@ -1,152 +1,503 @@
-# Option Mispricing Backend
+# NIFTY 50 Options Mispricing Detection Engine
 
-FastAPI backend for options analytics on NIFTY market data. The service fetches market data, computes log returns, forecasts volatility with EGARCH, derives Black-Scholes fair price, detects mispricing, classifies volatility regime, and returns a strategy signal.
+A research-oriented quantitative trading system that detects options mispricing using EGARCH volatility forecasting and Black-Scholes pricing. Integrates real-time option chain data from Upstox API and generates data-driven strategy recommendations.
 
-## Project Overview
+**Status:** Phase 1 Complete (70% functional)  
+**Publication Target:** IEEE Transactions (Q2 2026)  
+**Current Version:** 1.1.0  
+**Last Updated:** May 3, 2026
 
-This project provides a research-oriented quantitative pipeline exposed as HTTP endpoints.
+## 🎯 Project Overview
 
-### Pipeline Stages
+Automated pipeline that:
+1. Fetches historical NIFTY 50 market data (yfinance) & real option chain (Upstox API)
+2. Computes log returns and forecasts conditional volatility using EGARCH(1,1)
+3. Derives Black-Scholes theoretical fair prices
+4. Detects mispricing by comparing market vs fair values
+5. Classifies volatility regimes (LOW/NORMAL/HIGH/EXTREME)
+6. Generates rule-based strategy recommendations (BUY/SELL/NEUTRAL with confidence)
+7. Returns all analytics via RESTful API with Swagger documentation
 
-1. Market data fetch (`yfinance`)
-2. Log returns computation
-3. EGARCH volatility forecast (`arch`)
-4. Black-Scholes fair pricing (`scipy`)
-5. Mispricing detection
-6. Volatility regime classification
-7. Strategy generation
+**⚠️ IMPORTANT:** This is a research and decision-support tool, NOT an automated trading system. Outputs do not constitute financial advice.
+
+---
+
+## 🏗️ Architecture
+
+### Core Pipeline (7 Stages)
+```
+Historical Data (yfinance)        Real Option Chain (Upstox API v2)
+        │                                │
+        ├─→ Fetch NIFTY OHLCV            ├─→ Spot Price + ATM Options
+        │                                │
+        ├─→ Log Returns                  └─→ 21+ Strikes with OI/Vol/IV
+        │
+        ├─→ EGARCH(1,1) Volatility (arch library)
+        │
+        ├─→ Black-Scholes Fair Price (scipy)
+        │
+        ├─→ Mispricing Detection (% deviation)
+        │
+        ├─→ Volatility Regime Classification
+        │
+        └─→ Strategy Recommendation Generation
+        
+        └─→ HTTP/JSON Response via FastAPI
+```
 
 ### Tech Stack
 
-- Python 3.10
-- FastAPI + Uvicorn
-- pandas, numpy
-- yfinance
-- arch, statsmodels, scipy
-- Docker
+- **Language:** Python 3.10
+- **API Framework:** FastAPI + Uvicorn
+- **Data Processing:** pandas, numpy
+- **Volatility Modeling:** `arch` (EGARCH), statsmodels
+- **Options Pricing:** scipy (Black-Scholes)
+- **Data Sources:** yfinance (historical), Upstox API v2 (real option chain)
+- **Deployment:** Docker
+- **Documentation:** Swagger/OpenAPI
 
 ### Project Structure
 
-- `main.py`: FastAPI app and route handlers
-- `backend/services/data_service.py`: data fetch + return preprocessing
-- `backend/services/volatility_service.py`: EGARCH forecast
-- `backend/services/pricing_service.py`: Black-Scholes pricing
-- `backend/services/mispricing_service.py`: mispricing logic
-- `backend/services/regime_service.py`: volatility regime classification
-- `backend/services/strategy_service.py`: strategy recommendation
-- `backend/broker_adapter.py`: broker payload normalization scaffolding
-
-## Run with Docker
-
-### 1) Build image
-
-```bash
-docker build -t option-project:latest .
+```
+├── main.py                              # FastAPI app + 15 endpoints
+├── backend/
+│   ├── services/
+│   │   ├── data_service.py             # ✅ yfinance data fetch
+│   │   ├── volatility_service.py       # ✅ EGARCH(1,1) forecast
+│   │   ├── pricing_service.py          # ✅ Black-Scholes pricing
+│   │   ├── mispricing_service.py       # ✅ Mispricing detection
+│   │   ├── regime_service.py           # ✅ Volatility regime
+│   │   ├── strategy_service.py         # ✅ Strategy generation
+│   │   ├── option_chain_service.py     # ✅ Upstox API integration (NEW)
+│   │   ├── implied_volatility_service.py # ✅ IV solver
+│   │   ├── backtest_service.py         # ⚠️ Untested
+│   │   └── upstox_option_chain_service.py # Alternative implementation
+│   ├── infrastructure/
+│   │   ├── timeframe_config.py         # Multi-timeframe support
+│   │   ├── timeframe_adapter.py        # Dataframe normalization
+│   │   └── annualization_engine.py     # Dynamic vol scaling
+│   └── broker_adapter.py               # ❌ Dhan integration (stub)
+├── scripts/
+│   └── upstox_token.py                 # Upstox OAuth token exchange
+├── Dockerfile                          # Container configuration
+├── requirements.txt                    # Dependencies
+├── Phase1_Report.md/.tex               # Comprehensive documentation
+└── PROJECT_AUDIT.md                    # ⭐ READ THIS - Honest status
 ```
 
-### 2) Run container
+
+
+---
+
+## 🚀 Quick Start
+
+### Local Development (No Docker)
 
 ```bash
-docker run -d --name option-project-api -p 8000:8000 option-project:latest
+# 1. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Set up Upstox credentials
+cp .env.example .env
+# Edit .env with your Upstox API credentials
+
+# 4. Run server
+python3 main.py
+
+# 5. Open API documentation
+# http://localhost:8000/docs
+# http://localhost:8000/redoc
 ```
 
-### 3) Verify container is running
+### Docker Deployment
 
 ```bash
-docker ps --filter name=option-project-api
+# Build image
+docker build -t nifty-options:latest .
+
+# Run container
+docker run -d --name nifty-options-api \
+  -p 8000:8000 \
+  -e UPSTOX_ACCESS_TOKEN="<your_token>" \
+  nifty-options:latest
+
+# Check logs
+docker logs -f nifty-options-api
+
+# Stop container
+docker stop nifty-options-api
+docker rm nifty-options-api
 ```
 
-### 4) Check API health/availability
+---
 
-```bash
-curl http://localhost:8000/
+## 📡 API Endpoints (15 Total)
+
+### Health & System (3)
+| Endpoint | Method | Status | Purpose |
+|----------|--------|--------|---------|
+| `/` | GET | ✅ | Service health check |
+| `/health` | GET | ✅ | Liveness probe |
+| `/metrics` | GET | ✅ | Request counter metrics |
+
+### Market Data (3)
+| Endpoint | Method | Status | Purpose |
+|----------|--------|--------|---------|
+| `/nifty` | GET | ✅ | Latest NIFTY spot price & candle |
+| `/expiries` | GET | ✅ | Available option expiry dates |
+| `/option-chain` | GET | ✅ NEW | **Real Upstox chain (21 strikes, live OI/IV)** |
+
+### Quantitative Pipeline (6)
+| Endpoint | Method | Status | Purpose |
+|----------|--------|--------|---------|
+| `/returns` | GET | ✅ | Historical log returns |
+| `/forecast-vol` | GET | ✅ | EGARCH(1,1) annualized volatility |
+| `/fair-price` | GET | ✅ | Black-Scholes theoretical fair price |
+| `/mispricing` | GET | ✅ | Mispricing % vs fair value |
+| `/regime` | GET | ✅ | Volatility regime classification |
+| `/strategy` | GET | ✅ | **MAIN** - Full pipeline + strategy signal |
+
+### Advanced (3)
+| Endpoint | Method | Status | Purpose |
+|----------|--------|--------|---------|
+| `/backtest` | GET | ⚠️ | Walk-forward backtest *(untested)* |
+| `/debug-option` | GET | ✅ | Debug option chain fetching |
+| `/option-chain-demo` | GET | ✅ | Demo endpoint (representative data) |
+
+### Query Parameters
+
+**All pipeline endpoints accept:**
+```
+?symbol=NIFTY                    # Default: NIFTY (only NIFTY works currently)
+?trading_horizon=positional      # day_trader, positional, long_term
+?timeframe=daily                 # 1m, 5m, 15m, 1h, daily, weekly
+?expiry=2026-05-05              # Specific option expiry (YYYY-MM-DD)
+?expiry_type=nearest            # nearest, weekly, monthly
+?depth=20                        # Number of strikes to return
 ```
 
-Also open Swagger docs:
+---
 
-- http://localhost:8000/docs
+## 🔧 Configuration
 
-### 5) View logs
+### Upstox Integration (OAuth Token)
 
+1. **Set API credentials in `.env`:**
 ```bash
-docker logs -f option-project-api
-```
-
-### 6) Stop and remove container
-
-```bash
-docker stop option-project-api
-docker rm option-project-api
-```
-
-## Useful Docker Commands
-
-### Rebuild after code changes
-
-```bash
-docker build -t option-project:latest .
-docker rm -f option-project-api
-docker run -d --name option-project-api -p 8000:8000 option-project:latest
-```
-
-### Remove image
-
-```bash
-docker rmi option-project:latest
-```
-
-## Dhan Provider (broker_adapter)
-
-The Dhan integration is currently added in `backend/broker_adapter.py` and is not yet wired into `main.py` routes.
-
-### Required environment variables
-
-```bash
-export DHAN_ACCESS_TOKEN="<your_token>"
-export DHAN_SECURITY_ID="13"
-export DHAN_EXCHANGE_SEGMENT="IDX_I"
-export DHAN_INSTRUMENT="INDEX"
-export DHAN_INTERVAL_MIN="1"
-```
-
-### Quick adapter test (without changing API routes)
-
-```bash
-python - << 'PY'
-from backend.broker_adapter import fetch_spot
-print(fetch_spot(provider="dhan", symbol="NIFTY"))
-PY
-```
-
-If token/config is valid, this returns a payload containing `spot_price`, `provider="dhan"`, and timestamp.
-
-## Upstox (auth + access token)
-
-Add these values to .env (do not commit your real secrets):
-
-```bash
-UPSTOX_API_KEY="<your_api_key>"
-UPSTOX_API_SECRET="<your_api_secret>"
+UPSTOX_API_KEY="998ac4f0-a103-45b4-a062-d5079aad8384"
+UPSTOX_API_SECRET="23y55vv88m"
 UPSTOX_REDIRECT_URI="http://localhost:8000/callback"
-UPSTOX_ACCESS_TOKEN="<fill_after_exchange>"
 ```
 
-Exchange the one-time authorization code for an access token:
-
+2. **Exchange auth code for access token:**
 ```bash
 python scripts/upstox_token.py --code "<authorization_code>"
 ```
 
-Copy the `access_token` from the output into `UPSTOX_ACCESS_TOKEN` in .env.
+3. **Save token to `.env`:**
+```bash
+UPSTOX_ACCESS_TOKEN="eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ..."
+```
 
-## API Endpoints
+### Environment Variables
 
-- `GET /` : Service running check
-- `GET /health` : Liveness check
-- `GET /metrics` : In-memory request metrics
-- `GET /nifty` : Latest market data snapshot
-- `GET /returns` : Log returns
-- `GET /forecast-vol` : Annualized volatility forecast
+```bash
+# Required for Upstox integration
+UPSTOX_API_KEY=<your_api_key>
+UPSTOX_API_SECRET=<your_api_secret>
+UPSTOX_ACCESS_TOKEN=<your_access_token>
+UPSTOX_REDIRECT_URI=http://localhost:8000/callback
+
+# Optional
+LOG_LEVEL=INFO
+CACHE_TTL_SECONDS=15
+```
+
+---
+
+## 📊 Real Data Example
+
+### Get Full Strategy Signal
+```bash
+curl "http://localhost:8000/strategy?trading_horizon=positional&timeframe=daily"
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "timestamp": "2026-05-03T10:30:00Z",
+  "data": {
+    "spot_price": 23997.55,
+    "forecast_volatility": 16.91,
+    "fair_price": 221.50,
+    "market_price": 221.50,
+    "mispricing": {
+      "deviation_percent": 0.00,
+      "classification": "FAIR_VALUED"
+    },
+    "regime": "NORMAL_VOL",
+    "strategy": {
+      "signal": "NEUTRAL",
+      "strength": "WEAK",
+      "confidence": 0.35,
+      "rationale": "Option fairly priced, normal volatility regime"
+    },
+    "selected_expiry": "2026-05-05",
+    "available_expiries": ["2026-05-05"],
+    "pipeline_health": "HEALTHY"
+  }
+}
+```
+
+### Get Real Option Chain (Upstox)
+```bash
+curl "http://localhost:8000/option-chain"
+```
+
+**Returns 21 strikes with live data:**
+```json
+{
+  "status": "success",
+  "data": {
+    "spot_price": 23997.55,
+    "atm_strike": 24000,
+    "expiry_date": "2026-05-05",
+    "chain": [
+      {
+        "strike": 23500,
+        "call": { "ltp": 604.05, "oi": 635310, "volume": 3708965, "iv": 19.5 },
+        "put": { "ltp": 29.15, "oi": 4454385, "volume": 74438195, "iv": 17.38 }
+      },
+      ...
+    ]
+  }
+}
+```
+
+---
+
+## ⚠️ HONEST STATUS ASSESSMENT
+
+### ✅ What's Working (Ready for Use)
+- Core quantitative pipeline (EGARCH + Black-Scholes)
+- Real Upstox option chain integration (May 2026 data)
+- FastAPI endpoints with Swagger documentation
+- Docker containerization
+- Volatility forecasting and mispricing detection
+- Phase 1 research documentation
+
+### 🟡 What's Partially Working
+- Backtesting code exists but **NOT VALIDATED**
+- Multi-timeframe infrastructure exists but **NOT THOROUGHLY TESTED**
+- Greeks calculated from Upstox but **NOT INTEGRATED** into strategy
+- Dhan broker integration is a **STUB** (not wired in)
+
+### ❌ What's Missing (Critical for Publication)
+1. **Statistical Validation** - No backtesting on historical data
+2. **Risk Management** - No position sizing, stop-loss, portfolio risk
+3. **Frontend Dashboard** - API only, no UI for traders
+4. **Significance Testing** - No proof strategy beats random/benchmark
+5. **Multi-Asset Support** - Only NIFTY 50, no other symbols
+6. **Historical Backtesting** - Not tested on 1+ years of past data
+
+### Publication Readiness
+**Current Status:** ❌ **NOT READY FOR IEEE PUBLICATION**
+
+**Why:**
+- No statistical validation or backtesting results
+- No performance metrics (Sharpe ratio, win rate, drawdown)
+- No historical data testing
+- Code exists for backtest, but outputs unvalidated
+
+**Estimated Timeline:**
+- Backtesting implementation: 3-4 weeks
+- Historical testing: 2-3 weeks  
+- Statistical validation: 2 weeks
+- Paper writing: 4-6 weeks
+- **Realistic publication date: Q2 2026 (June-August)**
+
+### See Also
+📋 **[PROJECT_AUDIT.md](PROJECT_AUDIT.md)** - Comprehensive brutally honest assessment with all details
+
+---
+
+## 🔍 Component Status Matrix
+
+| Component | Code | Tests | Documentation | Production Ready |
+|-----------|------|-------|-----------------|-----------------|
+| EGARCH Volatility | ✅ | ⚠️ | ✅ | ✅ |
+| Black-Scholes Pricing | ✅ | ✅ | ✅ | ✅ |
+| Mispricing Detection | ✅ | ⚠️ | ✅ | ✅ |
+| Regime Classification | ✅ | ⚠️ | ✅ | ✅ |
+| Strategy Generation | ✅ | ⚠️ | ✅ | ⚠️ |
+| Upstox Integration | ✅ | ✅ | ✅ | ✅ |
+| Backtesting | ✅ | ❌ | ⚠️ | ❌ |
+| Multi-Timeframe | ⚠️ | ❌ | ✅ | ❌ |
+| Dhan Integration | ⚠️ | ❌ | ⚠️ | ❌ |
+| Frontend Dashboard | ❌ | N/A | N/A | ❌ |
+| Risk Management | ❌ | N/A | N/A | ❌ |
+
+---
+
+## 💡 Usage Examples
+
+### 1. Get Strategy Signal for Positional Trading
+```bash
+curl "http://localhost:8000/strategy?trading_horizon=positional&timeframe=daily"
+```
+
+### 2. Check Real Option Chain
+```bash
+curl "http://localhost:8000/option-chain"
+```
+
+### 3. Get Volatility Forecast
+```bash
+curl "http://localhost:8000/forecast-vol?timeframe=1h"
+```
+
+### 4. Run Walk-Forward Backtest ⚠️ *Untested*
+```bash
+curl "http://localhost:8000/backtest?timeframe=1d"
+```
+
+### 5. View Metrics
+```bash
+curl "http://localhost:8000/metrics"
+```
+
+---
+
+## 📚 Documentation
+
+- **[Phase1_Report.md](Phase1_Report.md)** - Complete research proposal (15+ pages)
+- **[Phase1_Report.tex](Phase1_Report.tex)** - LaTeX version for IEEE submission
+- **[PROJECT_AUDIT.md](PROJECT_AUDIT.md)** - ⭐ Brutally honest assessment
+- **[README.md](README.md)** - This file
+- **Swagger UI** - http://localhost:8000/docs (when running)
+
+---
+
+## 🛠️ Development
+
+### Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Run Tests
+```bash
+# Validate services manually
+python run_validation.py
+
+# Test specific endpoint
+curl http://localhost:8000/strategy
+```
+
+### Add New Endpoint
+1. Create function in main.py
+2. Decorate with `@app.get()` or `@app.post()`
+3. Add to Swagger tags
+4. Test via `/docs` UI
+
+### Debug Option Chain
+```bash
+curl "http://localhost:8000/debug-option"
+```
+
+---
+
+## 📦 Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| pandas | Latest | Data manipulation |
+| numpy | Latest | Numerical computing |
+| yfinance | Latest | Historical market data |
+| arch | Latest | EGARCH volatility |
+| statsmodels | Latest | Time series analysis |
+| scipy | Latest | Black-Scholes (norm CDF) |
+| fastapi | Latest | API framework |
+| uvicorn | Latest | ASGI server |
+| requests | Latest | HTTP client (Upstox) |
+| py_vollib | Latest | Implied volatility |
+| matplotlib | Latest | Visualization support |
+| python-dateutil | Latest | Date parsing |
+| pytz | Latest | Timezone handling |
+
+See [requirements.txt](requirements.txt) for exact versions.
+
+---
+
+## 🚨 Known Limitations
+
+1. **Hardcoded Symbol** - Accepts `?symbol=` parameter but internally uses only NIFTY 50
+2. **No Transaction Costs** - Assumes zero slippage and commissions
+3. **yfinance Latency** - 15-minute delayed historical data
+4. **In-Memory Cache** - Resets on server restart
+5. **No Rate Limiting** - Endpoints can be abused
+6. **No Authentication** - Public API, no API keys required
+7. **Single Process** - Can handle ~10-20 concurrent requests
+8. **No Database** - Results not persisted; no query history
+
+---
+
+## 📖 Citation (For Academic Use)
+
+If you use this project in research, please cite:
+
+```bibtex
+@inproceedings{nifty2026options,
+  title={NIFTY 50 Options Mispricing Detection using EGARCH and Black-Scholes},
+  author={Your Name},
+  year={2026},
+  note={Available at: https://github.com/your/repo}
+}
+```
+
+---
+
+## ⚖️ Disclaimer
+
+This software is provided for research and educational purposes only. It is **NOT intended for live trading** or investment decisions. Use at your own risk. The authors and contributors assume no liability for trading losses or errors in execution. All strategy recommendations are hypothetical and based on historical data; past performance does not guarantee future results.
+
+---
+
+## 📞 Support & Feedback
+
+For issues, feature requests, or questions:
+1. Check [PROJECT_AUDIT.md](PROJECT_AUDIT.md) for known issues
+2. Review [Phase1_Report.md](Phase1_Report.md) for methodology
+3. Test via Swagger UI: http://localhost:8000/docs
+4. Enable debug logging by setting `LOG_LEVEL=DEBUG`
+
+---
+
+## Dhan Provider (NOT CURRENTLY USED)
+
+The Dhan broker integration code exists in `backend/broker_adapter.py` but is **NOT WIRED INTO THE API**. To enable:
+
+1. Set Dhan credentials in `.env`:
+```bash
+DHAN_ACCESS_TOKEN="<your_token>"
+DHAN_SECURITY_ID="13"
+DHAN_EXCHANGE_SEGMENT="IDX_I"
+DHAN_INSTRUMENT="INDEX"
+```
+
+2. Test locally (without API integration):
+```bash
+python -c "from backend.broker_adapter import fetch_spot; print(fetch_spot('dhan', 'NIFTY'))"
+```
+
+**Status:** ❌ Stub integration, not production ready
+
+
 - `GET /fair-price` : Theoretical fair option price
 - `GET /mispricing` : Mispricing vs fair value
 - `GET /regime` : Volatility regime label
