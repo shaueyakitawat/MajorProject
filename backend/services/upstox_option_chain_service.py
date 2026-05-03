@@ -15,6 +15,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+from backend.services.option_chain_filters import (
+    is_leg_liquid,
+    MIN_OPEN_INTEREST,
+    MIN_VOLUME,
+    MAX_BID_ASK_SPREAD_PCT,
+)
+
 UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
 UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY")
 
@@ -279,6 +286,31 @@ def _normalize_option_chain(options: list[dict], selected_expiry: str) -> list[d
     return chain_list
 
 
+def _apply_liquidity_filters(chain_list: list[dict]) -> list[dict]:
+    total = len(chain_list)
+    if total == 0:
+        return chain_list
+
+    filtered = []
+    for entry in chain_list:
+        call_leg = entry.get("call")
+        put_leg = entry.get("put")
+        if is_leg_liquid(call_leg) and is_leg_liquid(put_leg):
+            filtered.append(entry)
+
+    removed = total - len(filtered)
+    logger.info(
+        "Liquidity filter: total=%s kept=%s removed=%s | min_oi=%s min_vol=%s max_spread_pct=%s",
+        total,
+        len(filtered),
+        removed,
+        MIN_OPEN_INTEREST,
+        MIN_VOLUME,
+        MAX_BID_ASK_SPREAD_PCT,
+    )
+    return filtered
+
+
 def get_spot_price(symbol: str = "NIFTY") -> float:
     """Get current spot price of the underlying."""
     if symbol.upper() != "NIFTY":
@@ -332,6 +364,22 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
     # Normalize chain
     chain_list = _normalize_option_chain(options, selected_expiry)
     logger.info(f"Normalized {len(chain_list)} strikes")
+
+    # Apply liquidity and execution filters
+    chain_list = _apply_liquidity_filters(chain_list)
+    if not chain_list:
+        logger.warning("Liquidity filter removed all strikes; returning empty chain")
+        result = {
+            "spot_price": spot,
+            "atm_strike": None,
+            "expiry_date": selected_expiry,
+            "available_expiries": expiries,
+            "pcr": 0,
+            "chain": [],
+            "timestamp": dt.datetime.now().isoformat()
+        }
+        _CHAIN_CACHE[cache_key] = (result, now)
+        return result
     
     # Get ATM strike
     strikes = [entry["strike"] for entry in chain_list]
