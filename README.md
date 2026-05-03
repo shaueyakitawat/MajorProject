@@ -2,8 +2,8 @@
 
 A research-oriented quantitative trading system that detects options mispricing using EGARCH volatility forecasting and Black-Scholes pricing. Integrates real-time option chain data from Upstox API and generates data-driven strategy recommendations.
 
-**Status:** Phase 1 Complete (70% functional)  
-**Publication Target:** IEEE Transactions (Q2 2026)  
+**Status:** Phase 1 Complete (core pipeline implemented)  
+**Publication Target:** IEEE Transactions (pending real-data validation)  
 **Current Version:** 1.1.0  
 **Last Updated:** May 3, 2026
 
@@ -188,8 +188,8 @@ docker rm nifty-options-api
 
 1. **Set API credentials in `.env`:**
 ```bash
-UPSTOX_API_KEY="998ac4f0-a103-45b4-a062-d5079aad8384"
-UPSTOX_API_SECRET="23y55vv88m"
+UPSTOX_API_KEY="<your_api_key>"
+UPSTOX_API_SECRET="<your_api_secret>"
 UPSTOX_REDIRECT_URI="http://localhost:8000/callback"
 ```
 
@@ -281,6 +281,18 @@ curl "http://localhost:8000/option-chain"
 
 ---
 
+## ✅ Validation Summary
+
+Daily validation has been run using historical NIFTY spot prices and a deterministic noise model for option prices. This validates pipeline logic but is **not** a substitute for real historical option prices.
+
+- Validation details: [VALIDATION_EXPLANATION.md](VALIDATION_EXPLANATION.md)
+- Validator script: [validation/daily_validator_simple.py](validation/daily_validator_simple.py)
+- Results artifact: [validation_results_daily.json](validation_results_daily.json)
+
+**Next required step:** repeat validation using real option chain snapshots (see [implementation.md](implementation.md)).
+
+---
+
 ## ⚠️ HONEST STATUS ASSESSMENT
 
 ### ✅ What's Working (Ready for Use)
@@ -298,31 +310,25 @@ curl "http://localhost:8000/option-chain"
 - Dhan broker integration is a **STUB** (not wired in)
 
 ### ❌ What's Missing (Critical for Publication)
-1. **Statistical Validation** - No backtesting on historical data
-2. **Risk Management** - No position sizing, stop-loss, portfolio risk
-3. **Frontend Dashboard** - API only, no UI for traders
-4. **Significance Testing** - No proof strategy beats random/benchmark
+1. **Real Option Price Validation** - Current daily validation uses synthetic option prices
+2. **Backtest Validation** - Backtest engine exists but is unverified
+3. **Risk Management** - No position sizing, stop-loss, portfolio risk
+4. **Frontend Dashboard** - API only, no UI for traders
 5. **Multi-Asset Support** - Only NIFTY 50, no other symbols
-6. **Historical Backtesting** - Not tested on 1+ years of past data
 
 ### Publication Readiness
 **Current Status:** ❌ **NOT READY FOR IEEE PUBLICATION**
 
 **Why:**
-- No statistical validation or backtesting results
-- No performance metrics (Sharpe ratio, win rate, drawdown)
-- No historical data testing
-- Code exists for backtest, but outputs unvalidated
-
-**Estimated Timeline:**
-- Backtesting implementation: 3-4 weeks
-- Historical testing: 2-3 weeks  
-- Statistical validation: 2 weeks
-- Paper writing: 4-6 weeks
-- **Realistic publication date: Q2 2026 (June-August)**
+- Daily validation uses synthetic option prices (no historical option chain yet)
+- Backtest results are unverified
+- Intraday validation not available
 
 ### See Also
-📋 **[PROJECT_AUDIT.md](PROJECT_AUDIT.md)** - Comprehensive brutally honest assessment with all details
+- [implementation.md](implementation.md)
+- [track.md](track.md)
+- [VALIDATION_EXPLANATION.md](VALIDATION_EXPLANATION.md)
+- [Phase1_Report.md](Phase1_Report.md)
 
 ---
 
@@ -375,11 +381,13 @@ curl "http://localhost:8000/metrics"
 
 ## 📚 Documentation
 
-- **[Phase1_Report.md](Phase1_Report.md)** - Complete research proposal (15+ pages)
-- **[Phase1_Report.tex](Phase1_Report.tex)** - LaTeX version for IEEE submission
-- **[PROJECT_AUDIT.md](PROJECT_AUDIT.md)** - ⭐ Brutally honest assessment
-- **[README.md](README.md)** - This file
-- **Swagger UI** - http://localhost:8000/docs (when running)
+- [Phase1_Report.md](Phase1_Report.md) - Complete research proposal (15+ pages)
+- [Phase1_Report.tex](Phase1_Report.tex) - LaTeX version for IEEE submission
+- [VALIDATION_EXPLANATION.md](VALIDATION_EXPLANATION.md) - Validation methodology and math details
+- [implementation.md](implementation.md) - Completion plan
+- [track.md](track.md) - Progress tracker
+- [README.md](README.md) - This file
+- Swagger UI - http://localhost:8000/docs (when running)
 
 ---
 
@@ -471,7 +479,7 @@ This software is provided for research and educational purposes only. It is **NO
 ## 📞 Support & Feedback
 
 For issues, feature requests, or questions:
-1. Check [PROJECT_AUDIT.md](PROJECT_AUDIT.md) for known issues
+1. Review [track.md](track.md) for current blockers
 2. Review [Phase1_Report.md](Phase1_Report.md) for methodology
 3. Test via Swagger UI: http://localhost:8000/docs
 4. Enable debug logging by setting `LOG_LEVEL=DEBUG`
@@ -496,20 +504,3 @@ python -c "from backend.broker_adapter import fetch_spot; print(fetch_spot('dhan
 ```
 
 **Status:** ❌ Stub integration, not production ready
-
-
-- `GET /fair-price` : Theoretical fair option price
-- `GET /mispricing` : Mispricing vs fair value
-- `GET /regime` : Volatility regime label
-- `GET /strategy` : Consolidated pipeline + strategy output
-
-Query params supported on pipeline endpoints:
-
-- `symbol` (default: `NIFTY`)
-- `trading_horizon` (optional: `day_trader`, `positional`, `long_term`)
-
-## Notes
-
-- This project is intended for research and decision support, not automated trading execution.
-- Internet access is required for market data fetch (`yfinance`).
-- If your running container does not show all endpoints (for example `/health`), rebuild the image to ensure it matches latest source code.
