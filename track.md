@@ -1,87 +1,61 @@
-# Project Progress Tracker
-**Updated:** 2026-05-03
+Project status snapshot (as of 2026-05-03)
 
-This file tracks completion status against the Phase 1 objectives and the implementation plan.
+Scope reviewed
 
----
+- All code and docs were scanned except pipeline.md (per request).
+- Large dependency folders (.venv, node_modules, .git) were not inspected for content.
 
-## 1) High-Level Status
+Core backend pipeline (implemented)
 
-- **Core Pipeline:** Implemented
-- **Live Option Chain (Upstox):** Implemented
-- **Validation (Real Option Prices):** Not complete
-- **Intraday Support:** Infrastructure present, not validated
-- **Backtesting:** Code exists, not validated
-- **Publication Readiness:** Not ready (needs real-data validation)
+- Data ingestion: yfinance-based OHLCV fetch with timeframe-specific windows, min 2000 candles, timezone normalization, and log-return calculation.
+- Volatility modeling: EGARCH(1,1) forecast (raw per-period), plus dynamic annualization by timeframe.
+- Pricing: Black-Scholes call/put pricing using annualized volatility and time-to-expiry in years.
+- Mispricing detection: deviation vs fair price with +/-5% thresholds.
+- Regime classification: LOW/NORMAL/HIGH/EXTREME volatility bands.
+- Strategy generation: rule-based 3x4 matrix mapping mispricing x regime to actions and confidence.
+- Implied volatility: numerical back-solve, plus IV vs EGARCH spread classification.
+- Option chain handling: Upstox-backed chain normalization with yfinance spot fallback; ATM selection; expiry selection; chain caching; PCR.
+- Backtesting: walk-forward EGARCH + BS + IV composite signal with basic stats (Sharpe, t-stat, hit rate).
 
----
+FastAPI service (implemented)
 
-## 2) Feature-by-Feature Status
+- Endpoint surface: /, /health, /metrics, /nifty, /returns, /forecast-vol, /fair-price, /mispricing, /regime, /strategy, /debug-option, /expiries, /backtest, /option-chain-demo, /option-chain.
+- Central pipeline orchestration: run_pipeline in main.py with caching, validation guards, detailed analytics payload, and logging.
+- Dockerized runtime with Python 3.10 and scientific build dependencies.
 
-### Market Data
-- [x] Historical NIFTY data (yfinance)
-- [x] Live option chain (Upstox /option/chain)
-- [ ] Historical option chain (real, stored snapshots)
-- [ ] Intraday option snapshots (1m/5m)
+Validation and analysis artifacts (implemented)
 
-### Volatility Modeling
-- [x] EGARCH(1,1) implemented
-- [x] Dynamic annualization
-- [ ] Model comparison (EGARCH vs historical vol vs IV)
+- Daily validator (simple): synthetic market price noise over BS fair price; outputs validation_results_daily.json.
+- Daily validator (full): detailed report generator with confusion matrix and metrics.
+- System audit script: run_validation.py runs layered checks (data, vol, pricing, IV, stability, performance) using SPY 5m and Upstox chain.
+- Validation explanation report: VALIDATION_EXPLANATION.md contains full methodology and rationale.
 
-### Pricing & Mispricing
-- [x] Black-Scholes fair price
-- [x] Mispricing detection (±5% threshold)
-- [ ] Threshold calibration by timeframe
+Upstox integration utilities (implemented)
 
-### Regime & Strategy
-- [x] Regime classification
-- [x] Strategy generation (rule-based)
-- [ ] Risk-aware strategy scoring
+- Access token exchange script (scripts/upstox_token.py) with .env support.
+- Mock Upstox integration test (test_upstox_integration.py) validating chain normalization and ATM selection.
 
-### Validation
-- [x] Daily validation script (synthetic market prices)
-- [ ] Daily validation with real option prices
-- [ ] Intraday validation with real option prices
-- [ ] ROC-AUC and precision/recall curves
+Documentation completed
 
-### Backtesting
-- [x] Backtest engine (walk-forward)
-- [ ] Real-data validation of backtest results
-- [ ] Performance report (Sharpe, drawdown, win-rate)
+- abstract.md: project abstract.
+- Phase1_Report.md and Phase1_Report.tex: full project report with diagrams and methodology.
+- implementation.md: implementation plan and phased roadmap for remaining work.
+- VALIDATION_EXPLANATION.md: technical deep dive for validation results.
 
-### API & Deployment
-- [x] FastAPI endpoints (15)
-- [x] Swagger docs
-- [x] Docker deployment
-- [ ] Authentication
-- [ ] Persistent storage
+Configuration and dependencies
 
-### Documentation
-- [x] Phase 1 report
-- [x] Validation explanation (synthetic)
-- [ ] Real-data validation report
-- [ ] Publication-ready paper draft
+- requirements.txt lists Python dependencies (FastAPI, arch, yfinance, scipy, etc.).
+- Dockerfile builds and runs the FastAPI service.
+- package.json/package-lock.json include docx dependency (for document tooling).
 
----
+Data and output files present
 
-## 3) Immediate Next Actions (1-2 Weeks)
+- validation_results_daily.json: saved daily validator output.
+- test_chain.json: example option chain payload structure.
+- result.json and final_result.json: stored error outputs from option chain attempts (expiries/HTTP failures).
 
-1. Build option-chain snapshot collector (1m/5m)
-2. Store snapshots in database (SQLite/Postgres)
-3. Run validation using real option prices
-4. Update VALIDATION_EXPLANATION.md with real-data section
+Known limitations inferred from current state
 
----
-
-## 4) Blockers
-
-- No official Upstox endpoint for historical option chain
-- Requires own data capture for real historical intraday option prices
-
----
-
-## 5) Notes
-
-- Daily validation results currently use simulated option prices.
-- For IEEE publication, validation must be repeated with real option price history.
+- Historical option prices are not integrated; daily validators use simulated market price noise.
+- Upstox option chain relies on live API access; errors are captured in result.json and final_result.json.
+- Multi-timeframe support is implemented in infrastructure, but broader real-data validation is pending.
