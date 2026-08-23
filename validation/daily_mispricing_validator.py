@@ -88,6 +88,10 @@ class DailyMispricingValidator:
             if data.empty:
                 raise ValueError("No data fetched from yfinance")
             
+            # Flatten multi-index columns from yfinance
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = [col[0] for col in data.columns]
+                
             # Reset index to have Date as column
             data.reset_index(inplace=True)
             
@@ -169,11 +173,18 @@ class DailyMispricingValidator:
                     next_fair_price = self.compute_fair_price(next_spot, strike, ttm_years, volatility_daily)
                     next_market_price = self._estimate_market_price(next_spot, strike, volatility_daily)
                     
+                    reverted = False
                     if next_market_price and next_fair_price and next_fair_price > 0:
                         next_deviation, next_is_mispriced = self.detect_mispricing(next_market_price, next_fair_price)
-                        reverted = not next_is_mispriced and is_mispriced
-                    else:
-                        reverted = False
+                        # Reversion logic (Ground Truth): Did the market price objectively correct towards the fair price?
+                        # This must be totally independent of whether the model *flagged* it as mispriced.
+                        # We define an objective correction as the deviation shrinking by at least 1.0%.
+                        convergence_threshold = 1.0 
+                        
+                        if deviation > 0: # Overpriced
+                            reverted = (deviation - next_deviation) > convergence_threshold
+                        else: # Underpriced
+                            reverted = (next_deviation - deviation) > convergence_threshold
                     
                     # Record result
                     result = {

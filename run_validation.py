@@ -184,7 +184,7 @@ def audit_vol_layer(data: dict) -> tuple[str, dict]:
 
     print(f"\n  {tag(status)} VOLATILITY LAYER")
 
-    return status, {"egarch_vol": egarch_vol, "raw_vol": raw_vol, "log_ret": log_ret, "ohlcv": ohlcv, "stability_cv": cv}
+    return status, {"egarch_vol": egarch_vol, "raw_vol": vol_payload["final_vol"], "log_ret": log_ret, "ohlcv": ohlcv, "stability_cv": cv}
 
 
 # ── STEP 3: Pricing Layer ─────────────────────────────────────────────────────

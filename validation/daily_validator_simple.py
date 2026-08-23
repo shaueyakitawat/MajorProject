@@ -144,12 +144,21 @@ def main():
                     volatility=volatility,
                     option_type="call"
                 )
-                
-                next_market = next_fair * (1 + np.random.normal(0, 0.02)) if next_fair > 0 else 0
-                next_deviation = ((next_market - next_fair) / next_fair) * 100 if next_fair > 0 else 0
-                next_is_mispriced = abs(next_deviation) > CONFIG['mispricing_threshold_pct']
-                
-                reverted = is_mispriced and not next_is_mispriced
+                reverted = False
+                if next_fair and next_fair > 0:
+                    # Estimate next market price (with noise)
+                    np.random.seed(int((idx + 1) * 1000 + offset))
+                    next_market_price = next_fair * (1 + np.random.normal(0, 0.02))
+                    
+                    if next_market_price > 0:
+                        next_deviation = ((next_market_price - next_fair) / next_fair) * 100
+                        
+                        # Reversion logic (Ground Truth): Independent convergence check
+                        convergence_threshold = 1.0
+                        if deviation > 0: # Overpriced
+                            reverted = (deviation - next_deviation) > convergence_threshold
+                        else: # Underpriced
+                            reverted = (next_deviation - deviation) > convergence_threshold
                 
                 # Record
                 results['detections'].append({

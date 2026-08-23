@@ -570,13 +570,24 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     if market_price is None:
         market_price = fair_price * 1.03
     
+    # Step 6: Classify volatility regime (moved up for VRP conditioning)
+    rolling_vol_series = None
+    try:
+        rolling_vol_series = returns_series.rolling(window=60).std() * sqrt_252
+        rolling_vol_series = rolling_vol_series.dropna()
+    except Exception:
+        rolling_vol_series = None
+
+    regime_payload = classify_volatility_regime(vol_forecast, vol_series=rolling_vol_series)
+    regime = regime_payload["regime_label"]
+    
     # Step 5b: Implied Volatility & Vol Spread Signal
     iv = calculate_implied_volatility(
         S=spot, K=strike, T=time_to_expiry_years,
         r=0.06, market_price=market_price, option_type="call"
     )
     vol_spread, vol_signal = classify_vol_spread(iv, safe_volatility)
-    vrp_payload = compute_vrp(iv, vol_forecast)
+    vrp_payload = compute_vrp(iv, vol_forecast, regime_label=regime)
     expected_vrp = vrp_payload.get("expected_vrp") if vrp_payload else None
     expected_vrp_expiry = expected_vrp * (time_to_expiry_years ** 0.5) if expected_vrp is not None else None
 
@@ -611,16 +622,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         expected_vrp=expected_vrp
     )
     
-    # Step 6: Classify volatility regime
-    rolling_vol_series = None
-    try:
-        rolling_vol_series = returns_series.rolling(window=60).std() * sqrt_252
-        rolling_vol_series = rolling_vol_series.dropna()
-    except Exception:
-        rolling_vol_series = None
-
-    regime_payload = classify_volatility_regime(vol_forecast, vol_series=rolling_vol_series)
-    regime = regime_payload["regime_label"]
+    # Regime was classified earlier for VRP
     
     # Step 7: Generate strategy recommendation
     strategy_result = generate_strategy(

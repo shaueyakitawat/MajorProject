@@ -65,6 +65,18 @@ def _compute_hourly_realized_volatility_from_5m(price_series_5min: pd.Series) ->
     return _compute_realized_volatility(hourly_prices, "1h")
 
 
+def _compute_15m_realized_volatility_from_5m(price_series_5min: pd.Series) -> float | None:
+    if price_series_5min is None or len(price_series_5min) < 3:
+        return None
+
+    if isinstance(price_series_5min.index, pd.DatetimeIndex):
+        prices_15m = price_series_5min.resample("15min").last().dropna()
+    else:
+        prices_15m = price_series_5min.iloc[::3]
+
+    return _compute_realized_volatility(prices_15m, "15m")
+
+
 def forecast_volatility(returns_series: pd.Series, price_series_5min: pd.Series | None = None) -> dict:
     """
     Forecast next-period volatility using EGARCH(1,1) and fuse with intraday realized vol.
@@ -90,15 +102,17 @@ def forecast_volatility(returns_series: pd.Series, price_series_5min: pd.Series 
     raw_volatility = forecasted_volatility / 100
 
     daily_vol = apply_dynamic_annualization(float(raw_volatility), "daily")
-    intraday_vol = compute_intraday_realized_volatility(price_series_5min)
-    hourly_vol = _compute_hourly_realized_volatility_from_5m(price_series_5min)
+    intraday_vol = compute_intraday_realized_volatility(price_series_5min) # 5m
+    hourly_vol = _compute_hourly_realized_volatility_from_5m(price_series_5min) # 1h
+    vol_15m = _compute_15m_realized_volatility_from_5m(price_series_5min) # 15m
 
     w_daily, w_intraday = _normalize_weights(DAILY_VOL_WEIGHT, INTRADAY_VOL_WEIGHT, intraday_vol is not None)
     final_vol = (w_daily * daily_vol) + (w_intraday * intraday_vol if intraday_vol is not None else 0.0)
 
     tci = None
-    if hourly_vol is not None and intraday_vol is not None:
-        tci_values = np.array([daily_vol, hourly_vol, intraday_vol], dtype=float)
+    if hourly_vol is not None and intraday_vol is not None and vol_15m is not None:
+        # Timeframe Coherence Index uses 4 dimensions now (daily, hourly, 15m, 5m)
+        tci_values = np.array([daily_vol, hourly_vol, vol_15m, intraday_vol], dtype=float)
         if np.all(np.isfinite(tci_values)):
             tci = float(np.var(tci_values))
 
