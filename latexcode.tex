@@ -431,6 +431,8 @@
 
 The framework detects model-implied option pricing deviations; a claim of economic mispricing is reserved for signals satisfying the validation hierarchy in Section~V-M.
 
+Quantitative pricing uses the HMM's filtered posterior probability vector and posterior-weighted VRP; any dominant-regime label is reserved for presentation or human-readable recommendations.
+
 Options are commonly priced using the Black--Scholes model, where implied volatility serves as the primary input for estimating theoretical option values. However, implied volatility is itself derived from market prices, creating a circular dependency when the same contract's implied volatility is used both to construct and evaluate its theoretical value. This paper presents a quantitative framework for detecting model-implied option pricing deviations in the NIFTY~50 derivatives market by combining econometric volatility forecasting, regime-aware analysis, and theoretical option valuation. The proposed system estimates future conditional volatility using an EGARCH(1,1) model trained on historical price returns and enhances the forecast through an adaptively weighted, regime-conditioned fusion of multiple realized-volatility timeframes. The fusion weights are learned by minimizing out-of-sample forecasting loss, allowing the volatility estimate to respond to both the current market state and the target horizon. A Gaussian Hidden Markov Model (HMM) is employed to classify prevailing volatility regimes and estimate a temporally lagged Volatility Risk Premium (VRP), allowing historical market pricing information to inform the forecast without using the contract's contemporaneous implied volatility at inference. The adjusted volatility is subsequently incorporated into the Black--Scholes pricing model to compute a theoretical fair value for each option contract without that contract's same-period IV as a pricing input. Model-implied pricing deviation is quantified by comparing theoretical and observed market prices through a composite scoring mechanism that integrates pricing uncertainty, option Greeks, and regime information. The complete framework is implemented as a modular FastAPI-based backend with live market data integration, enabling automated option valuation, deviation detection, and strategy recommendation. The proposed architecture provides an interpretable and computationally efficient alternative to contemporaneous implied-volatility-based pricing approaches while supporting extensibility for future quantitative trading and decision-support applications.
 
 \end{abstract}
@@ -476,7 +478,7 @@ The primary contributions of this work are summarized as follows:
     
     \item A regime-conditioned adaptive volatility fusion mechanism that learns time-varying, simplex-constrained combination weights across timeframes via out-of-sample forecasting loss minimization, rather than relying on fixed or heuristically-tuned weights.
     
-    \item Introduction of a regime-aware pricing mechanism using a Gaussian Hidden Markov Model to estimate the expected Volatility Risk Premium under varying market conditions.
+    \item Introduction of a posterior-probability-weighted pricing mechanism using filtered Gaussian Hidden Markov Model probabilities to blend lagged regime-specific Volatility Risk Premium estimates under varying market conditions.
     
     \item Design of a composite model-implied pricing deviation methodology derived from a formal hypothesis-testing framework, in which each contract's standardized pricing residual uses regime- and liquidity-dependent uncertainty estimation and is accompanied by an explicit confidence adjustment.
 
@@ -683,28 +685,29 @@ The framework combines long-term EGARCH forecasts with recent realized volatilit
 
 \subsection{Market Regime Identification}
 
-Financial markets alternate between periods of low and high volatility. Pricing models that ignore these structural shifts often produce inaccurate theoretical valuations. To capture changing market conditions, a Gaussian Hidden Markov Model (HMM) is employed.
+Financial markets alternate between periods of low and high volatility. Pricing models that ignore these structural shifts often produce inaccurate theoretical valuations. To capture changing market conditions, a Gaussian Hidden Markov Model (HMM) is employed, with its filtered posterior probability vector used as the operational regime representation.
 
-The HMM classifies the market into discrete volatility regimes based on observed volatility features. Typical regimes include Low Volatility, Normal Volatility, High Volatility, and Extreme Volatility.
+The HMM represents the market as a data-selected number of discrete volatility regimes based on observed volatility features. Downstream quantitative calculations use the full filtered posterior distribution over states. Low, Normal, High, and Extreme labels are used only as an interpretable four-state description if the model-selection procedure selects $K=4$; they are not imposed as an a priori assumption.
 
-Each regime represents a distinct probability distribution governing market behavior. The most probable hidden state is inferred using a moving-window approach rather than an expanding window to quickly adapt to structural breaks without stale data skewing regime probabilities. The HMM window used to fit or update the regime model and classify time $t$ must contain only observations strictly prior to $t$; % TODO: specify exact HMM moving-window length (e.g., 60 or 120 trading days) and confirm no future data is included in the window used to classify time t.
-The model states $0, 1, 2, 3$ are dynamically mapped to qualitative regimes ("Low", "Normal", "High", "Extreme") by sorting the estimated mean variances corresponding to each clustered hidden state.
+Each regime represents a distinct probability distribution governing market behavior. The number of hidden states $K$ is treated as an empirically selected hyperparameter rather than fixed a priori. Candidate values $K\in\{2,3,4,5,6\}$ are evaluated using information criteria, regime persistence, and downstream validation performance. The filtered posterior vector is inferred using a moving-window approach rather than an expanding window to quickly adapt to structural breaks without stale data skewing regime probabilities. The HMM window used to fit or update the regime model and classify time $t$ must contain only observations strictly prior to $t$; % TODO: specify exact HMM moving-window length (e.g., 60 or 120 trading days) and confirm no future data is included in the window used to classify time t.
+If model selection supports $K=4$, states $0,1,2,3$ are dynamically mapped to qualitative regimes ("Low", "Normal", "High", "Extreme") by sorting estimated mean variances. % TODO: confirm final K after model selection and update all references to four regimes throughout the paper if K\neq4.
+% TODO: if model selection yields K\neq4, update the state space in Eq. (9), VRP regime-conditional estimation in Section V-F, regime-conditioned fusion weights in Section V-I, M-Score confidence covariates in Section V-K, the Abstract, and Sections VII--VIII prose referring to four regimes.
 
 \subsection{Volatility Risk Premium Estimation}
 
 Implied volatility generally exceeds statistically forecasted volatility because option buyers are willing to pay a premium for downside protection. This difference is commonly referred to as the Volatility Risk Premium (VRP). Instead of directly adopting the contemporaneous implied volatility of the contract being evaluated, the proposed framework estimates the expected premium using information available before the pricing time.
 
-The forecasted EGARCH volatility is then adjusted using the temporally lagged premium,
+The forecasted EGARCH volatility is then adjusted using a temporally lagged, posterior-probability-weighted premium mixture,
 
 \begin{equation}
 \sigma_{\text{adjusted},t}
 =
 \sigma_{\text{EGARCH},t}
 +
-\widehat{VRP}_{t}.
+\sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
 \end{equation}
 
-Although variances are strictly additive in standard probability models, we follow the established practitioner convention of linearly adjusting log-volatility (or standard deviation) by an empirical premium factor, simplifying real-time computation without significant loss of predictive power [12, 23]. The VRP estimator may use historical implied volatility to learn the regime-conditional average premium the market has charged in the past, but it is fitted and applied with strict temporal separation from the option being priced. Thus, this procedure does not claim independence from all market-derived information; it avoids the specific circular loop in which a contract's own current-day IV is used to compute the fair value against which that same contract is assessed, analogous to using historical returns to estimate volatility. The estimator in (\ref{eq:lagged_vrp}) uses information available no later than time $t$ to produce the forecast for $t+1$; % TODO: specify the exact lag value $k$ used in the implemented VRP estimator, subject to $k\geq1$.
+Although variances are strictly additive in standard probability models, we follow the established practitioner convention of linearly adjusting log-volatility (or standard deviation) by an empirical premium factor, simplifying real-time computation without significant loss of predictive power [12, 23]. Each regime premium is estimated from lagged historical information with strict temporal separation from the option being priced. The posterior mixture varies continuously during transitions rather than switching discontinuously when a hard label changes; a shift from posterior probabilities $(0.51,0.49)$ to $(0.49,0.51)$ therefore changes the adjustment only negligibly. The estimator in (\ref{eq:lagged_vrp}) uses information available no later than time $t$ to produce the forecast for $t+1$; % TODO: specify the exact lag value $k$ used in the implemented VRP estimator, subject to $k\geq1$.
 
 \subsection{Theoretical Option Valuation}
 
@@ -742,7 +745,7 @@ This classification enables traders to identify contracts exhibiting statistical
 
 \subsection{Strategy Recommendation}
 
-The final stage translates quantitative outputs into actionable trading insights. Depending on the detected volatility regime, estimated volatility risk premium, and degree of model-implied pricing deviation, the framework recommends suitable options strategies.
+The final stage translates quantitative outputs into actionable trading insights. Quantitative pricing uses the full filtered posterior vector and its posterior-weighted VRP; a dominant-regime label may be derived only for human-readable strategy recommendations, not for the fair-value calculation. The framework combines this recommendation context with the degree of model-implied pricing deviation to suggest suitable options strategies.
 
 For example, high-volatility regimes with positive model-implied pricing deviations may favor premium-selling strategies, whereas low-volatility environments with negative deviations may indicate favorable premium-buying opportunities. These are model-conditioned strategy indications rather than proof of economic mispricing.
 
@@ -904,7 +907,36 @@ where
     \item $\Sigma_i$ denotes the covariance matrix.
 \end{itemize}
 
-The Viterbi algorithm is employed to determine the most probable sequence of hidden market regimes. For classification at time $t$, the HMM parameters and posterior calculation must use only observations available before $t$ and the moving-window length must be fixed in advance. % TODO: specify exact HMM moving-window length and retraining/update rule consistently with the Walk-Forward Evaluation Protocol in Section~VI-B-1.
+The forward algorithm is the primary operational output of the HMM. It produces the filtered posterior probabilities
+
+\begin{equation}
+\label{eq:filtered_regime_posterior}
+\pi_{t,k}=P(S_t=k\mid O_{1:t}),\qquad k=1,\ldots,K,
+\end{equation}
+
+using only observations available up to and including time $t$. These filtered probabilities, rather than a one-hot state or scalar regime label, are consumed by the VRP, adaptive-fusion, and M-Score components. Smoothed backward-pass probabilities $P(S_t=k\mid O_{1:T})$ are not used operationally because conditioning on future observations would introduce look-ahead bias. The Viterbi sequence may be retained only as a secondary, presentational output for regime labels in Fig. 2 and for descriptive duration statistics; it is not an input to quantitative pricing computation. For classification at time $t$, HMM fitting and filtering use only observations available before or at $t$, and the moving-window length must be fixed in advance. % TODO: specify exact HMM moving-window length and retraining/update rule consistently with the Walk-Forward Evaluation Protocol in Section~VI-B-1.
+
+\subsubsection{HMM State-Count Model Selection}
+
+The state count $K$ is treated as a hyperparameter selected from $\{2,3,4,5,6\}$ rather than assumed from qualitative labels. Let $\theta_K$ denote the fitted parameters of a candidate $K$-state Gaussian HMM, $\mathcal{L}(\theta_K)$ its fitted likelihood, $p_K$ the number of free parameters, and $n$ the number of observations. The information criteria are
+
+\begin{equation}
+\mathrm{AIC}_K = 2p_K - 2\ln\left(\mathcal{L}(\theta_K)\right),
+\end{equation}
+
+\begin{equation}
+\mathrm{BIC}_K = p_K\ln(n) - 2\ln\left(\mathcal{L}(\theta_K)\right).
+\end{equation}
+
+BIC is the preferred primary criterion because its stronger complexity penalty guards against over-segmenting the volatility series into spurious micro-regimes. It is considered alongside AIC, persistence diagnostics, and downstream validation rather than used in isolation. For state $i$, the expected duration implied by the transition matrix is
+
+\begin{equation}
+\mathrm{E}[D_i] = \frac{1}{1-p_{ii}}.
+\end{equation}
+
+Candidate models are rejected if they produce implausibly short durations or rapidly oscillating regimes, even when their information criteria improve, because unstable states would make VRP estimates and adaptive fusion weights unstable. The final $K$ is also assessed using volatility-forecasting error and pricing-deviation detection quality on the validation window specified in the Walk-Forward Evaluation Protocol, never on the held-out test window. % TODO: specify the operational minimum-duration rule and confirm the validation metrics and selection tie-break rule for K.
+
+The fitted transition matrix $A$ is reported empirically with the selected model. Diagonal dominance, reflected by high $p_{ii}$ values, is expected and desirable because it indicates persistent regimes; the off-diagonal structure reveals whether transitions are typically gradual (for example, Low$\rightarrow$Normal$\rightarrow$High) or whether direct jumps such as Normal$\rightarrow$Extreme are common.
 
 \subsection{Volatility Risk Premium}
 
@@ -922,17 +954,24 @@ For pricing at time $t$, the expected premium is generated strictly from informa
 
 \begin{equation}
 \label{eq:lagged_vrp}
-\widehat{VRP}_{t+1} = f_{\phi}\left(R_t, IV_{t-k}, RV_t, X_t\right), \qquad k\geq 1,
+\widehat{VRP}_{t+1} = f_{\phi}\left(\boldsymbol{\pi}_t, IV_{t-k}, RV_t, X_t\right), \qquad k\geq 1,
 \end{equation}
 
-where $R_t$ denotes the current HMM regime posterior or state, $IV_{t-k}$ denotes implied volatility observed at least $k$ periods earlier and never the IV of the contract currently being evaluated, $RV_t$ denotes realized volatility, and $X_t$ denotes other market-state features available at the forecast origin. The one-step-ahead estimate produced by (\ref{eq:lagged_vrp}) is stored and used as the lagged estimate $\widehat{VRP}_t$ when pricing at time $t$; all fitting and updating uses data available no later than the forecast origin. % TODO: specify the exact lag $k$ and confirm the VRP fitting window and update cadence in the Walk-Forward Evaluation Protocol.
+where $\boldsymbol{\pi}_t=[\pi_{t,1},\ldots,\pi_{t,K}]$ denotes the filtered HMM posterior vector, $IV_{t-k}$ denotes implied volatility observed at least $k$ periods earlier and never the IV of the contract currently being evaluated, $RV_t$ denotes realized volatility, and $X_t$ denotes other market-state features available at the forecast origin. The one-step-ahead estimate produced by (\ref{eq:lagged_vrp}) is stored for the lagged regime-premium estimates used at time $t$; all fitting and updating uses data available no later than the forecast origin. % TODO: specify the exact lag $k$ and confirm the VRP fitting window and update cadence in the Walk-Forward Evaluation Protocol.
+
+The posterior-weighted expected VRP is
+
+\begin{equation}
+\label{eq:posterior_weighted_vrp}
+\widehat{VRP}_{t}=\sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
+\end{equation}
 
 \begin{equation}
 \label{eq:adjusted_lagged_vrp}
-\sigma_{\mathrm{adj},t} = \sigma_{\mathrm{EGARCH},t} + \widehat{VRP}_{t}.
+\sigma_{\mathrm{adj},t} = \sigma_{\mathrm{EGARCH},t} + \sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
 \end{equation}
 
-The estimator may use historical IV to learn the regime-conditional average risk premium the market has charged in the past, but it never uses the contract's own current-day IV at inference. This is analogous to using historical returns to estimate volatility: historical market information is permitted, while the specific same-contract, same-period circular loop is excluded. The adjusted volatility is therefore not claimed to be independent of all market-derived information; it is temporally separated from the option observation used for model-implied deviation assessment.
+Each $\widehat{VRP}_{k,t}$ is estimated by the lagged, out-of-sample procedure above using historical IV and other information available no later than the forecast origin, never the contract's contemporaneous IV. The filtered mixture varies continuously and degrades gracefully during regime transitions rather than jumping when an argmax label flips. For example, a hard-assignment shift from $\boldsymbol{\pi}_t=(0.51,0.49)$ to $(0.49,0.51)$ switches the full premium between two regimes, whereas the posterior mixture changes only negligibly and reflects genuine uncertainty. The estimator may use historical IV to learn the risk premium charged in the past, but the adjusted volatility remains temporally separated from the option observation used for model-implied deviation assessment.
 
 \subsection{Toward a Cross-Sectional Regime-Conditional VRP Surface}
 
@@ -940,7 +979,7 @@ The scalar regime-conditional VRP can be extended to a cross-sectional surface t
 
 \begin{equation}
 \label{eq:vrp_surface}
-VRP_{t,K,T} = f\left(R_t,\mathrm{Moneyness}_{K,T},T,\mathrm{Liquidity}_t,RV_t\right),
+VRP_{t,K,T} = f\left(\boldsymbol{\pi}_t,\mathrm{Moneyness}_{K,T},T,\mathrm{Liquidity}_t,RV_t\right),
 \end{equation}
 
 where $K$ is the strike, $T$ is time to maturity, $\mathrm{Moneyness}_{K,T}$ denotes the option's moneyness, and $\mathrm{Liquidity}_t$ captures order-flow, volume, and open-interest information. Conditioning on moneyness and maturity is more defensible than applying a single regime-average scalar because the volatility risk premium varies across the implied-volatility skew and across the term structure. In particular, out-of-the-money puts are a well-known stylized example of contracts that can carry a larger premium than at-the-money options, while premiums can also differ materially across maturities. % TODO: cite a source for the stylized facts on skew and the term structure of the VRP.
@@ -1008,11 +1047,11 @@ To evaluate option sensitivities, the framework utilizes standard analytical Bla
 
 \subsection{Multi-Timeframe Volatility Fusion}
 
-To reconcile inconsistencies between long-term econometric forecasts and short-term volatility perturbations, we introduce an adaptive fusion mechanism whose weights respond to the current market state, the inferred regime, and the target forecasting horizon. Let $X_t$ denote a vector of current market-state features, including recent realized-volatility measures and return-momentum information, let $R_t$ denote the HMM regime posterior probability vector, and let $\tau$ denote the target horizon. The time-varying fusion weights are generated by
+To reconcile inconsistencies between long-term econometric forecasts and short-term volatility perturbations, we introduce an adaptive fusion mechanism whose weights respond to the current market state, the filtered regime posterior vector, and the target forecasting horizon. Let $X_t$ denote a vector of current market-state features, let $\boldsymbol{\pi}_t=[\pi_{t,1},\ldots,\pi_{t,K}]$ denote the HMM posterior probability vector, and let $\tau$ denote the target horizon. The time-varying fusion weights are generated by
 
 \begin{equation}
 \label{eq:adaptive_fusion_weights}
-\mathbf{w}_t(\tau) = f_{\theta}\left(X_t,R_t,\tau\right),
+\mathbf{w}_t(\tau) = f_{\theta}\left(X_t,\boldsymbol{\pi}_t,\tau\right),
 \end{equation}
 
 where $\sigma_{RV,i,t}$ designates the annualized realized volatility calculated over the $i$-th intraday scale and the daily EGARCH forecast is indexed by $0$. The fused volatility is therefore
@@ -1036,7 +1075,7 @@ This constraint guarantees that the fused volatility remains a convex combinatio
 \mathbf{w}^{*}_t(\tau) = \arg\min_{\mathbf{w}_t(\tau)\in\Delta^{k}}\ \mathrm{E}^{\mathrm{WF}}\left[\left(\sigma_{\mathrm{realized},t+\tau} - \sigma_{\mathrm{fusion},t}(\tau;\mathbf{w}_t)\right)^2\right],
 \end{equation}
 
-where $\mathrm{E}^{\mathrm{WF}}$ denotes evaluation over historical rolling walk-forward windows: each weight estimate is fit using information available before the forecast origin and evaluated on subsequent observations, never by fitting to the full in-sample period. The Walk-Forward Evaluation Protocol in Section~VI-B-1 is the mechanism that enforces this temporal ordering for fusion-weight fitting. Conditioning the weights on $R_t$ is the methodological contribution: in low-volatility regimes, longer-horizon EGARCH forecasts can receive greater weight because high-frequency realized volatility is comparatively noisy, whereas in high or extreme regimes, short-horizon realized volatility can receive greater weight because it reacts more rapidly to regime shifts than the smoothing in EGARCH. The function $f_{\theta}(\cdot)$ may be implemented using a constrained regression, a small gradient-boosted model, or a softmax-parameterized linear combiner over regime one-hot or posterior-probability features.
+where $\mathrm{E}^{\mathrm{WF}}$ denotes evaluation over historical rolling walk-forward windows: each weight estimate is fit using information available before the forecast origin and evaluated on subsequent observations, never by fitting to the full in-sample period. The Walk-Forward Evaluation Protocol in Section~VI-B-1 is the mechanism that enforces this temporal ordering for fusion-weight fitting. Conditioning the weights on the full posterior vector $\boldsymbol{\pi}_t$, rather than a one-hot state label, allows low-confidence transitions to produce smooth changes in weights: longer-horizon EGARCH forecasts can receive greater weight when high-frequency realized volatility is noisy, while short-horizon realized volatility can receive greater weight when the posterior shifts toward high-volatility states. The function $f_{\theta}(\cdot)$ may be implemented using a constrained regression, a small gradient-boosted model, or a softmax-parameterized linear combiner over posterior-probability features.
 
 \subsection{Timeframe Coherence Index (TCI)}
 
@@ -1061,7 +1100,7 @@ where $i$ indexes the 1-minute, 5-minute, 15-minute, and 1-hour estimates. Thus,
 TCI^{\mathrm{clip}}_t = \max\left(0,\min\left(1,TCI_t\right)\right) \in [0,1].
 \end{equation}
 
-$TCI_t$ approaching $1$ indicates strong agreement across timeframes, whereas $TCI_t$ approaching $0$ after clipping, or becoming negative before clipping, indicates strong disagreement and possible regime-transition noise. % TODO: H could be reintroduced later as a separate, independently justified regime-persistence feature, for example as an additional input to the adaptive fusion weight function f(X_t,R_t,\tau), rather than being folded into TCI.
+$TCI_t$ approaching $1$ indicates strong agreement across timeframes, whereas $TCI_t$ approaching $0$ after clipping, or becoming negative before clipping, indicates strong disagreement and possible regime-transition noise. % TODO: H could be reintroduced later as a separate, independently justified regime-persistence feature, for example as an additional input to the adaptive fusion weight function f(X_t,\boldsymbol{\pi}_t,\tau), rather than being folded into TCI.
 
 \subsection{Composite Mispricing M-Score}
 
@@ -1085,10 +1124,10 @@ The full uncertainty estimate is represented as a covariate-based function,
 
 \begin{equation}
 \label{eq:mscore_uncertainty}
-\widehat{\sigma}_{\epsilon,t} = g\left(\mathcal{V}_t,\Gamma_t,R_t,\mathrm{Liquidity}_t\right),
+\widehat{\sigma}_{\epsilon,t} = g\left(\mathcal{V}_t,\Gamma_t,\boldsymbol{\pi}_t,\mathrm{Liquidity}_t\right),
 \end{equation}
 
-where $R_t$ denotes the prevailing regime information and $\mathrm{Liquidity}_t$ denotes liquidity information such as spreads, volume, or open interest. The function $g(\cdot)$ may be estimated from validation residuals; its regime and liquidity covariates allow uncertainty to widen in extreme regimes or illiquid contracts rather than imposing a fixed sensitivity correction. No particular coefficients or functional form are assumed here.
+where $\boldsymbol{\pi}_t$ is the filtered posterior vector and $\mathrm{Liquidity}_t$ denotes liquidity information such as spreads, volume, or open interest. The function $g(\cdot)$ may be estimated from validation residuals; its probability-weighted regime and liquidity covariates allow uncertainty to vary smoothly through transitions and to widen in extreme posterior states or illiquid contracts rather than imposing a fixed sensitivity correction. No particular coefficients or functional form are assumed here.
 
 The final score separates statistical evidence from contextual confidence:
 
@@ -1365,7 +1404,7 @@ Fusion EGARCH & 0.021 & 0.038 & 6.4 \\
 \subsection{Market Regime Identification}
 
 \textbf{[Illustrative/Placeholder -- replace with final regime figure.]}
-The Hidden Markov Model classifies market conditions into different volatility regimes.
+The Hidden Markov Model reports filtered posterior probabilities over the selected volatility regimes; hard Viterbi labels are retained only for presentation in the regime-identification plot.
 
 \begin{figure}[!ht]
 \centering
@@ -1376,6 +1415,60 @@ The Hidden Markov Model classifies market conditions into different volatility r
 \end{figure}
 
 The identified regimes are subsequently used for estimating the expected Volatility Risk Premium.
+
+% TODO: report the filtered posterior-probability time series, not only hard Viterbi labels, and illustrate a transition period showing the smooth posterior-weighted VRP response. Check Fig. 2 for consistency: if it shows hard regime bands, update the caption or figure to show posterior-probability shading.
+
+% TODO: run HMM model selection for K=2..6 and populate all placeholder cells below.
+\begin{table}[!ht]
+\centering
+\caption{HMM Model Selection Across Candidate Regime Counts (Illustrative/Placeholder -- to be replaced with final results)}
+\label{tab:hmm_model_selection}
+\begin{tabular}{lcccccc}
+\hline
+$K$ & Log-Likelihood & AIC & BIC & Mean Regime Duration (days) & Validation Performance \\
+\hline
+2 & TBD & TBD & TBD & TBD & TBD \\
+3 & TBD & TBD & TBD & TBD & TBD \\
+4 & TBD & TBD & TBD & TBD & TBD \\
+5 & TBD & TBD & TBD & TBD & TBD \\
+6 & TBD & TBD & TBD & TBD & TBD \\
+\hline
+\end{tabular}
+\end{table}
+
+% TODO: populate with fitted transition probabilities for the selected K; if K=4, report the 4x4 matrix, otherwise report the selected KxK matrix.
+\begin{table}[!ht]
+\centering
+\caption{Fitted HMM Transition Matrix (Illustrative/Placeholder -- to be replaced with final results)}
+\label{tab:hmm_transition_matrix}
+\begin{tabular}{lcccc}
+\hline
+From / To & State 0 & State 1 & State 2 & State 3 \\
+\hline
+State 0 & TBD & TBD & TBD & TBD \\
+State 1 & TBD & TBD & TBD & TBD \\
+State 2 & TBD & TBD & TBD & TBD \\
+State 3 & TBD & TBD & TBD & TBD \\
+\hline
+\end{tabular}
+\end{table}
+
+% TODO: populate regime duration statistics from the fitted state sequence and transition matrix.
+\begin{table}[!ht]
+\centering
+\caption{HMM Regime Duration Statistics (Illustrative/Placeholder -- to be replaced with final results)}
+\label{tab:hmm_duration_statistics}
+\begin{tabular}{lcccc}
+\hline
+Regime & $\mathrm{E}[D_i]=1/(1-p_{ii})$ & Empirical Mean Duration & Occurrences & Share of Observations (\%) \\
+\hline
+State 0 & TBD & TBD & TBD & TBD \\
+State 1 & TBD & TBD & TBD & TBD \\
+State 2 & TBD & TBD & TBD & TBD \\
+State 3 & TBD & TBD & TBD & TBD \\
+\hline
+\end{tabular}
+\end{table}
 
 \subsection{Option Pricing Results}
 
@@ -1667,7 +1760,7 @@ The proposed framework offers several advantages over traditional option pricing
 \begin{itemize}
     \item Estimation of volatility using historical market data rather than the contract's contemporaneous implied volatility; lagged historical IV remains an input to VRP estimation.
     
-    \item Incorporation of market regime information through Hidden Markov Models, allowing the pricing model to adapt to changing volatility conditions.
+    \item Incorporation of filtered posterior regime probabilities through Hidden Markov Models, allowing volatility adjustments, fusion weights, and pricing uncertainty to vary continuously across regime transitions rather than relying on hard state assignment.
     
     \item Integration of Volatility Risk Premium estimation to better reflect prevailing market sentiment.
     
@@ -1688,7 +1781,7 @@ First, the constant-volatility Black--Scholes model does not capture the NIFTY o
 
 Second, the EGARCH model relies on historical return distributions and may not fully capture unexpected macroeconomic events, geopolitical developments, or sudden market shocks.
 
-Third, the Hidden Markov Model assumes a finite number of hidden market regimes. Real financial markets may exhibit more complex behavioral dynamics that cannot always be represented using discrete states.
+Third, the Hidden Markov Model now treats the number of states as a formally selected hyperparameter, but the Gaussian emission assumption and discrete-state formulation remain modeling choices. Real financial markets may exhibit continuous regime transitions or more complex behavioral dynamics that cannot always be represented using discrete states.
 
 Fourth, although the VRP estimator is temporally lagged and excludes the option contract's own contemporaneous implied volatility, it still uses historical implied volatility as an input feature. The framework therefore does not claim full independence from all market-derived information; it claims only to avoid same-contract, same-period circularity. This distinction should be considered when interpreting the resulting fair values and mispricing signals.
 
