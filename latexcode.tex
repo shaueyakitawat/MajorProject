@@ -512,7 +512,7 @@ In practice, traders invert the Black--Scholes formula to extract implied volati
 
 The spread between realized (historical) and implied volatility has long been studied as an indicator of the volatility risk premium. Research by Bollerslev et al.\ (2009) demonstrated that this spread predicts future equity returns, while Carr and Wu (2009) showed that variance risk premiums contain information about options mispricing [5, 7]. Using a temporally lagged, forecasted conditional volatility as the volatility input to Black--Scholes, rather than the contract's contemporaneous implied volatility, provides a model-based pricing reference that avoids the same-contract, same-period circularity inherent in IV-based approaches.
 
-\begin{table}[H]
+\begin{table*}[!ht]
 \centering
 \caption{Comparison of Options Pricing and Volatility Estimation Approaches}
 \label{tab:pricing_approaches}
@@ -528,7 +528,7 @@ Heston & Stochastic process & Captures smile; realistic & Calibration complexity
 Monte Carlo & Simulated paths & Flexible; path-dependent & Computationally expensive; convergence & [14] \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 Among these approaches, GARCH-based volatility forecasting combined with Black--Scholes pricing offers a pragmatic balance between theoretical rigor and computational feasibility for retail quantitative research.
 
@@ -546,7 +546,7 @@ Nelson (1991) introduced the Exponential GARCH (EGARCH) model, which addresses t
 
 Studies on the Indian equity market have demonstrated that EGARCH models outperform symmetric GARCH variants in capturing NIFTY~50 volatility dynamics. Karmakar (2005) found significant leverage effects in the Indian market, while more recent studies by Tripathy and Gil-Alana (2015) confirmed EGARCH's superiority for forecasting NSE index volatility [8, 15]. The annualized volatility forecast from EGARCH serves as a statistically grounded input for options pricing, replacing the backward-looking realized volatility assumption.
 
-\begin{table}[H]
+\begin{table*}[!ht]
 \centering
 \caption{Summary of GARCH-Family Models Used in Financial Volatility Forecasting}
 \label{tab:garch_models}
@@ -562,7 +562,7 @@ GJR-GARCH & Threshold-based asymmetry & Yes & Required & Comparative studies & [
 FIGARCH & Long memory in volatility & No & Required & Long-horizon forecasting & [11] \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 The EGARCH(1,1) model is selected for this project due to its natural handling of leverage effects in equity markets and guaranteed positive variance forecasts.
 
@@ -580,7 +580,7 @@ The field has evolved from classical econometric models to hybrid AI-driven syst
     \item \textbf{Hybrid Systems:} Recent research combines GARCH volatility outputs with ML-based trading signals. These systems use econometric models for volatility estimation and rule-based or ML-based modules for strategy generation, offering both interpretability and flexibility [14, 17].
 \end{itemize}
 
-\begin{table}[H]
+\begin{table*}[!ht]
 \centering
 \caption{Comparative Performance Metrics of State-of-the-Art AI Models}
 \label{tab:model_comparison}
@@ -601,7 +601,7 @@ Zheng et al.\ (2023) & Hybrid HMM-DL & NIFTY 50 & Regime & Improved mispricing d
 Chen et al.\ (2024) & Regime-Switching & VIX & VRP & Demonstrated dynamic risk premiums & [31] \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 \subsection{Key Feature Indicators for Mispricing Detection}
 
@@ -765,7 +765,8 @@ Furthermore, the entire application is containerized using Docker, allowing for 
 
 \begin{figure}[!ht]
 \centering
-% \includegraphics[width=\linewidth]{images/algorithmic_data_flow.pdf}
+\framebox[\textwidth]{\rule{0pt}{200pt} Placeholder for Figure}
+% TODO: insert actual figure file
 \caption{Algorithmic data-flow mapping the progression of OHLCV tick data through the multi-timeframe EGARCH estimator, into the HMM Regime filter, generating adjusted inputs for the Black-Scholes pricing core and resulting in the Composite M-Score.}
 \label{fig:data_flow}
 \end{figure}
@@ -1269,9 +1270,9 @@ Table~\ref{tab:dataset} summarizes the dataset characteristics.
 \caption{Dataset Summary}
 \label{tab:dataset}
 \begin{tabular}{ll}
-\hline
+\toprule
 \textbf{Parameter} & \textbf{Value} \\
-\hline
+\midrule
 Underlying Asset & NIFTY 50 \\
 % TODO: CONFIRM DATASET PERIOD: Table IV currently states Jan 2020--Dec 2023, which conflicts with the separately mentioned Jan 2024--May 2026 out-of-sample backtest period. Resolve the authoritative period before submission.
 Observation Period & Jan 2020 - Dec 2023 \\
@@ -1280,8 +1281,8 @@ Number of Option Contracts & 850,490 \\
 Sampling Interval & 1-minute, Daily \\
 Expiry Cycles & Weekly and Monthly \\
 Total Records & 1.2M \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \subsection{Walk-Forward Evaluation Protocol}
@@ -1295,15 +1296,15 @@ For the currently documented Table IV period, the planned chronological split is
 \caption{Illustrative Walk-Forward Evaluation Split}
 \label{tab:walk_forward}
 \begin{tabular}{lll}
-\hline
+\toprule
 Period & Role & Purpose \\
-\hline
+\midrule
 2020 & Initial training & EGARCH/HMM estimation and VRP baselines \\
 2021 & Validation & Fusion, threshold, and window decisions \\
 2022 & Test 1 & First out-of-sample evaluation \\
 2023 & Test 2 & Strict held-out evaluation \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 The fixed-year split is a simplified, illustrative representation of the intended chronology. The preferred implementation is an expanding or rolling walk-forward scheme in which EGARCH and HMM models are re-estimated at a fixed cadence using only data available through each re-estimation point, then applied out of sample until the next retraining event. % TODO: specify actual EGARCH/HMM retraining cadence, e.g., monthly or quarterly.
@@ -1358,8 +1359,10 @@ The forecasting capability of the EGARCH model is evaluated by comparing predict
 %
 % \begin{figure}[!ht]
 % \centering
-% \includegraphics[width=\linewidth]{images/egarch_forecast.png}
-%\includegraphics[width=\linewidth]{images/egarch_forecast.pdf}\n% \caption{EGARCH forecast vs Realized Volatility capturing the historical NIFTY 50 span.}
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
 % \label{fig:volatility}
 % \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1377,9 +1380,9 @@ The forecasting capability of the EGARCH model is evaluated by comparing predict
 \caption{Volatility Forecasting Performance vs. Baselines (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:forecast}
 \begin{tabular}{lccc}
-\hline
+\toprule
 Model       & MAE & RMSE & MAPE (\%) \\
-\hline
+\midrule
 GARCH(1,1)  & 0.045 & 0.060 & 12.5 \\
 EGARCH      & 0.035 & 0.051 & 9.8 \\
 %TODO[C1]: replace dummy Historical Volatility values 0.052, 0.068, and 14.1 with results from the rolling standard-deviation baseline.
@@ -1397,8 +1400,8 @@ HAR-RV-J & 0.026 & 0.041 & 7.9 \\
 %TODO[C1]: replace dummy LSTM/Transformer values 0.024, 0.040, and 7.4 with results from the deep-learning volatility benchmark.
 LSTM/Transformer & 0.024 & 0.040 & 7.4 \\
 Fusion EGARCH & 0.021 & 0.038 & 6.4 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \subsection{Market Regime Identification}
@@ -1408,7 +1411,8 @@ The Hidden Markov Model reports filtered posterior probabilities over the select
 
 \begin{figure}[!ht]
 \centering
-% \includegraphics[width=\linewidth]{images/hmm_regimes.pdf}
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
 % TODO: insert actual figure file for Fig. 2; the current image command is commented out and no generated figure is embedded.
 \caption{Regime Identification Plot (Illustrative/Placeholder -- to be replaced with final results) mapping NIFTY 50 closing prices over a colored background denoting the concurrent predicted HMM regime distributions.}
 \label{fig:hmm_regimes}
@@ -1424,16 +1428,16 @@ The identified regimes are subsequently used for estimating the expected Volatil
 \caption{HMM Model Selection Across Candidate Regime Counts (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:hmm_model_selection}
 \begin{tabular}{lcccccc}
-\hline
+\toprule
 $K$ & Log-Likelihood & AIC & BIC & Mean Regime Duration (days) & Validation Performance \\
-\hline
+\midrule
 2 & TBD & TBD & TBD & TBD & TBD \\
 3 & TBD & TBD & TBD & TBD & TBD \\
 4 & TBD & TBD & TBD & TBD & TBD \\
 5 & TBD & TBD & TBD & TBD & TBD \\
 6 & TBD & TBD & TBD & TBD & TBD \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 % TODO: populate with fitted transition probabilities for the selected K; if K=4, report the 4x4 matrix, otherwise report the selected KxK matrix.
@@ -1442,15 +1446,15 @@ $K$ & Log-Likelihood & AIC & BIC & Mean Regime Duration (days) & Validation Perf
 \caption{Fitted HMM Transition Matrix (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:hmm_transition_matrix}
 \begin{tabular}{lcccc}
-\hline
+\toprule
 From / To & State 0 & State 1 & State 2 & State 3 \\
-\hline
+\midrule
 State 0 & TBD & TBD & TBD & TBD \\
 State 1 & TBD & TBD & TBD & TBD \\
 State 2 & TBD & TBD & TBD & TBD \\
 State 3 & TBD & TBD & TBD & TBD \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 % TODO: populate regime duration statistics from the fitted state sequence and transition matrix.
@@ -1459,15 +1463,15 @@ State 3 & TBD & TBD & TBD & TBD \\
 \caption{HMM Regime Duration Statistics (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:hmm_duration_statistics}
 \begin{tabular}{lcccc}
-\hline
+\toprule
 Regime & $\mathrm{E}[D_i]=1/(1-p_{ii})$ & Empirical Mean Duration & Occurrences & Share of Observations (\%) \\
-\hline
+\midrule
 State 0 & TBD & TBD & TBD & TBD \\
 State 1 & TBD & TBD & TBD & TBD \\
 State 2 & TBD & TBD & TBD & TBD \\
 State 3 & TBD & TBD & TBD & TBD \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \subsection{Option Pricing Results}
@@ -1477,7 +1481,8 @@ The adjusted volatility generated by the proposed framework is incorporated into
 
 \begin{figure}[!ht]
 \centering
-% \includegraphics[width=\linewidth]{images/precision_recall.pdf}
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
 % TODO: insert actual figure file for Fig. 3; the current image command is commented out and the plotted performance is illustrative pending the final backtest.
 \caption{Precision-Recall curve (Illustrative/Placeholder -- to be replaced with final results) comparing the Composite M-Score with a pure absolute pricing percentage deviation filter.}
 \label{fig:precision_recall}
@@ -1495,14 +1500,14 @@ The adjusted volatility generated by the proposed framework is incorporated into
 \caption{Model-Implied Pricing Deviation and M-Score Action Examples (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:mispricing_merged}
 \begin{tabular}{lcccccc}
-\hline
+\toprule
 Date / Strike & Market IV & Market Price & Fair Price (Fusion) & Model Dev (\%) & Composite M-Score & Action Flag \\
-\hline
+\midrule
 2023-08-14 19500 CE & 14.2\% & 120.5 & 105.2 & +14.5\% & +2.45 (Above Model) & SELL \\
 2023-08-14 19000 PE & 11.5\% & 45.0  & 58.6  & -23.2\% & -1.90 (Below Model) & BUY \\
 2023-08-15 19600 CE & 18.0\% & 150.0 & 148.0 & +1.3\%  & +0.10 (Near Model) & NONE \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 \subsection{Comparison with Alternative Option Pricing Models}
@@ -1516,9 +1521,9 @@ To assess whether the proposed regime-adjusted Black--Scholes implementation pro
 \caption{Comparison with Alternative Option Pricing Models (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:pricing_baselines}
 \begin{tabular}{lcc}
-\hline
+\toprule
 Model & Pricing Error (RMSE) & Mean Absolute \% Deviation \\
-\hline
+\midrule
 %TODO[C1]: replace dummy Black--Scholes + IV values 18.5 and 24.0 with real results.
 Black--Scholes + IV & 18.5 & 24.0 \\
 %TODO[C1]: replace dummy Black--Scholes + Forecast Volatility values 15.2 and 19.5 with real results.
@@ -1531,8 +1536,8 @@ Local Volatility & 10.4 & 12.8 \\
 SABR & 9.9 & 12.1 \\
 %TODO[C1]: replace dummy Proposed Framework values 8.7 and 10.5 with real regime-adjusted pricing results.
 Proposed Framework (regime-adjusted BS) & 8.7 & 10.5 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \subsection{Comparison of Mispricing Detection Signals}
@@ -1546,9 +1551,9 @@ The planned detection benchmark compares simple thresholding, IV-based deviation
 \caption{Comparison of Model-Implied Pricing Deviation Detection Signals (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:detection_baselines}
 \begin{tabular}{lcccc}
-\hline
+\toprule
 Method & Precision & Recall & F1-Score & AUC \\
-\hline
+\midrule
 %TODO[C1]: replace dummy Absolute Pricing Deviation values 0.51, 0.42, 0.46, and 0.58 with real results.
 Absolute Pricing Deviation & 0.51 & 0.42 & 0.46 & 0.58 \\
 %TODO[C1]: replace dummy IV Deviation values 0.56, 0.48, 0.52, and 0.63 with real results.
@@ -1559,8 +1564,8 @@ Volatility-Surface Residual & 0.61 & 0.54 & 0.57 & 0.69 \\
 Z-score Pricing Residual & 0.67 & 0.60 & 0.63 & 0.74 \\
 %TODO[C1]: replace dummy Proposed Composite M-Score values 0.74, 0.68, 0.71, and 0.79 with real results.
 Proposed Composite M-Score & 0.74 & 0.68 & 0.71 & 0.79 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \subsection{Mispricing Attribution: Structural versus Surface-Consistent Benchmarks}
@@ -1575,9 +1580,9 @@ The two-level design evaluates whether signals generated by Model 1, the regime-
 \label{tab:mispricing_attribution}
 %TODO[C4]: reconcile the attribution table's deviation units and dummy shrinkage values with the Concern 1 pricing-baseline RMSE table after all models are calibrated on the same contracts, timestamps, and error metric; do not infer consistency from the current placeholders.
 \begin{tabular}{lccc}
-\hline
+\toprule
 Segment & Signals Remaining Significant (\%) & Mean $|\mathrm{Residual}_M|$ & Mean $|M1_{\mathrm{dev}}|$ \\
-\hline
+\midrule
 %TODO[C4]: replace dummy overall values 42.0, 0.018, and 0.043 with paired universe-level results.
 All Contracts & 42.0 & 0.018 & 0.043 \\
 %TODO[C4]: replace dummy ITM values 55.0, 0.020, and 0.036 with paired ITM results.
@@ -1592,8 +1597,8 @@ Short maturity & 30.0 & 0.022 & 0.068 \\
 Medium maturity & 45.0 & 0.017 & 0.040 \\
 %TODO[C4]: replace dummy long-maturity values 58.0, 0.014, and 0.031 with paired long-maturity results.
 Long maturity & 58.0 & 0.014 & 0.031 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 The illustrative values suggest that only a minority of Model 1 signals survive surface control and that apparent deviations shrink most strongly for OTM and short-maturity contracts. %TODO[C4]: rewrite this interpretation after real paired results are available; the dummy pattern is not evidence that the M-Score survives or fails surface control. The final analysis must determine whether the residual signal remains statistically significant after calibration and multiple-testing correction.
@@ -1605,7 +1610,8 @@ A preliminary strategic overlay operating purely on the synthesized M-Score outp
 
 \begin{figure}[!ht]
 \centering
-% \includegraphics[width=\linewidth]{images/equity_curve.pdf}
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
 % TODO: insert actual figure file for Fig. 4; the current image command is commented out and no generated backtest figure is embedded.
 \caption{Backtest Cumulative Return Plot (Illustrative/Placeholder -- to be replaced with final results) modeling compounding portfolio growth constructed from simulated option transactions via M-Score thresholds, compared sequentially against implied-volatility heuristics and NIFTY benchmarks.}
 \label{fig:equity_curve}
@@ -1623,9 +1629,9 @@ The following table separates gross performance from net performance under the c
 \caption{Gross and Net Performance After Transaction Costs (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:net_performance}
 \begin{tabular}{lcccccc}
-\hline
+\toprule
 Method & Sharpe (Gross) & Sharpe (Net) & Cum. Return (Gross) & Cum. Return (Net) & Max Drawdown (Gross) & Max Drawdown (Net) \\
-\hline
+\midrule
 %TODO[C3]: replace dummy Standard BS + IV values 0.85, 0.62, 0.18, 0.08, -0.245, and -0.290 with gross/net backtest outputs and calibrated costs.
 Standard BS + IV & 0.85 & 0.62 & 0.18 & 0.08 & -0.245 & -0.290 \\
 %TODO[C3]: replace dummy Standard GARCH values 0.98, 0.70, 0.24, 0.12, -0.192, and -0.250 with gross/net backtest outputs and calibrated costs.
@@ -1638,8 +1644,8 @@ Heston Pricing Baseline & 1.10 & 0.76 & 0.28 & 0.15 & -0.165 & -0.225 \\
 HAR-RV Forecasting Baseline & 1.42 & 0.98 & 0.36 & 0.22 & -0.136 & -0.195 \\
 %TODO[C3]: replace dummy Proposed Framework values 1.68, 1.10, 0.42, 0.25, -0.113, and -0.160 with gross/net backtest outputs and calibrated costs.
 Proposed Framework (TCI) & 1.68 & 1.10 & 0.42 & 0.25 & -0.113 & -0.160 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 For the proposed strategy, options' wider spreads and lower liquidity relative to cash-index baselines are expected to make cost drag more material. The net comparison is therefore essential for judging real-world viability rather than relying on gross risk-adjusted performance alone.
@@ -1655,9 +1661,9 @@ The sensitivity analysis varies the baseline transaction-cost estimate by multip
 \caption{Transaction Cost Sensitivity for the Proposed Framework (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:cost_sensitivity}
 \begin{tabular}{lccc}
-\hline
+\toprule
 Cost Multiplier & Net Sharpe Ratio & Net Cumulative Return & Net Max Drawdown \\
-\hline
+\midrule
 %TODO[C3]: replace dummy 0.5x sensitivity values 1.35, 0.32, and -0.14 with final results.
 0.5$\times$ & 1.35 & 0.32 & -0.14 \\
 %TODO[C3]: replace dummy 1x sensitivity values 1.10, 0.25, and -0.16 with final results.
@@ -1666,15 +1672,16 @@ Cost Multiplier & Net Sharpe Ratio & Net Cumulative Return & Net Max Drawdown \\
 2$\times$ & 0.72 & 0.08 & -0.23 \\
 %TODO[C3]: replace dummy 3x sensitivity values 0.35, -0.06, and -0.31 with final results.
 3$\times$ & 0.35 & -0.06 & -0.31 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 The illustrative pattern suggests that the placeholder strategy remains positive at $2\times$ costs but not at $3\times$ costs. %TODO[C3]: rewrite this interpretation after replacing the dummy values; do not retain any claim about survival at 2x or 3x costs without real cost-adjusted results.
 
 \begin{figure}[!ht]
 \centering
-% \includegraphics[width=\linewidth]{images/net_return_cost_sensitivity.pdf}
+\framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
+% TODO: insert actual figure file
 %TODO[C3]: generate and insert the net cumulative return versus cost multiplier plot once the cost-adjusted backtest is complete.
 \caption{Net Cumulative Return versus Transaction Cost Multiplier (Illustrative/Placeholder -- to be replaced with final results).}
 \label{fig:net_cost_sensitivity}
@@ -1702,10 +1709,10 @@ The intended hypothesis is that the integrated multi-timeframe approach with HMM
 % TODO: PLACEHOLDER -- replace illustrative AUC, Sharpe, drawdown, and Diebold--Mariano values with results from the final backtest.
 \caption{Comparison of Predictive Edge via Diebold--Mariano Test Statistics (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:comparison}
-\begin{tabular}{lcccccccc}
-\hline
+\begin{tabularx}{\linewidth}{l X X X X X X X X}
+\toprule
 Method & Out-of-Sample $R^2$ & Precision-Recall AUC & Sharpe Ratio & Target Drawdown & DM Statistic & Two-Tailed $p$-Value & 95\% CI for $\mathrm{E}[L_A-L_B]$ & $n$ \\
-\hline
+\midrule
 Standard BS + IV & Default & 0.450 & 0.85 & -24.5\% & - & - & - & - \\
 %TODO[C2]: replace the dummy GARCH DM detail 2.15, 0.032, [0.001,0.020], and 500 with the actual statistic, two-tailed p-value, confidence interval, and paired-observation count.
 Standard GARCH(1,1)     & 0.058     & 0.510 & 0.98 & -19.2\% & 2.15$^{**}$ & 0.032 & [0.001,0.020] & 500 \\
@@ -1719,8 +1726,8 @@ Heston Pricing Baseline & 0.082 & 0.610 & 1.10 & -16.5\% & 3.10 & 0.002 & [0.006
 HAR-RV Forecasting Baseline & 0.112 & 0.700 & 1.42 & -13.6\% & 4.20 & $<0.001$ & [0.012,0.030] & 500 \\
 %TODO[C2]: replace the dummy Proposed Framework DM detail 5.44, <0.001, [0.018,0.032], and 500 with the actual statistic, two-tailed p-value, confidence interval, and paired-observation count.
 Proposed Framework (TCI) & \textbf{0.145} & \textbf{0.785} & \textbf{1.68} & \textbf{-11.3\%} & \textbf{5.44$^{***}$} & $<0.001$ & [0.018,0.032] & 500 \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabularx}
 \end{table*}
 
 \subsection{Robustness to Data-Snooping}
@@ -1912,12 +1919,12 @@ The modular architecture also enables straightforward integration into algorithm
 %% Some packages, such as MDW tools, offer better commands for making tables
 %% than the plain LaTeX2e tabular which is used here.
 %\begin{tabular}{|c||c|}
-%\hline
+%\toprule
 %One & Two\\
-%\hline
+%\midrule
 %Three & Four\\
-%\hline
-%\end{tabular}
+%\bottomrule
+%\end{tabularx}
 %\end{table}
 
 
