@@ -1,5 +1,5 @@
 # Pricing Service
-# Handles Black-Scholes option pricing
+# Handles Black-Scholes option pricing and Greeks calculation
 
 import numpy as np
 from scipy.stats import norm
@@ -17,21 +17,13 @@ def black_scholes_price(
 ) -> float:
     """
     Calculate theoretical option price using Black-Scholes model.
-    
-    Args:
-        spot: Current spot price of the underlying asset
-        strike: Strike price of the option
-        time_to_expiry: Time to expiration in YEARS
-        risk_free_rate: Risk-free interest rate (annualized, as decimal)
-        volatility: Annualized volatility (as decimal, from forecast)
-        option_type: "call" or "put"
-        
-    Returns:
-        float: Theoretical option price (fair value)
     """
     sigma = volatility
     if use_adjusted_vol and expected_vrp is not None and np.isfinite(expected_vrp):
         sigma = volatility + expected_vrp
+
+    if time_to_expiry <= 0 or sigma <= 0 or spot <= 0 or strike <= 0:
+        return 0.0
 
     d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
     d2 = d1 - sigma * np.sqrt(time_to_expiry)
@@ -44,3 +36,46 @@ def black_scholes_price(
         raise ValueError(f"Invalid option_type: {option_type}. Must be 'call' or 'put'.")
     
     return float(price)
+
+
+def calculate_greeks(
+    spot: float,
+    strike: float,
+    time_to_expiry: float,
+    risk_free_rate: float,
+    volatility: float,
+    option_type: str = "call"
+) -> dict[str, float]:
+    """
+    Calculate analytical Black-Scholes Greeks: Delta, Gamma, Theta, Vega.
+    """
+    if time_to_expiry <= 0 or volatility <= 0 or spot <= 0 or strike <= 0:
+        return {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0}
+
+    sigma = volatility
+    d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
+    d2 = d1 - sigma * np.sqrt(time_to_expiry)
+
+    pdf_d1 = norm.pdf(d1)
+
+    # Gamma (same for Call and Put)
+    gamma = pdf_d1 / (spot * sigma * np.sqrt(time_to_expiry))
+
+    # Vega (same for Call and Put, per 1% vol change)
+    vega = (spot * pdf_d1 * np.sqrt(time_to_expiry)) / 100.0
+
+    if option_type.lower() == "call":
+        delta = norm.cdf(d1)
+        theta = (- (spot * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
+                 - risk_free_rate * strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)) / 365.0
+    else:
+        delta = norm.cdf(d1) - 1.0
+        theta = (- (spot * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
+                 + risk_free_rate * strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(-d2)) / 365.0
+
+    return {
+        "delta": float(delta),
+        "gamma": float(gamma),
+        "theta": float(theta),
+        "vega": float(vega),
+    }

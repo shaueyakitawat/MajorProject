@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-density="compact">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NIFTY 50 Quantitative Options Mispricing Terminal</title>
+  <meta name="description" content="Institutional Quantitative Options Mispricing Detection Platform for NIFTY 50 — Econometric EGARCH(1,1), 4-State Gaussian HMM, Black-Scholes Fair Value & Delta-Neutral Strategy Engine." />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <!-- Google Fonts: JetBrains Mono for financial monospace numerals -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23f59e0b'>⚡</text></svg>" />
+</head>
+<body>
+  <!-- Terminal Permanent Shell -->
+  <div class="terminal-shell" id="terminal-app-root">
+    <!-- Top Global Bar -->
+    <header class="shell-topbar" id="topbar-container"></header>
+
+    <!-- Main Workspace Body -->
+    <div class="shell-body">
+      <!-- Left Terminal Navigation -->
+      <aside class="shell-sidebar" id="sidebar-container"></aside>
+
+      <!-- Center Dynamic Stage -->
+      <main class="shell-stage" id="workspace-stage"></main>
+    </div>
+
+    <!-- Bottom Sticky Status Bar -->
+    <footer class="shell-statusbar" id="statusbar-container"></footer>
+  </div>
+
+  <!-- Slide-out Option Detail Terminal Drawer -->
+  <div id="option-drawer-container" style="display:none;"></div>
+
+  <!-- Global Command Palette Modal (Ctrl+K) -->
+  <div id="command-palette-container" style="display:none;"></div>
+
+  <!-- Academic Evaluation Walkthrough Modal -->
+  <div id="evaluation-modal-container" style="display:none;"></div>
+
+  <!-- Terminal Modular Bootstrap -->
+  <script type="module" src="/static/src/app.js"></script>
+</body>
+</html>

@@ -200,6 +200,7 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
     # Step 2–7: Walk-forward loop
     strategy_returns: list[float] = []
     signals: list[int] = []
+    trades: list[dict] = []
     skipped = 0
 
     for i in range(TRAIN_WINDOW, N - 1):
@@ -276,6 +277,21 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
         strategy_returns.append(strat_ret)
         signals.append(direction)
 
+        # Collect trade log
+        trades.append({
+            "id": f"TRD-{len(trades)+1:03d}",
+            "date": str(data.index[i])[:10],
+            "spot": round(float(spot_i), 2),
+            "exit_spot": round(float(closes[i + 1]), 2),
+            "direction": "BUY" if direction > 0 else ("SELL" if direction < 0 else "HOLD"),
+            "signal_score": round(float(final_score), 4),
+            "return_pct": round(float(strat_ret * 100), 2),
+            "egarch_vol": round(float(egarch_vol_ann * 100), 2),
+            "market_price": round(float(mkt_price_i), 2) if mkt_price_i else None,
+            "fair_price": round(float(sig.get("fair_price", 0)), 2) if sig else None,
+            "iv": round(float(sig.get("iv", 0) * 100), 2) if sig and sig.get("iv") else None
+        })
+
     # Step 8: Statistical metrics
     num_trades = len(strategy_returns)
     if num_trades < 2:
@@ -288,6 +304,7 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
             "hit_rate": None,
             "num_trades": num_trades,
             "skipped": skipped,
+            "trades": [],
             "error": "Insufficient trades for statistical analysis",
         }
 
@@ -312,4 +329,5 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
         "hit_rate": round(hit_rate, 2),
         "num_trades": num_trades,
         "skipped": skipped,
+        "trades": trades,
     }

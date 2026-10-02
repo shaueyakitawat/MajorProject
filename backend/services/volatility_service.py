@@ -3,9 +3,18 @@
 
 import math
 import os
+import warnings
 import pandas as pd
 import numpy as np
 from arch import arch_model
+
+import warnings
+try:
+    from arch.utility.exceptions import ConvergenceWarning
+    warnings.simplefilter("ignore", category=ConvergenceWarning)
+except ImportError:
+    pass
+warnings.simplefilter("ignore", category=UserWarning)
 
 from backend.infrastructure.annualization_engine import apply_dynamic_annualization
 from backend.infrastructure.timeframe_config import get_annualization_factor
@@ -90,16 +99,23 @@ def forecast_volatility(returns_series: pd.Series, price_series_5min: pd.Series 
     Returns:
         dict: {"daily_vol": float, "intraday_vol": float|None, "final_vol": float}
     """
-    percentage_returns = returns_series * 100
+    try:
+        percentage_returns = returns_series * 100
+        model = arch_model(percentage_returns, vol="EGARCH", p=1, q=1, dist="normal")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fitted_model = model.fit(disp="off")
+        forecast = fitted_model.forecast(horizon=1)
+        forecasted_variance = forecast.variance.values[-1, 0]
+        forecasted_volatility = np.sqrt(forecasted_variance)
+        raw_volatility = float(forecasted_volatility / 100)
+        if not math.isfinite(raw_volatility) or raw_volatility <= 0:
+            raw_volatility = float(returns_series.std())
+    except Exception:
+        raw_volatility = float(returns_series.std())
 
-    model = arch_model(percentage_returns, vol="EGARCH", p=1, q=1, dist="normal")
-    fitted_model = model.fit(disp="off")
-
-    forecast = fitted_model.forecast(horizon=1)
-    forecasted_variance = forecast.variance.values[-1, 0]
-
-    forecasted_volatility = np.sqrt(forecasted_variance)
-    raw_volatility = forecasted_volatility / 100
+    if raw_volatility <= 0 or not math.isfinite(raw_volatility):
+        raw_volatility = 0.01  # Minimum 1% annual volatility safeguard
 
     daily_vol = apply_dynamic_annualization(float(raw_volatility), "daily")
     intraday_vol = compute_intraday_realized_volatility(price_series_5min) # 5m

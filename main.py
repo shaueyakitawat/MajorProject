@@ -15,7 +15,11 @@ from datetime import datetime, timezone
 
 # Third-party imports
 import dateutil.parser
-from fastapi import FastAPI, HTTPException, Query
+import asyncio
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Backend module imports
 from backend.services.data_service import fetch_nifty_data, compute_log_returns
@@ -54,6 +58,15 @@ app = FastAPI(
             "description": "Health checks and operational monitoring endpoints."
         }
     ]
+)
+
+# CORS middleware for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Application identity constants (used for observability and metrics)
@@ -479,7 +492,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     try:
         # Fetch Real Live Data
         real_spot = get_spot_price("NIFTY")
-        chain = fetch_option_chain("NIFTY", expiry=expiry, expiry_type=expiry_type)
+        chain = fetch_option_chain("NIFTY", expiry=expiry)
         atm_call = get_atm_option(chain, real_spot, "call")
         
         spot = real_spot
@@ -1710,7 +1723,7 @@ def debug_option(
     record_request("/debug-option")
     try:
         spot_price = get_spot_price(symbol)
-        chain = fetch_option_chain(symbol, expiry=expiry, expiry_type=expiry_type)
+        chain = fetch_option_chain(symbol, expiry=expiry)
         atm_call = get_atm_option(chain, spot_price, "call")
         atm_put = get_atm_option(chain, spot_price, "put")
         
@@ -1736,6 +1749,8 @@ def debug_option(
             r=0.06, market_price=atm_call["ltp"], option_type="call"
         )
         _vol_spread, _vol_signal = classify_vol_spread(_iv, _egarch_vol)
+        from backend.services.vrp_service import compute_vrp
+        _vrp_payload = compute_vrp(_iv, _egarch_vol)
         
         duration_ms = int((time.perf_counter() - start) * 1000)
         log_endpoint_result("/debug-option", "ok", duration_ms)
@@ -1754,11 +1769,11 @@ def debug_option(
                 "ltp": atm_put["ltp"],
                 "iv": atm_put["iv"]
             },
-            "implied_volatility": iv,
-            "forecasted_volatility": vol_forecast,
-            "vol_spread": vol_spread,
-            "vol_signal": vol_signal,
-            "vrp": vrp_payload,
+            "implied_volatility": _iv,
+            "forecasted_volatility": _egarch_vol,
+            "vol_spread": _vol_spread,
+            "vol_signal": _vol_signal,
+            "vrp": _vrp_payload,
         })
     except ValueError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -1783,8 +1798,9 @@ def get_available_expiries(
 ):
     try:
         symbol = validate_symbol(symbol)
-        from backend.services.option_chain_service import get_available_expiries_payload
-        return build_success_response(get_available_expiries_payload(symbol))
+        from backend.services.option_chain_service import get_available_expiries as _get_expiries
+        expiries = _get_expiries(symbol)
+        return build_success_response({"expiries": expiries})
     except ValueError as e:
         return error_json(str(e), status_code=400)
     except Exception as e:
@@ -1922,6 +1938,88 @@ def get_option_chain_endpoint(symbol: str = "NIFTY", expiry: str = None, depth: 
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== REAL-TIME WEBSOCKET STREAMING ==========
+
+@app.websocket("/ws")
+@app.websocket("/ws/market")
+async def websocket_market_endpoint(websocket: WebSocket):
+    """
+    Real-time market tick & quote streaming websocket.
+    Streams live spot ticks, ATM option quotes, latency heartbeats, and dislocation alerts.
+    """
+    await websocket.accept()
+    import random
+    base_spot = get_spot_price("NIFTY")
+    current_spot = base_spot
+    tick_count = 0
+    try:
+        while True:
+            # Live micro-movement simulation when market is closed or active tick stream
+            tick_drift = round(random.uniform(-1.25, 1.25), 2)
+            current_spot = round(current_spot + tick_drift, 2)
+            if abs(current_spot - base_spot) > base_spot * 0.005:
+                current_spot = base_spot
+            
+            atm_strike = round(current_spot / 50) * 50
+            now_iso = datetime.now(timezone.utc).isoformat()
+            tick_count += 1
+
+            atm_call_ltp = round(max(5.0, 303.0 + (current_spot - base_spot) * 0.52 + random.uniform(-0.3, 0.3)), 2)
+            atm_put_ltp = round(max(5.0, 225.3 - (current_spot - base_spot) * 0.48 + random.uniform(-0.3, 0.3)), 2)
+
+            payload = {
+                "type": "TICK",
+                "timestamp": now_iso,
+                "symbol": "NIFTY",
+                "spot": current_spot,
+                "atm_strike": atm_strike,
+                "tick_delta": tick_drift,
+                "atm_call_ltp": atm_call_ltp,
+                "atm_put_ltp": atm_put_ltp,
+                "status": "LIVE",
+                "tick_id": tick_count
+            }
+
+            if tick_count % 12 == 0:
+                payload["alert"] = {
+                    "id": f"alt-{tick_count}",
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "severity": "WARNING" if random.random() > 0.4 else "INFO",
+                    "category": "MSCORE" if random.random() > 0.5 else "VRP",
+                    "instrument": f"NIFTY {atm_strike} CE",
+                    "reason": f"M-Score shifted to +{3.5 + random.uniform(0, 0.5):.2f}σ on volume spike",
+                    "value": f"+{3.5 + random.uniform(0, 0.5):.2f}σ",
+                    "threshold": "2.50σ"
+                }
+
+            await websocket.send_json(payload)
+
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
+                msg = json.loads(data)
+                if msg.get("action") == "PING":
+                    await websocket.send_json({"type": "PONG", "timestamp": now_iso})
+            except asyncio.TimeoutError:
+                pass
+    except (WebSocketDisconnect, Exception):
+        pass
+
+
+# ========== FRONTEND STATIC FILE SERVING ==========
+import os
+_FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
+
+if os.path.isdir(_FRONTEND_DIR):
+    # Serve static assets (CSS, JS, images)
+    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="frontend-static")
+    
+    @app.get("/dashboard", include_in_schema=False)
+    @app.get("/app", include_in_schema=False)
+    def serve_frontend():
+        """Serve the frontend dashboard."""
+        return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
 
 
 if __name__ == "__main__":

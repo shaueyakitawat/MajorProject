@@ -8,8 +8,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DBService:
-    def __init__(self, db_path=r"d:\MajorProject\data\intraday_data.db"):
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: Path | str | None = None):
+        if db_path is None:
+            self.db_path = Path(__file__).parent.parent.parent / "data" / "nifty_live_snapshots.db"
+        else:
+            self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.conn_local = threading.local()
         self._init_db()

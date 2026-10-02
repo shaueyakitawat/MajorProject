@@ -3,8 +3,10 @@ import numpy as np
 import seaborn as sns
 import os
 
-# Ensure images directory exists
-os.makedirs(r"d:\MajorProject\images", exist_ok=True)
+from pathlib import Path
+
+IMAGES_DIR = Path(__file__).parent.parent / "images"
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 def generate_terminal_ss():
     fig, ax = plt.subplots(figsize=(10, 6), facecolor='black')
@@ -51,7 +53,7 @@ def generate_terminal_ss():
         y_pos -= 0.045
         
     plt.tight_layout()
-    plt.savefig(r"d:\MajorProject\images\validation_terminal_output.png", dpi=300, bbox_inches='tight')
+    plt.savefig(IMAGES_DIR / "validation_terminal_output.png", dpi=300, bbox_inches='tight')
     plt.close()
 
 def generate_metrics_ss():
@@ -98,7 +100,7 @@ def generate_metrics_ss():
                  fontsize=20, weight='bold', color='#1a252f', y=0.98)
     
     plt.tight_layout(rect=[0, 0, 1, 0.9])
-    plt.savefig(r"d:\MajorProject\images\validation_metrics_summary.png", dpi=200, bbox_inches='tight')
+    plt.savefig(IMAGES_DIR / "validation_metrics_summary.png", dpi=200, bbox_inches='tight')
     plt.close()
 
 if __name__ == "__main__":
