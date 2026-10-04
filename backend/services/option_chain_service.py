@@ -271,6 +271,105 @@ def _load_chain_from_db(symbol: str = "NIFTY", expiry: str | None = None) -> dic
         return None
 
 
+def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict | None:
+    """Fetch live option chain directly from National Stock Exchange (NSE) via pnsea without broker credentials."""
+    try:
+        from pnsea import NSE
+        nse = NSE()
+        df, expiries, live_spot = nse.options.option_chain(symbol)
+        if df is None or df.empty:
+            return None
+
+        spot = float(live_spot) if live_spot and float(live_spot) > 0 else get_spot_price(symbol)
+        now_iso = dt.datetime.now().isoformat()
+
+        sorted_expiries = [str(e) for e in expiries] if expiries else [dt.date.today().isoformat()]
+        selected_exp = expiry_date if (expiry_date and expiry_date in sorted_expiries) else sorted_expiries[0]
+
+        strikes_dict = {}
+        for _, row in df.iterrows():
+            st = _parse_float(row.get("strikePrice"))
+            if st is None:
+                continue
+
+            # Call leg
+            c_ltp = _parse_float(row.get("CE_lastPrice")) or 0.0
+            c_iv = (_parse_float(row.get("CE_impliedVolatility")) or 15.0) / 100.0
+            c_oi = _parse_int(row.get("CE_openInterest")) or 0
+            c_vol = _parse_int(row.get("CE_totalTradedVolume")) or 0
+            c_bid = _parse_float(row.get("CE_bidprice")) or (c_ltp * 0.995)
+            c_ask = _parse_float(row.get("CE_askPrice")) or (c_ltp * 1.005)
+
+            # Put leg
+            p_ltp = _parse_float(row.get("PE_lastPrice")) or 0.0
+            p_iv = (_parse_float(row.get("PE_impliedVolatility")) or 15.0) / 100.0
+            p_oi = _parse_int(row.get("PE_openInterest")) or 0
+            p_vol = _parse_int(row.get("PE_totalTradedVolume")) or 0
+            p_bid = _parse_float(row.get("PE_bidprice")) or (p_ltp * 0.995)
+            p_ask = _parse_float(row.get("PE_askPrice")) or (p_ltp * 1.005)
+
+            # Compute Greeks
+            ttm = 14.0 / 365.0
+            r = 0.065
+            c_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, c_iv), "call")
+            p_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, p_iv), "put")
+
+            strikes_dict[st] = {
+                "strike": st,
+                "call": {
+                    "ltp": c_ltp,
+                    "iv": c_iv,
+                    "oi": c_oi,
+                    "volume": c_vol,
+                    "bid": c_bid,
+                    "ask": c_ask,
+                    "delta": c_greeks.get("delta"),
+                    "gamma": c_greeks.get("gamma"),
+                    "theta": c_greeks.get("theta"),
+                    "vega": c_greeks.get("vega"),
+                },
+                "put": {
+                    "ltp": p_ltp,
+                    "iv": p_iv,
+                    "oi": p_oi,
+                    "volume": p_vol,
+                    "bid": p_bid,
+                    "ask": p_ask,
+                    "delta": p_greeks.get("delta"),
+                    "gamma": p_greeks.get("gamma"),
+                    "theta": p_greeks.get("theta"),
+                    "vega": p_greeks.get("vega"),
+                }
+            }
+
+        sorted_strikes = sorted(strikes_dict.keys())
+        atm_st = min(sorted_strikes, key=lambda k: abs(k - spot)) if sorted_strikes else spot
+
+        if depth > 0 and sorted_strikes:
+            atm_idx = sorted_strikes.index(atm_st)
+            start_idx = max(0, atm_idx - depth)
+            end_idx = min(len(sorted_strikes), atm_idx + depth + 1)
+            allowed = set(sorted_strikes[start_idx:end_idx])
+            chain_list = [strikes_dict[k] for k in sorted_strikes if k in allowed]
+        else:
+            chain_list = [strikes_dict[k] for k in sorted_strikes]
+
+        logger.info(f"✅ Fetched {len(chain_list)} live strikes directly from NSE (pnsea) | Spot: ₹{spot:.2f}")
+        return {
+            "spot_price": spot,
+            "atm_strike": atm_st,
+            "expiry_date": selected_exp,
+            "available_expiries": sorted_expiries,
+            "pcr": 1.0,
+            "chain": chain_list,
+            "timestamp": now_iso,
+            "expiry_source": "nse_live"
+        }
+    except Exception as e:
+        logger.warning(f"Direct NSE live option chain fetch failed: {e}")
+        return None
+
+
 def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict:
     """
     Fetch full real-time option chain for NIFTY 50.
@@ -383,6 +482,12 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
         except Exception as exc:
             logger.warning(f"Upstox live option chain call failed: {exc}")
 
+    # Attempt direct NSE live chain via pnsea without requiring broker API
+    pnsea_chain = _fetch_chain_from_pnsea(symbol=symbol, expiry_date=expiry_date, depth=depth)
+    if pnsea_chain:
+        _CHAIN_CACHE[cache_key] = (pnsea_chain, now)
+        return pnsea_chain
+
     # Try loading from DB snapshot if API failed or token absent
     db_chain = _load_chain_from_db(symbol=symbol, expiry=expiry_date)
     if db_chain:
@@ -390,8 +495,8 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
         return db_chain
 
     raise OptionChainFetchError(
-        "Unable to fetch live option chain from Upstox API or SQLite database snapshots. "
-        "Please ensure UPSTOX_ACCESS_TOKEN is valid or run scripts/record_nifty_snapshots.py to log real market snapshots."
+        "Unable to fetch live option chain from Upstox API, direct NSE feed, or SQLite database snapshots. "
+        "Please ensure internet connection is online or run scripts/record_nifty_snapshots.py to log real market snapshots."
     )
 
 
