@@ -51,7 +51,7 @@ class OptionChainFetchError(Exception):
 
 # Global in-memory caching to avoid hitting API rate limits unnecessarily
 _CHAIN_CACHE: dict[str, tuple[dict, dt.datetime]] = {}
-_CACHE_TTL_SECONDS = 15
+_CACHE_TTL_SECONDS = int(os.getenv("CHAIN_CACHE_TTL", "5"))
 
 
 def _make_upstox_request(endpoint: str, params: dict | None = None) -> dict:
@@ -370,7 +370,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
         return None
 
 
-def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict:
+def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15, force_refresh: bool = False) -> dict:
     """
     Fetch full real-time option chain for NIFTY 50.
     Parses live market prices, liquidity filters, ATM strikes, and calculates Greeks.
@@ -379,7 +379,7 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
     cache_key = f"{symbol}:{expiry_date}:{depth}"
 
     # Return cached data if fresh
-    if cache_key in _CHAIN_CACHE:
+    if not force_refresh and cache_key in _CHAIN_CACHE:
         cached_result, cached_time = _CHAIN_CACHE[cache_key]
         if (now - cached_time).total_seconds() < _CACHE_TTL_SECONDS:
             return cached_result

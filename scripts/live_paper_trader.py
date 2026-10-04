@@ -75,7 +75,7 @@ class LiveQuantPaperTrader:
     def fetch_market_state(self) -> dict | None:
         """Fetch real live spot, option chain, and run quant pipeline."""
         try:
-            chain_data = get_full_chain(self.symbol)
+            chain_data = get_full_chain(self.symbol, force_refresh=True)
             if not chain_data or not chain_data.get("chain"):
                 return None
 
