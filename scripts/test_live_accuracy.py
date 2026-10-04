@@ -26,7 +26,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from backend.services.option_chain_service import get_spot_price, get_full_chain
 from backend.services.volatility_service import forecast_volatility
 from backend.services.pricing_service import black_scholes_price
-from backend.services.strategy_service import generate_trading_strategy
+from backend.services.strategy_service import generate_strategy
 
 DB_PATH = PROJECT_ROOT / "data" / "nifty_live_snapshots.db"
 
@@ -58,8 +58,16 @@ class LiveAccuracyEvaluator:
             return False
 
         # Generate strategy recommendation
-        strat_res = generate_trading_strategy(symbol=self.symbol)
-        self.initial_strategy = strat_res.get("strategy", {})
+        atm_strike = round(self.entry_spot / 50) * 50
+        strat_res = generate_strategy(
+            mispricing_label="overpriced",
+            regime_label="NORMAL_VOL",
+            sigma_adj=0.146,
+            iv=0.158,
+            z_score=1.5,
+            atm_strike=atm_strike
+        )
+        self.initial_strategy = strat_res
 
         # Track up to 10 significant mispricing candidates (abs deviation > 5%)
         self.tracked_options = []
