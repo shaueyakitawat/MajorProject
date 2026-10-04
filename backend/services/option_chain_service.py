@@ -27,7 +27,7 @@ from backend.services.option_chain_filters import (
 )
 
 # Black-Scholes pricing and Greek calculations
-from backend.services.pricing_service import black_scholes_price, calculate_greeks
+from backend.services.pricing_service import black_scholes_price, calculate_greeks, calculate_ttm_years
 
 # Load environment variables
 env_file = Path(__file__).parent.parent.parent / ".env"
@@ -271,20 +271,60 @@ def _load_chain_from_db(symbol: str = "NIFTY", expiry: str | None = None) -> dic
         return None
 
 
-def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict | None:
-    """Fetch live option chain directly from National Stock Exchange (NSE) via pnsea without broker credentials."""
-    try:
-        from pnsea import NSE
-        nse = NSE()
-        df, expiries, live_spot = nse.options.option_chain(symbol)
-        if df is None or df.empty:
-            return None
+_PNSEA_INSTANCE = None
 
+def _get_pnsea_session():
+    global _PNSEA_INSTANCE
+    if _PNSEA_INSTANCE is None:
+        try:
+            from pnsea import NSE
+            _PNSEA_INSTANCE = NSE()
+        except Exception as e:
+            logger.warning(f"Failed to initialize pnsea NSE session: {e}")
+            return None
+    return _PNSEA_INSTANCE
+
+def _reset_pnsea_session():
+    global _PNSEA_INSTANCE
+    _PNSEA_INSTANCE = None
+
+def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict | None:
+    """Fetch live option chain directly from National Stock Exchange (NSE) via persistent session without broker credentials."""
+    import random
+    import time
+
+    df = None
+    expiries = None
+    live_spot = None
+
+    for attempt in range(1, 4):
+        nse = _get_pnsea_session()
+        if nse is None:
+            time.sleep(1.0)
+            continue
+
+        try:
+            df, expiries, live_spot = nse.options.option_chain(symbol)
+            if df is not None and not df.empty:
+                break
+        except Exception as exc:
+            backoff = (attempt * 1.5) + random.uniform(0.2, 0.8)
+            logger.warning(f"Direct NSE fetch attempt {attempt}/3 failed ({exc}). Retrying in {backoff:.1f}s...")
+            _reset_pnsea_session()
+            time.sleep(backoff)
+
+    if df is None or df.empty:
+        logger.warning("Direct NSE option chain returned empty dataframe after 3 retries.")
+        return None
+
+    try:
         spot = float(live_spot) if live_spot and float(live_spot) > 0 else get_spot_price(symbol)
         now_iso = dt.datetime.now().isoformat()
 
         sorted_expiries = [str(e) for e in expiries] if expiries else [dt.date.today().isoformat()]
         selected_exp = expiry_date if (expiry_date and expiry_date in sorted_expiries) else sorted_expiries[0]
+        ttm = calculate_ttm_years(selected_exp)
+        r = 0.065
 
         strikes_dict = {}
         for _, row in df.iterrows():
@@ -308,9 +348,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
             p_bid = _parse_float(row.get("PE_bidprice")) or (p_ltp * 0.995)
             p_ask = _parse_float(row.get("PE_askPrice")) or (p_ltp * 1.005)
 
-            # Compute Greeks
-            ttm = 14.0 / 365.0
-            r = 0.065
+            # Compute Greeks with dynamic TTM
             c_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, c_iv), "call")
             p_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, p_iv), "put")
 

@@ -79,3 +79,32 @@ def calculate_greeks(
         "theta": float(theta),
         "vega": float(vega),
     }
+
+
+def calculate_ttm_years(expiry_date: str, current_time=None) -> float:
+    """
+    Calculate annualized time-to-maturity (TTM) in years.
+    NSE options expire at 15:30 IST on the expiration date.
+    Enforces a realistic minimum TTM (15 minutes = ~0.000028y) to prevent singularity.
+    """
+    import datetime as _dt
+    import dateutil.parser as _dp
+
+    if current_time is None:
+        current_time = _dt.datetime.now()
+
+    try:
+        if isinstance(expiry_date, str):
+            exp_dt = _dp.parse(expiry_date)
+        elif isinstance(expiry_date, _dt.date) and not isinstance(expiry_date, _dt.datetime):
+            exp_dt = _dt.datetime.combine(expiry_date, _dt.time(15, 30))
+        else:
+            exp_dt = expiry_date
+
+        exp_dt = exp_dt.replace(hour=15, minute=30, second=0, microsecond=0)
+        diff_sec = (exp_dt - current_time).total_seconds()
+        diff_sec = max(900.0, diff_sec)  # Floor at 15 minutes
+        return float(diff_sec / (365.25 * 86400.0))
+    except Exception:
+        return 7.0 / 365.0
+
