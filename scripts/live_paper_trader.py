@@ -497,16 +497,17 @@ class LiveQuantPaperTrader:
         print("=" * 108)
 
     def export_audit_report(self):
-        """Export full execution log and accuracy report for IEEE Transactions validation."""
+        """Export comprehensive Model Performance & Trade Logs report in Markdown, CSV, and JSON."""
         now_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
         csv_file = OUTPUT_DIR / f"paper_trading_trades_{now_tag}.csv"
         json_file = OUTPUT_DIR / f"paper_trading_summary_{now_tag}.json"
+        md_file = OUTPUT_DIR / f"model_performance_report_{now_tag}.md"
 
         all_trades = self.closed_trades + self.positions
         if all_trades:
             df = pd.DataFrame(all_trades)
             df.to_csv(csv_file, index=False)
-            self.log(f"📁 Exported {len(all_trades)} trades to: {csv_file}")
+            self.log(f"📁 Exported {len(all_trades)} trades to CSV: {csv_file}")
 
         all_closed = self.closed_trades
         wins = sum(1 for t in all_closed if t["realized_pnl"] > 0)
@@ -523,7 +524,6 @@ class LiveQuantPaperTrader:
         converged_count = sum(1 for t in all_trades if t.get("converged", False))
         convergence_rate = (converged_count / len(all_trades) * 100) if all_trades else 0.0
 
-        # Mean and standard deviation of trade returns
         trade_returns = [t["return_pct"] for t in all_closed]
         mean_ret = float(np.mean(trade_returns)) if trade_returns else 0.0
         std_ret = float(np.std(trade_returns)) if len(trade_returns) > 1 else 0.0
@@ -556,11 +556,68 @@ class LiveQuantPaperTrader:
 
         with open(json_file, "w") as f:
             json.dump(summary, f, indent=2)
-        self.log(f"📊 Exported IEEE Accuracy Summary to: {json_file}")
+        self.log(f"📊 Exported JSON summary to: {json_file}")
 
-        print("\n" + "=" * 70)
-        print("  FINAL QUANT ACCURACY & AUDIT SUMMARY (IEEE VALIDATION)")
-        print("=" * 70)
+        # Generate formatted Markdown model report with trade logs
+        md_lines = [
+            f"# Quantitative Options Model Performance & Trade Execution Report",
+            f"**Generated At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST | **Symbol:** {self.symbol}",
+            "",
+            "## 1. Executive Performance Summary",
+            "",
+            f"| Metric | Model Result |",
+            f"| :--- | :--- |",
+            f"| **Initial NIFTY Spot** | ₹{self.initial_spot:,.2f} |",
+            f"| **Final NIFTY Spot** | ₹{self.current_spot:,.2f} (Δ {self.current_spot - self.initial_spot:+.2f}) |",
+            f"| **EGARCH(1,1) Volatility** | {self.egarch_vol*100:.2f}% |",
+            f"| **Market Regime** | `{self.regime}` |",
+            f"| **Total Closed Trades** | {len(all_closed)} |",
+            f"| **Open Positions Remaining** | {len(self.positions)} |",
+            f"| **Win Rate** | **{win_rate:.1f}%** ({wins}W / {losses}L) |",
+            f"| **Mispricing Convergence Rate** | **{convergence_rate:.1f}%** ({converged_count}/{len(all_trades)}) |",
+            f"| **Gross Realized P&L** | ₹{total_gross_pnl:,.2f} |",
+            f"| **Friction (STT + Exchange Charges)** | ₹{total_friction:,.2f} |",
+            f"| **Net Realized P&L** | **₹{total_net_pnl:,.2f}** |",
+            f"| **Profit Factor** | {profit_factor:.2f} |",
+            f"| **Mean Trade Return** | {mean_ret:+.2f}% (Std: {std_ret:.2f}%) |",
+            f"| **Annualized Sharpe Ratio** | {sharpe_ratio:.2f} |",
+            f"| **Average Holding Time** | {avg_holding_mins:.1f} minutes |",
+            "",
+            "## 2. Complete Trade Logs Ledger",
+            "",
+            "| Trade ID | Time | Strategy | Instrument | Side | Qty | Entry Price | Fair Value | Exit Price | Net P&L (₹) | Return % | Reason | Converged |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ]
+
+        for t in all_closed:
+            conv = "Yes" if t.get("converged") else "No"
+            md_lines.append(
+                f"| `{t['trade_id']}` | {t['entry_time']} | {t['strategy']} | {t['instrument']} | **{t['side']}** | {t['qty']} | ₹{t['entry_price']:.1f} | ₹{t['entry_fair']:.1f} | ₹{t.get('exit_price', 0.0):.1f} | **₹{t['realized_pnl']:,.1f}** | {t['return_pct']:+.1f}% | {t.get('exit_reason', '')} | {conv} |"
+            )
+
+        if not all_closed:
+            md_lines.append("| - | - | - | No trades closed yet | - | - | - | - | - | - | - | - | - |")
+
+        if self.positions:
+            md_lines.append("")
+            md_lines.append("### Active Open Positions at Session Close")
+            md_lines.append("")
+            md_lines.append("| Trade ID | Time | Strategy | Instrument | Side | Qty | Entry Price | Fair Value | Current LTP | Net P&L (₹) | Return % | M-Score | Converged |")
+            md_lines.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
+            for p in self.positions:
+                conv = "Yes" if p.get("converged") else "No"
+                md_lines.append(
+                    f"| `{p['trade_id']}` | {p['entry_time']} | {p['strategy']} | {p['instrument']} | **{p['side']}** | {p['qty']} | ₹{p['entry_price']:.1f} | ₹{p['entry_fair']:.1f} | ₹{p['current_price']:.1f} | ₹{p['net_pnl']:,.1f} | {p['return_pct']:+.1f}% | {p['entry_mscore']:+.2f}σ | {conv} |"
+                )
+
+        with open(md_file, "w") as f:
+            f.write("\n".join(md_lines))
+        self.log(f"📝 Exported Model Performance & Trade Logs Report to: {md_file}")
+
+        # Print terminal output
+        print("\n" + "=" * 80)
+        print("  QUANT MODEL PERFORMANCE & TRADE EXECUTION REPORT")
+        print("=" * 80)
         print(f"  Total Trades Closed:          {len(all_closed)}")
         print(f"  Winning Trades:               {wins} ({win_rate:.1f}%)")
         print(f"  Mispricing Convergence Rate:  {convergence_rate:.1f}%")
@@ -571,7 +628,8 @@ class LiveQuantPaperTrader:
         print(f"  Mean Return per Trade:        {mean_ret:+.2f}% (Std: {std_ret:.2f}%)")
         print(f"  Annualized Sharpe Ratio:      {sharpe_ratio:.2f}")
         print(f"  Average Holding Time:         {avg_holding_mins:.1f} mins")
-        print("=" * 70 + "\n")
+        print("=" * 80 + "\n")
+
 
     def run(self, once: bool = False):
         """Main real-time terminal execution loop."""
