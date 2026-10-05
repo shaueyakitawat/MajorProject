@@ -162,6 +162,7 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
     option_strike = None
     option_market_price = None
     option_T = FALLBACK_T
+    option_data_quality = "synthetic_option_proxy"
 
     try:
         ticker = yf.Ticker(symbol)
@@ -179,6 +180,7 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
                 bid = float(atm_row["bid"])
                 ask = float(atm_row["ask"])
                 option_market_price = ltp if ltp > 0 else ((bid + ask) / 2 if bid > 0 and ask > 0 else None)
+                option_data_quality = "current_chain_quote_reused_across_history"
 
                 # Parse expiry for T
                 import dateutil.parser
@@ -196,6 +198,11 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
                 )
     except Exception as e:
         logger.warning(f"[BACKTEST] Option chain unavailable: {e}. Using synthetic pricing.")
+
+    logger.warning(
+        "[BACKTEST] This routine is an underlying-direction proxy, not a historical "
+        "option P&L backtest; option quotes are not timestamp-aligned."
+    )
 
     # Step 2–7: Walk-forward loop
     strategy_returns: list[float] = []
@@ -298,6 +305,8 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
         logger.warning(f"[BACKTEST] Too few trades ({num_trades}). Cannot compute stats.")
         return {
             "timeframe": timeframe,
+            "data_quality": option_data_quality,
+            "is_option_pnl_backtest": False,
             "mean_return": None,
             "sharpe_ratio": None,
             "t_stat": None,
@@ -323,6 +332,8 @@ def run_backtest(symbol: str = "^NSEI", timeframe: str = "1d") -> dict:
 
     return {
         "timeframe": timeframe,
+        "data_quality": option_data_quality,
+        "is_option_pnl_backtest": False,
         "mean_return": round(mean_ret, 6),
         "sharpe_ratio": round(sharpe, 4),
         "t_stat": round(t_stat, 4),

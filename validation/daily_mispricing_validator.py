@@ -1,10 +1,9 @@
 """
-Real-World Data NIFTY Mispricing Detection Validator
-=====================================================
-Validates the quantitative pipeline (EGARCH + HMM + Black-Scholes + VRP)
-exclusively against REAL NIFTY 50 market data.
-
-Zero synthetic/mock noise generators: 100% empirical validation for IEEE Transactions paper.
+NIFTY Mispricing Proxy Validator
+================================
+Validates the volatility and signal plumbing against NIFTY spot and India VIX.
+Option prices are synthetic Black-Scholes prices generated from the VIX proxy;
+this module is not a historical option-quote or executable P&L validator.
 """
 
 import sys
@@ -51,7 +50,8 @@ class RealDataMispricingValidator:
         self.results = {
             "metadata": {
                 "validator": "RealDataMispricingValidator",
-                "data_source": "NIFTY 50 Real Market Data",
+                "data_source": "NIFTY spot plus India VIX proxy",
+                "option_price_source": "Synthetic Black-Scholes prices from VIX proxy",
                 "generated_at": datetime.now().isoformat()
             },
             "daily_results": [],
@@ -65,7 +65,7 @@ class RealDataMispricingValidator:
         }
 
     def fetch_market_data(self) -> pd.DataFrame:
-        """Fetch NIFTY 50 daily OHLCV and India VIX historical data."""
+        """Fetch NIFTY spot returns and India VIX proxy data."""
         logger.info(f"Fetching real NIFTY 50 market data from {self.config['start_date']} to {self.config['end_date']}...")
         
         # Download extra history to fill rolling 60-day lookback window
@@ -102,7 +102,7 @@ class RealDataMispricingValidator:
             logger.warning(f"Could not fetch India VIX, using historical IV estimation: {e}")
             nifty['VIX'] = 0.15
 
-        logger.info(f"✅ Loaded {len(nifty)} total trading days of real NIFTY market data.")
+        logger.info(f"✅ Loaded {len(nifty)} trading days of NIFTY spot and India VIX proxy data.")
         return nifty
 
     def validate_real_data(self, df: pd.DataFrame):
@@ -290,12 +290,11 @@ False Positives (FP):     {cm['FP']:,}  (Flagged mispricing that failed to rever
 True Negatives (TN):      {cm['TN']:,}  (Fairly priced option correctly unflagged)
 False Negatives (FN):     {cm['FN']:,}  (Unflagged mispricing opportunity)
 
-PUBLICATION STATEMENT
+DATA-SCOPE DISCLAIMER
 --------------------------------------------------------------------------------
-"Using empirical NIFTY 50 option market data over {m['total_instances']:,} contracts, 
-the regime-aware EGARCH mispricing pipeline achieved an empirical Precision of {m['precision']:.2%} 
-and F1-Score of {m['f1_score']:.4f}, demonstrating robust market anomaly detection without 
-synthetic data dependencies."
+"These metrics evaluate a synthetic option-price proxy derived from NIFTY spot and India VIX.
+They must not be reported as historical option-quote precision, executable trading performance,
+or evidence of profitability without timestamp-aligned option quotes and transaction costs."
 ================================================================================
 """
         return report

@@ -73,6 +73,7 @@ def calculate_dynamic_volatility_target_and_stop(
     """
     tick = 0.05
     baseline_vol = 0.12  # Standard calm annual volatility for NIFTY
+    max_stop_loss_pct = max(5.0, min(32.0, float(os.getenv("MAX_STOP_LOSS_PCT", "12"))))
 
     # 1. Measure market fluctuation violence
     active_vol = max(fused_vol, tick_vol)
@@ -93,7 +94,7 @@ def calculate_dynamic_volatility_target_and_stop(
 
     # 3. Dynamic percentages (Positive Asymmetric R:R 1:1.4 to 1:1.8)
     dynamic_sl_pct = base_sl_pct * vol_ratio * price_factor
-    dynamic_sl_pct = max(20.0, min(32.0, dynamic_sl_pct))  # Guaranteed breathing room 20% - 32%
+    dynamic_sl_pct = max(8.0, min(max_stop_loss_pct, dynamic_sl_pct))
 
     dynamic_tp_pct = base_tp_pct * vol_ratio * price_factor
     dynamic_tp_pct = max(26.0, min(50.0, dynamic_tp_pct))  # High-reward capture 26% - 50%
@@ -105,8 +106,8 @@ def calculate_dynamic_volatility_target_and_stop(
         target_price = round(round(raw_target / tick) * tick, 2)
         target_decay = entry_price - target_price
 
-        # Disciplined Statistical Invalidation: Capped at 12% - 16% (No more 25% giveaways!)
-        stop_allowance = min(entry_price * 0.16, max(entry_price * 0.10, 1.25 * mispricing_gap))
+        # Statistical invalidation is bounded by the configured per-trade risk budget.
+        stop_allowance = min(entry_price * (max_stop_loss_pct / 100.0), max(entry_price * 0.08, mispricing_gap))
         raw_stop = entry_price + stop_allowance
         stop_price = round(round(raw_stop / tick) * tick, 2)
 
@@ -116,7 +117,7 @@ def calculate_dynamic_volatility_target_and_stop(
 
         rationale = (
             f"Quant BSM Fair Target: Captures ₹{target_decay:.2f} Alpha (Fair ₹{fair_price:.2f}), "
-            f"Invalidation Bound @ ₹{stop_price:.2f} (1.8x Spread)"
+            f"Invalidation Bound @ ₹{stop_price:.2f} (risk-budget bounded)"
         )
     else:
         mispricing_gap = max(0.0, fair_price - entry_price)
@@ -124,8 +125,8 @@ def calculate_dynamic_volatility_target_and_stop(
         target_price = round(round(raw_target / tick) * tick, 2)
         target_gain = target_price - entry_price
 
-        # Disciplined Statistical Invalidation: Capped at 12% - 16% (No more 25% giveaways!)
-        stop_allowance = min(entry_price * 0.16, max(entry_price * 0.10, 1.25 * mispricing_gap if mispricing_gap > 0 else entry_price * 0.12))
+        # Statistical invalidation is bounded by the configured per-trade risk budget.
+        stop_allowance = min(entry_price * (max_stop_loss_pct / 100.0), max(entry_price * 0.08, mispricing_gap if mispricing_gap > 0 else entry_price * 0.08))
         raw_stop = max(0.05, entry_price - stop_allowance)
         stop_price = round(round(raw_stop / tick) * tick, 2)
 
@@ -135,7 +136,7 @@ def calculate_dynamic_volatility_target_and_stop(
 
         rationale = (
             f"Quant BSM Fair Target: Captures ₹{target_gain:.2f} Alpha (Fair ₹{fair_price:.2f}), "
-            f"Invalidation Bound @ ₹{stop_price:.2f} (1.8x Spread)"
+            f"Invalidation Bound @ ₹{stop_price:.2f} (risk-budget bounded)"
         )
 
     return target_price, stop_price, catastrophic_stop, dynamic_tp_pct, dynamic_sl_pct, rationale
@@ -171,26 +172,103 @@ def format_inr(val: float, include_sign: bool = False) -> str:
         return f"₹{val:,.2f}"
 
 
+def estimate_round_trip_friction(entry_price: float, exit_price: float, side: str, qty: int) -> float:
+    """Estimate all modeled entry and exit costs for a paper-traded leg."""
+    brokerage = 20.0
+    entry_stt = entry_price * qty * 0.00125 if side == "SELL" else 0.0
+    entry_exchange = entry_price * qty * 0.00053
+    entry_gst = (brokerage + entry_exchange) * 0.18
+    exit_stt = exit_price * qty * 0.00125 if side == "BUY" else 0.0
+    exit_exchange = exit_price * qty * 0.00053
+    exit_gst = (brokerage + exit_exchange) * 0.18
+    return round(
+        brokerage + entry_stt + entry_exchange + entry_gst
+        + brokerage + exit_stt + exit_exchange + exit_gst,
+        2,
+    )
+
+
+def is_fee_viable_candidate(candidate: dict, side: str, qty: int, minimum_edge_to_cost: float = 1.25) -> bool:
+    """Reject theoretical edges that cannot survive modeled costs and execution spread."""
+    entry_price = candidate["ask"] if side == "BUY" else candidate["bid"]
+    fair_price = candidate["fair_price"]
+    gross_edge = (fair_price - entry_price if side == "BUY" else entry_price - fair_price) * qty
+    if gross_edge <= 0:
+        return False
+    round_trip_cost = estimate_round_trip_friction(entry_price, fair_price, side, qty)
+    return gross_edge >= round_trip_cost * minimum_edge_to_cost
+
+
+def estimate_leave_one_out_surface_volatility(
+    chain_list: list[dict],
+    option_type: str,
+    strike: float,
+    spot: float,
+    forecast_volatility: float,
+) -> tuple[float, int]:
+    """Estimate local IV from neighboring strikes, excluding the candidate itself."""
+    if spot <= 0 or strike <= 0 or forecast_volatility <= 0:
+        return forecast_volatility, 0
+
+    peers = []
+    for item in chain_list:
+        peer_strike = item.get("strike")
+        peer = item.get(option_type)
+        if peer_strike is None or peer is None or float(peer_strike) == float(strike):
+            continue
+        peer_iv = peer.get("iv")
+        peer_ltp = peer.get("ltp", 0.0)
+        if peer_iv is None or peer_ltp is None:
+            continue
+        try:
+            peer_iv = float(peer_iv)
+            peer_ltp = float(peer_ltp)
+            distance = abs(math.log(float(peer_strike) / strike))
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if not (0.05 <= peer_iv <= 0.80 and peer_ltp > 0 and 0 < distance <= 0.035):
+            continue
+        peers.append((distance, peer_iv))
+
+    if len(peers) < 3:
+        return forecast_volatility, len(peers)
+
+    peers.sort(key=lambda pair: pair[0])
+    peers = peers[:8]
+    weights = np.array([1.0 / (distance + 0.002) for distance, _ in peers], dtype=float)
+    ivs = np.array([peer_iv for _, peer_iv in peers], dtype=float)
+    local_iv = float(np.average(ivs, weights=weights))
+    surface_iv = 0.65 * local_iv + 0.35 * forecast_volatility
+    return float(max(0.05, min(0.80, surface_iv))), len(peers)
+
+
 class LiveQuantPaperTrader:
     def __init__(
         self,
         symbol: str = "NIFTY",
         lot_size: int = 50,
-        max_positions: int = 24,
+        max_positions: int = 8,
         take_profit_pct: float = 28.0,
         stop_loss_pct: float = 16.0,
         min_mscore: float = 1.8,
         update_interval_sec: int = 10,
-        auto_trade: bool = True
+        auto_trade: bool = True,
+        resume_existing: bool = True
     ):
         self.symbol = symbol
         self.lot_size = lot_size
         self.max_positions = max_positions
+        self.max_contract_positions = max(1, int(os.getenv("MAX_CONTRACT_POSITIONS", "1")))
+        self.max_abs_net_delta = max(1.0, float(os.getenv("MAX_ABS_NET_DELTA", "100")))
+        self.max_chain_age_seconds = max(5.0, float(os.getenv("MAX_CHAIN_AGE_SECONDS", "30")))
+        self.max_entry_dev_pct = max(5.0, float(os.getenv("MAX_ENTRY_DEV_PCT", "20")))
+        self.min_surface_peers = max(3, int(os.getenv("MIN_SURFACE_PEERS", "3")))
         self.take_profit_pct = take_profit_pct
         self.stop_loss_pct = stop_loss_pct
         self.min_mscore = min_mscore
         self.update_interval = update_interval_sec
         self.auto_trade = auto_trade
+        self.resume_existing = resume_existing
         self.running = True
 
         # State storage
@@ -218,8 +296,24 @@ class LiveQuantPaperTrader:
         self.start_time = datetime.now()
 
         self._init_sqlite_ledger()
-        self._load_existing_state_from_db()
+        if self.resume_existing:
+            self._load_existing_state_from_db()
+        else:
+            self._load_trade_counter_only()
         self._init_signal_handlers()
+
+    def _load_trade_counter_only(self):
+        """Keep trade IDs unique when starting a clean session without loading old positions."""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            row = conn.execute(
+                "SELECT MAX(CAST(REPLACE(trade_id, 'TRD-', '') AS INTEGER)) "
+                "FROM live_paper_trades"
+            ).fetchone()
+            conn.close()
+            self.trade_counter = int(row[0] or 0)
+        except Exception as exc:
+            self.log(f"Trade counter restore notice: {exc}")
 
     def _load_existing_state_from_db(self):
         """Restore existing open positions and closed trades from SQLite for seamless session continuation."""
@@ -483,6 +577,22 @@ class LiveQuantPaperTrader:
             if not chain_data or not chain_data.get("chain"):
                 return None
 
+            source = chain_data.get("expiry_source", "unknown")
+            if source not in {"upstox_api", "nse_live"} and os.getenv("ALLOW_STALE_CHAIN", "0") != "1":
+                self.log(f"⏸️ [DATA QUALITY] Ignoring non-live option chain source: {source}")
+                return None
+
+            timestamp = chain_data.get("timestamp")
+            if timestamp:
+                parsed_timestamp = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                chain_age = time.time() - parsed_timestamp.timestamp()
+                if chain_age > self.max_chain_age_seconds and os.getenv("ALLOW_STALE_CHAIN", "0") != "1":
+                    self.log(
+                        f"⏸️ [DATA QUALITY] Ignoring stale option chain: "
+                        f"age={chain_age:.1f}s > {self.max_chain_age_seconds:.1f}s"
+                    )
+                    return None
+
             self.current_spot = chain_data.get("spot_price", self.current_spot)
             if self.initial_spot == 0 and self.current_spot > 0:
                 self.initial_spot = self.current_spot
@@ -539,9 +649,8 @@ class LiveQuantPaperTrader:
             # 5. Background EGARCH update
             self.update_volatility_model()
 
-            # 6. Real-Time Multi-Factor Fused Volatility:
-            # 45% Live ATM IV + 35% Near-Term Intraday Realized Vol + 20% Baseline Daily EGARCH
-            fused = (0.45 * self.atm_iv) + (0.35 * self.intraday_vol) + (0.20 * self.daily_vol)
+            # Keep the fair-value volatility independent from the option premium being tested.
+            fused = (0.65 * self.intraday_vol) + (0.35 * self.daily_vol)
             if self.tick_vol and abs(self.tick_vol - self.atm_iv) < 0.15:
                 fused = 0.85 * fused + 0.15 * self.tick_vol
             self.egarch_vol = float(round(fused, 4))
@@ -583,13 +692,17 @@ class LiveQuantPaperTrader:
                 bid = opt.get("bid", ltp * 0.995)
                 ask = opt.get("ask", ltp * 1.005)
 
-                # Compute model fair price using BSM with real-time r, q, and fused volatility
+                surface_vol, peer_count = estimate_leave_one_out_surface_volatility(
+                    chain_list, opt_type, strike, spot, self.egarch_vol
+                )
+
+                # Price each candidate with an independent realized-vol anchor and local leave-one-out smile.
                 fair_price = black_scholes_price(
                     spot=spot,
                     strike=strike,
                     time_to_expiry=ttm,
                     risk_free_rate=r,
-                    volatility=self.egarch_vol,
+                    volatility=surface_vol,
                     option_type=opt_type,
                     dividend_yield=q
                 )
@@ -628,7 +741,11 @@ class LiveQuantPaperTrader:
                 dev_pct = ((ltp - fair_price) / fair_price) * 100.0
 
                 # Statistical significance filter for high-conviction mispricing
-                if abs(m_score) >= self.min_mscore or abs(dev_pct) >= 6.0:
+                if (
+                    peer_count >= self.min_surface_peers
+                    and (abs(m_score) >= self.min_mscore or abs(dev_pct) >= 6.0)
+                    and abs(dev_pct) <= self.max_entry_dev_pct
+                ):
                     candidates.append({
                         "strike": strike,
                         "type": opt_type,
@@ -639,6 +756,8 @@ class LiveQuantPaperTrader:
                         "dev_pct": dev_pct,
                         "m_score": m_score,
                         "iv": iv,
+                        "model_vol": surface_vol,
+                        "surface_peer_count": peer_count,
                         "delta": delta_val,
                         "theta": greeks.get("theta", -10.0),
                         "vega": vega,
@@ -695,6 +814,8 @@ class LiveQuantPaperTrader:
                 "dist_to_target": round(abs(exec_p - target_p), 2),
                 "target_hit": False,
                 "entry_fair": round(fair_p, 2),
+                "entry_model_vol": round(cand.get("model_vol", self.egarch_vol), 4),
+                "entry_surface_peer_count": cand.get("surface_peer_count", 0),
                 "entry_spot": round(spot, 2),
                 "entry_mscore": round(cand.get("m_score", 0.0), 2),
                 "entry_dev_pct": round(cand.get("dev_pct", 0.0), 2),
@@ -710,6 +831,8 @@ class LiveQuantPaperTrader:
                 "theta": cand["theta"],
                 "vega": cand["vega"],
                 "entry_friction": fric,
+                "incurred_friction": fric,
+                "estimated_close_cost": 0.0,
                 "friction_cost": fric,
                 "gross_pnl": 0.0,
                 "net_pnl": -fric,
@@ -723,16 +846,16 @@ class LiveQuantPaperTrader:
         # STRATEGY 1: Delta-Neutral Matched Strangle Arbitrage (Cross-Wing Sell-Side Overpricing)
         # Primary Quantitative Arbitrage: Sell overpriced Call + Sell overpriced Put of balanced deltas (|Δ_C| ≈ |Δ_P|).
         # Harvests fat Volatility Risk Premium (VRP) & theta decay while eliminating market directional risk.
-        call_pool = [c for c in all_calls if c["dev_pct"] >= 10.0 and c["strike"] not in used_strikes]
-        put_pool = [c for c in all_puts if c["dev_pct"] >= 10.0 and c["strike"] not in used_strikes]
+        call_pool = [c for c in all_calls if c["dev_pct"] >= 10.0 and c["strike"] not in used_strikes and is_fee_viable_candidate(c, "SELL", self.lot_size)]
+        put_pool = [c for c in all_puts if c["dev_pct"] >= 10.0 and c["strike"] not in used_strikes and is_fee_viable_candidate(c, "SELL", self.lot_size)]
         matched_strangles = []
         for c in call_pool:
-            if existing_counts.get((c["strike"], "call"), 0) >= 2:
+            if existing_counts.get((c["strike"], "call"), 0) >= self.max_contract_positions:
                 continue
             best_put = None
             best_diff = 999.0
             for p in put_pool:
-                if existing_counts.get((p["strike"], "put"), 0) >= 2:
+                if existing_counts.get((p["strike"], "put"), 0) >= self.max_contract_positions:
                     continue
                 diff = abs(abs(c["delta"]) - abs(p["delta"]))
                 if diff < best_diff and diff <= 0.16:
@@ -748,6 +871,18 @@ class LiveQuantPaperTrader:
                 break
             self.pair_counter += 1
             pair_id = f"PAIR-{self.pair_counter:02d}"
+            current_net_delta = sum(
+                p.get("delta", 0.0) * (1 if p["side"] == "BUY" else -1) * p["qty"]
+                for p in self.positions
+            )
+            projected_net_delta = current_net_delta + (c_cand["delta"] + p_cand["delta"]) * self.lot_size
+            if abs(projected_net_delta) > self.max_abs_net_delta:
+                self.log(
+                    f"⏭️ [DELTA CAP] Skipping {pair_id}: projected net delta "
+                    f"{projected_net_delta:+.1f} exceeds ±{self.max_abs_net_delta:.1f}"
+                )
+                self.pair_counter -= 1
+                continue
             net_pair_delta = round(c_cand["delta"] + p_cand["delta"], 2)
 
             for leg_cand in [c_cand, p_cand]:
@@ -766,11 +901,18 @@ class LiveQuantPaperTrader:
         # Exploits contracts trading strictly at or below model fair price (dev <= 0% or m_score <= -1.2)
         # Guarantees that target > entry price so no instant false convergence exits can ever occur.
         if len(self.positions) < self.max_positions:
-            cheap_candidates = [c for c in candidates if (c["dev_pct"] <= 0.0 or c["m_score"] <= -1.2) and c["strike"] not in used_strikes]
+            cheap_candidates = [c for c in candidates if (c["dev_pct"] <= 0.0 or c["m_score"] <= -1.2) and c["strike"] not in used_strikes and is_fee_viable_candidate(c, "BUY", self.lot_size)]
             for c_buy in cheap_candidates:
                 if len(self.positions) >= self.max_positions:
                     break
-                if existing_counts.get((c_buy["strike"], c_buy["type"]), 0) >= 2:
+                if existing_counts.get((c_buy["strike"], c_buy["type"]), 0) >= self.max_contract_positions:
+                    continue
+                current_net_delta = sum(
+                    p.get("delta", 0.0) * (1 if p["side"] == "BUY" else -1) * p["qty"]
+                    for p in self.positions
+                )
+                projected_net_delta = current_net_delta + c_buy["delta"] * self.lot_size
+                if abs(projected_net_delta) > self.max_abs_net_delta:
                     continue
                 tp, sl, cat, dtp, dsl, _ = calculate_dynamic_volatility_target_and_stop(
                     c_buy["ask"], c_buy["fair_price"], "BUY",
@@ -791,15 +933,23 @@ class LiveQuantPaperTrader:
             for c in candidates:
                 if len(self.positions) >= self.max_positions:
                     break
-                if existing_counts.get((c["strike"], c["type"]), 0) >= 2 or c["strike"] in used_strikes:
+                if existing_counts.get((c["strike"], c["type"]), 0) >= self.max_contract_positions or c["strike"] in used_strikes:
                     continue
-                if c["dev_pct"] < 15.0:
+                if c["dev_pct"] < 15.0 or not is_fee_viable_candidate(c, "SELL", self.lot_size):
                     continue
 
                 exec_price = c["bid"]
                 fair_price = c["fair_price"]
                 side = "SELL"
                 strategy_name = f"Δ-Hedged Rebalancing Wing ({c['type'].upper()})"
+
+                current_net_delta = sum(
+                    p.get("delta", 0.0) * (1 if p["side"] == "BUY" else -1) * p["qty"]
+                    for p in self.positions
+                )
+                projected_net_delta = current_net_delta - c["delta"] * self.lot_size
+                if abs(projected_net_delta) > self.max_abs_net_delta:
+                    continue
 
                 entry_brokerage = 20.0
                 entry_stt = (exec_price * self.lot_size * 0.00125)
@@ -837,6 +987,8 @@ class LiveQuantPaperTrader:
                     "dist_to_target": round(abs(exec_price - target_price), 2),
                     "target_hit": False,
                     "entry_fair": round(fair_price, 2),
+                    "entry_model_vol": round(c.get("model_vol", self.egarch_vol), 4),
+                    "entry_surface_peer_count": c.get("surface_peer_count", 0),
                     "entry_spot": round(spot, 2),
                     "entry_mscore": round(c["m_score"], 2),
                     "entry_dev_pct": round(c["dev_pct"], 2),
@@ -852,6 +1004,8 @@ class LiveQuantPaperTrader:
                     "theta": c["theta"],
                     "vega": c["vega"],
                     "entry_friction": round(entry_friction, 2),
+                    "incurred_friction": round(entry_friction, 2),
+                    "estimated_close_cost": 0.0,
                     "friction_cost": round(entry_friction, 2),
                     "gross_pnl": 0.0,
                     "net_pnl": -round(entry_friction, 2),
@@ -942,23 +1096,33 @@ class LiveQuantPaperTrader:
 
             p["gross_pnl"] = round(gross_pnl, 2)
             p["net_pnl"] = round(net_pnl, 2)
+            p["incurred_friction"] = round(p.get("entry_friction", 0.0), 2)
+            p["estimated_close_cost"] = round(exit_friction, 2)
             p["friction_cost"] = round(total_friction, 2)
             p["unrealized_pnl"] = round(net_pnl, 2)
             p["return_pct"] = round(ret_pct, 2)
+            net_return_pct = (net_pnl / (p["entry_price"] * p["qty"]) * 100.0) if p["entry_price"] > 0 else 0.0
+            p["net_return_pct"] = round(net_return_pct, 2)
             p["max_ret_pct"] = max(p.get("max_ret_pct", ret_pct), ret_pct)
+            p["max_net_return_pct"] = max(p.get("max_net_return_pct", net_return_pct), net_return_pct)
 
             # Dynamic Convergence Evaluation with Real-Time r, q, ttm:
+            current_surface_vol, surface_peer_count = estimate_leave_one_out_surface_volatility(
+                chain_list, p["type"], p["strike"], spot, self.egarch_vol
+            )
             curr_fair = black_scholes_price(
                 spot=spot,
                 strike=p["strike"],
                 time_to_expiry=ttm,
                 risk_free_rate=r,
-                volatility=self.egarch_vol,
+                volatility=current_surface_vol,
                 option_type=p["type"],
                 dividend_yield=q
             )
+            p["current_model_vol"] = round(current_surface_vol, 4)
+            p["surface_peer_count"] = surface_peer_count
             dist_entry = abs(p["entry_price"] - p["entry_fair"])
-            dist_curr = max(0.0, curr_ltp - curr_fair) if p["side"] == "SELL" else max(0.0, curr_fair - curr_ltp)
+            dist_curr = max(0.0, exit_fill_price - curr_fair) if p["side"] == "SELL" else max(0.0, curr_fair - exit_fill_price)
             p["converged"] = dist_curr < dist_entry
             mispricing_narrowed = (dist_entry - dist_curr) / dist_entry if dist_entry > 0 else 0.0
             p["mispricing_narrowed_pct"] = round(mispricing_narrowed * 100, 1)
@@ -989,12 +1153,12 @@ class LiveQuantPaperTrader:
             # Distance to target & Target Hit Flag:
             if p["side"] == "SELL":
                 dist_to_target = curr_ltp - target_price
-                target_hit = curr_ltp <= target_price
+                target_hit = exit_fill_price <= target_price
                 stop_breached = curr_ltp >= stop_price
                 catastrophic_breach = curr_ltp >= cat_stop
             else:
                 dist_to_target = target_price - curr_ltp
-                target_hit = curr_ltp >= target_price
+                target_hit = exit_fill_price >= target_price
                 stop_breached = curr_ltp <= stop_price
                 catastrophic_breach = curr_ltp <= cat_stop
 
@@ -1025,29 +1189,29 @@ class LiveQuantPaperTrader:
                 exit_reason = f"CATASTROPHIC_STOP (Emergency shock exit @ LTP ₹{curr_ltp:.2f} • {ret_pct:.1f}%)"
             elif is_toxic_itm:
                 exit_reason = f"RISK_PRUNED_DEEP_ITM (Delta: {p.get('delta', 0.5):.2f} | Strike {p['strike']} vs Spot {spot:.1f})"
-            elif is_matured and ret_pct >= 4.0 and (target_hit or (p["side"] == "SELL" and curr_ltp <= curr_fair * 1.02) or (p["side"] == "BUY" and curr_ltp >= curr_fair * 0.98 and curr_ltp > p["entry_price"])):
-                # 1. Primary Mathematical Objective: Target Fair Price Reached WITH Net Profit
-                exit_reason = f"FAIR_VALUE_CONVERGED ({conv_pct:.0f}% Alpha Captured • LTP ₹{curr_ltp:.2f} ≈ Fair ₹{curr_fair:.2f} • Net +{ret_pct:.1f}%)"
-            elif is_matured and conv_pct >= 60.0 and ret_pct >= 5.0:
-                # 2. Mathematical Mispricing Gap Narrowed >= 60%
-                exit_reason = f"MISPRICING_SQUEEZE_CONVERGED ({conv_pct:.0f}% Alpha Extracted • Net +{ret_pct:.1f}%)"
-            elif is_matured and p.get("theoretical_edge") and net_pnl >= p["theoretical_edge"] * 0.65 and ret_pct >= 5.0:
+            elif is_matured and net_return_pct >= 1.0 and (target_hit or (p["side"] == "SELL" and exit_fill_price <= curr_fair * 1.02) or (p["side"] == "BUY" and exit_fill_price >= curr_fair * 0.98 and exit_fill_price > p["entry_price"])):
+                # 1. Primary objective: executable fair-value convergence with net profit.
+                exit_reason = f"FAIR_VALUE_CONVERGED ({conv_pct:.0f}% Alpha Captured • Exit ₹{exit_fill_price:.2f} ≈ Fair ₹{curr_fair:.2f} • Net +{net_return_pct:.1f}%)"
+            elif is_matured and conv_pct >= 60.0 and net_return_pct >= 1.0:
+                # 2. Mathematical mispricing gap narrowed >= 60% after all costs.
+                exit_reason = f"MISPRICING_SQUEEZE_CONVERGED ({conv_pct:.0f}% Alpha Extracted • Net +{net_return_pct:.1f}%)"
+            elif is_matured and p.get("theoretical_edge") and net_pnl >= p["theoretical_edge"] * 0.65 and net_return_pct >= 1.0:
                 # 3. Theoretical Rupee Alpha Edge Secured >= 65%
                 exit_reason = f"ALPHA_HARVESTED (Secured ₹{net_pnl:.0f} of ₹{p['theoretical_edge']:.0f} Initial Edge)"
-            elif is_matured and abs(market_quote.get("iv", self.atm_iv) - self.egarch_vol) <= 0.010 and ret_pct >= 6.0:
+            elif is_matured and abs(market_quote.get("iv", self.atm_iv) - self.egarch_vol) <= 0.010 and net_return_pct >= 1.0:
                 # 4. Volatility Risk Premium (VRP) Collapse to Model Fair Volatility
                 exit_reason = f"VRP_COLLAPSE (Implied Vol {market_quote['iv']*100:.1f}% -> Model Fair Vol {self.egarch_vol*100:.1f}%)"
             # 5. High-Water-Mark Dynamic Trailing Profit Ratchet: Never give back hard-won gains!
-            elif is_matured and max_p >= 20.0 and ret_pct <= (max_p - 4.5) and ret_pct >= 12.0:
-                exit_reason = f"TRAILING_PROFIT_LOCK_TIER4 (Peak: +{max_p:.1f}% -> Secured +{ret_pct:.1f}% • Locked +12.0%+)"
-            elif is_matured and max_p >= 15.0 and ret_pct <= (max_p - 4.0) and ret_pct >= 8.0:
-                exit_reason = f"TRAILING_PROFIT_LOCK_TIER3 (Peak: +{max_p:.1f}% -> Secured +{ret_pct:.1f}% • Locked +8.0%+)"
-            elif is_matured and max_p >= 10.0 and ret_pct <= (max_p - 3.5) and ret_pct >= 5.0:
-                exit_reason = f"TRAILING_PROFIT_LOCK_TIER2 (Peak: +{max_p:.1f}% -> Secured +{ret_pct:.1f}% • Locked +5.0%+)"
-            elif is_matured and max_p >= 7.0 and ret_pct <= 3.0 and ret_pct >= 1.2:
-                exit_reason = f"TRAILING_BREAKEVEN_LOCK (Peak: +{max_p:.1f}% -> Secured +{ret_pct:.1f}% • Covered Friction)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 20.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 4.5) and net_return_pct >= 8.0:
+                exit_reason = f"TRAILING_PROFIT_LOCK_TIER4 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Net)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 15.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 4.0) and net_return_pct >= 5.0:
+                exit_reason = f"TRAILING_PROFIT_LOCK_TIER3 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Net)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 8.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 3.5) and net_return_pct >= 2.0:
+                exit_reason = f"TRAILING_PROFIT_LOCK_TIER2 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Net)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 4.0 and net_return_pct <= 1.0 and net_return_pct >= 0.25:
+                exit_reason = f"TRAILING_BREAKEVEN_LOCK (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Net)"
             elif is_matured and stop_breached:
-                # 6. Statistical Dislocation Invalidation Bound (Disciplined 12% - 16% stop)
+                # 6. Statistical dislocation invalidation bound, constrained by the risk budget.
                 breach_count = p.get("stop_breach_count", 0) + 1
                 p["stop_breach_count"] = breach_count
                 if breach_count < 3:
@@ -1094,7 +1258,7 @@ class LiveQuantPaperTrader:
         total_realized_gross = sum(t.get("gross_pnl", t.get("realized_pnl", t.get("net_pnl", 0.0))) for t in self.closed_trades)
         total_unrealized_gross = sum(p.get("gross_pnl", 0.0) for p in self.positions)
         total_gross_pnl = total_realized_gross + total_unrealized_gross
-        total_friction_incurred = sum(t.get("friction_cost", 0.0) for t in self.closed_trades) + sum(p.get("friction_cost", 0.0) for p in self.positions)
+        total_friction_incurred = sum(t.get("friction_cost", 0.0) for t in self.closed_trades) + sum(p.get("incurred_friction", p.get("entry_friction", 0.0)) for p in self.positions)
 
         all_trades_count = len(self.closed_trades)
         winning_trades = sum(1 for t in self.closed_trades if t.get("realized_pnl", t.get("net_pnl", 0.0)) > 0)
@@ -1185,7 +1349,7 @@ class LiveQuantPaperTrader:
                 else:
                     status_badge = "🔵 ACTIVE HARVEST"
                 active_rows_list.append(
-                    f"| {idx+1} | `{p['trade_id']}`{pair_tag} | {p['strategy']} | {p['instrument']} | **{p['side']}** | {p['qty']} | ₹{p['entry_price']:.2f} | ₹{p['current_price']:.2f} | **₹{fair_val:.2f}** | ₹{gap_val:.2f} | **{conv_val:+.1f}%** | {p.get('delta', 0.0):+.2f} | {format_inr(p.get('gross_pnl', 0.0), include_sign=True)} | {format_inr(p.get('friction_cost', 0.0))} | **{format_inr(p['net_pnl'], include_sign=True)}** | {p['return_pct']:+.1f}% | {status_badge} |"
+                    f"| {idx+1} | `{p['trade_id']}`{pair_tag} | {p['strategy']} | {p['instrument']} | **{p['side']}** | {p['qty']} | ₹{p['entry_price']:.2f} | ₹{p['current_price']:.2f} | **₹{fair_val:.2f}** | ₹{gap_val:.2f} | **{conv_val:+.1f}%** | {p.get('delta', 0.0):+.2f} | {format_inr(p.get('gross_pnl', 0.0), include_sign=True)} | {format_inr(p.get('incurred_friction', p.get('entry_friction', 0.0)))} + {format_inr(p.get('estimated_close_cost', 0.0))} est. | **{format_inr(p['net_pnl'], include_sign=True)}** | {p.get('net_return_pct', p['return_pct']):+.1f}% | {status_badge} |"
                 )
             active_rows = "\n".join(active_rows_list) if active_rows_list else "| - | - | - | Scanning option chain for statistical mispricings... | - | - | - | - | - | - | - | - | - | - | - | - | - |"
 
@@ -1226,7 +1390,7 @@ All parameters directly governing option fair value and Greeks are continuously 
 | **Tick Realized Volatility** | $\\sigma_{{\\text{{tick}}}}$ | **{self.tick_vol*100:.2f}%** | Rolling 10s tick returns (567k annual periods) | Captures micro-structure spikes & high-frequency shocks |
 | **5m Intraday Realized Vol** | $\\sigma_{{5\\text{{m}}}}$ | **{self.intraday_vol*100:.2f}%** | 5-minute bar returns over past 5 sessions | Realized intraday volatility clusters & session spikes |
 | **Daily EGARCH(1,1) Vol** | $\\sigma_{{\\text{{daily}}}}$ | **{self.daily_vol*100:.2f}%** | 1-year daily asymmetric leverage GARCH model | Robust macro baseline correcting for volatility skew |
-| **Fused Model Volatility** | $\\sigma_{{\\text{{fused}}}}$ | **{self.egarch_vol*100:.2f}%** | Multi-factor: $45\\% \\sigma_{{\\text{{ATM}}}} + 35\\% \\sigma_{{5\\text{{m}}}} + 20\\% \\sigma_{{\\text{{daily}}}} + \\sigma_{{\\text{{tick}}}}$ | Core pricing volatility for identifying statistical mispricings |
+| **Fused Model Volatility** | $\\sigma_{{\\text{{fused}}}}$ | **{self.egarch_vol*100:.2f}%** | Forecast/realized blend: $65\\% \\sigma_{{5\\text{{m}}}} + 35\\% \\sigma_{{\\text{{daily}}}}$, with bounded tick-vol overlay | Independent pricing volatility for identifying statistical mispricings |
 | **Market Volatility Regime** | - | **`{self.regime}`** | Hidden Markov Model volatility state classification | Determines statistical conviction threshold |
 
 ---
@@ -1268,10 +1432,10 @@ All parameters directly governing option fair value and Greeks are continuously 
    - **Mathematical Profit Target:** The target price is anchored to the econometric Black-Scholes Model Fair Value (P_target = P_fair), representing the true theoretical worth of the contract.
    - **Mispricing Squeeze Exits:** When the market closes >= 70% of the initial mispricing spread or extracts >= 75% of the theoretical alpha, the position is automatically locked in and harvested.
 3. **Statistical Invalidation & Volatility Collapse:**
-   - **Relative-Value Invalidation:** Instead of arbitrary retail stop-losses, stops represent statistical dislocation bounds (1.8x the initial mispricing gap or > 3.2σ M-Score divergence), exiting only when the pricing hypothesis is empirically invalidated.
+            - **Relative-Value Invalidation:** Stops are constrained by a configurable per-trade risk budget and monitored against executable quotes.
    - **VRP Collapse Harvest:** If market IV contracts by > 2.5% vol points toward the fused econometric baseline, alpha is captured immediately without waiting for terminal expiration.
 4. **Friction & Edge Economics:**
-   - By capturing 25%–45% mispricing premia on ₹40–₹120 contracts (₹500–₹1,800+ edge per lot), round-trip transaction costs (~₹48) account for only a tiny fraction of profits, retaining over **90% net alpha**.
+            - Entries are rejected unless modeled edge clears round-trip costs and a safety multiple. Results must be evaluated net of fees, spread, slippage, and versioned execution assumptions.
 """)
         except Exception as md_err:
             self.log(f"⚠️ Live markdown dashboard write notice: {md_err}")
@@ -1421,16 +1585,28 @@ All parameters directly governing option fair value and Greeks are continuously 
         print("=" * 80 + "\n")
 
 
-    def run(self, once: bool = False):
+    def run(self, once: bool = False, max_runtime_hours: float | None = None):
         """Main real-time terminal execution loop."""
+        session_deadline = (
+            time.monotonic() + max_runtime_hours * 3600.0
+            if max_runtime_hours is not None and max_runtime_hours > 0
+            else None
+        )
         self.log(f"Starting Live Quant Paper Trader for {self.symbol}...")
         self.log(f"Refresh Interval: {self.update_interval}s | Max Concurrent Positions: {self.max_positions}")
+        if session_deadline is not None:
+            self.log(f"Session runtime limit: {max_runtime_hours:.2f} hours")
         if not once:
             self.log("Press Ctrl+C at any time to exit and generate the IEEE accuracy report.\n")
             time.sleep(1.0)
 
         while self.running:
             try:
+                if session_deadline is not None and time.monotonic() >= session_deadline:
+                    self.log("Session runtime limit reached; stopping and exporting the report.")
+                    self.running = False
+                    continue
+
                 chain_data = self.fetch_market_state()
                 if chain_data:
                     # 1. Update existing open positions
@@ -1448,6 +1624,10 @@ All parameters directly governing option fair value and Greeks are continuously 
             except Exception as iter_err:
                 self.log(f"⚠️ Recovered from iteration error: {iter_err}")
 
+            if session_deadline is not None and time.monotonic() >= session_deadline:
+                self.log("Session runtime limit reached; stopping and exporting the report.")
+                self.running = False
+
             if once or not self.running:
                 self.export_audit_report()
                 break
@@ -1459,10 +1639,12 @@ def main():
     parser = argparse.ArgumentParser(description="Live NIFTY Options Quant Paper Trader & Accuracy Engine.")
     parser.add_argument("--symbol", default="NIFTY", help="Underlying index (default: NIFTY)")
     parser.add_argument("--interval", type=int, default=10, help="Loop refresh interval in seconds (default: 10s for optimal speed without blocks)")
-    parser.add_argument("--tp", type=float, default=22.0, help="Take-profit percent (default: 22.0%%)")
-    parser.add_argument("--sl", type=float, default=14.0, help="Stop-loss percent (default: 14.0%%)")
-    parser.add_argument("--min-mscore", type=float, default=1.8, help="Minimum M-Score to trigger trade (default: 1.8)")
-    parser.add_argument("--max-pos", type=int, default=24, help="Maximum concurrent open positions (default: 24)")
+    parser.add_argument("--tp", type=float, default=20.0, help="Take-profit percent (default: 20.0%%)")
+    parser.add_argument("--sl", type=float, default=12.0, help="Stop-loss percent (default: 12.0%%)")
+    parser.add_argument("--min-mscore", type=float, default=2.0, help="Minimum M-Score to trigger trade (default: 2.0)")
+    parser.add_argument("--max-pos", type=int, default=8, help="Maximum concurrent open positions (default: 8)")
+    parser.add_argument("--duration-hours", type=float, default=6.0, help="Maximum runtime in hours (default: 6.0)")
+    parser.add_argument("--new-session", action="store_true", help="Start with no old positions or P&L while preserving unique trade IDs")
     parser.add_argument("--once", action="store_true", help="Run single scan and export report without continuous loop")
     args = parser.parse_args()
 
@@ -1472,9 +1654,10 @@ def main():
         take_profit_pct=args.tp,
         stop_loss_pct=args.sl,
         min_mscore=args.min_mscore,
-        max_positions=args.max_pos
+        max_positions=args.max_pos,
+        resume_existing=not args.new_session
     )
-    engine.run(once=args.once)
+    engine.run(once=args.once, max_runtime_hours=args.duration_hours)
 
 
 if __name__ == "__main__":

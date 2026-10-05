@@ -72,6 +72,14 @@ def detect_mispricing(
               composite 'm_score' and normalized 'z_score' fields.
               Classification: "underpriced", "fair", or "overpriced"
     """
+    if not math.isfinite(market_price) or not math.isfinite(fair_price) or fair_price <= 0:
+        return {
+            "deviation": 0.0,
+            "classification": "fair",
+            "m_score": 0.0,
+            "z_score": 0.0,
+        }
+
     deviation = (market_price - fair_price) / fair_price
 
     if deviation > 0.05:

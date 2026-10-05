@@ -545,8 +545,8 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
         market_data_live = False
         selected_expiry = "synthetic_fallback"
         
-    # Scale vol by sqrt(T) for Black-Scholes input
-    expiry_volatility = horizon_adjusted_volatility * (time_to_expiry_years ** 0.5)
+    # Black-Scholes expects annualized volatility; time-to-expiry is already supplied separately.
+    expiry_volatility = horizon_adjusted_volatility
 
     volatility_source = {
         "raw_forecast": vol_forecast,
@@ -602,7 +602,7 @@ def run_pipeline(symbol: str = "NIFTY", trading_horizon: str = None, timeframe: 
     vol_spread, vol_signal = classify_vol_spread(iv, safe_volatility)
     vrp_payload = compute_vrp(iv, vol_forecast, regime_label=regime)
     expected_vrp = vrp_payload.get("expected_vrp") if vrp_payload else None
-    expected_vrp_expiry = expected_vrp * (time_to_expiry_years ** 0.5) if expected_vrp is not None else None
+    expected_vrp_expiry = expected_vrp
 
     if pricing_integrity:
         fair_price = black_scholes_price(
