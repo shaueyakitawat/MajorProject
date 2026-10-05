@@ -65,20 +65,66 @@ class LiveQuantPaperTrader:
         self.closed_trades: list[dict] = []
         self.trade_counter = 0
         self.initial_spot = 0.0
-        self.current_spot = 0.0
         self.egarch_vol = 0.128
+        self.intraday_vol = 0.132
+        self.daily_vol = 0.122
         self.regime = "NORMAL_VOL"
         self.last_vol_update = 0.0
         self.start_time = datetime.now()
 
         self._init_sqlite_ledger()
+        self._load_existing_state_from_db()
         self._init_signal_handlers()
+
+    def _load_existing_state_from_db(self):
+        """Restore existing open positions and closed trades from SQLite for seamless session continuation."""
+        try:
+            if not DB_PATH.exists():
+                return
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            # Load open positions
+            cur.execute("SELECT * FROM live_paper_trades WHERE status = 'OPEN'")
+            for r in cur.fetchall():
+                d = dict(r)
+                d["type"] = d["option_type"]
+                d["entry_epoch"] = time.time() - d.get("holding_seconds", 0.0)
+                d["converged"] = bool(d.get("converged", 0))
+                self.positions.append(d)
+                try:
+                    num = int(d["trade_id"].replace("TRD-", ""))
+                    if num > self.trade_counter:
+                        self.trade_counter = num
+                except Exception:
+                    pass
+
+            # Load closed trades
+            cur.execute("SELECT * FROM live_paper_trades WHERE status = 'CLOSED'")
+            for r in cur.fetchall():
+                d = dict(r)
+                d["type"] = d["option_type"]
+                d["converged"] = bool(d.get("converged", 0))
+                self.closed_trades.append(d)
+                try:
+                    num = int(d["trade_id"].replace("TRD-", ""))
+                    if num > self.trade_counter:
+                        self.trade_counter = num
+                except Exception:
+                    pass
+
+            conn.close()
+            if self.positions:
+                self.log(f"🔄 Resumed {len(self.positions)} active open positions and {len(self.closed_trades)} closed trades from SQLite ledger.")
+        except Exception as e:
+            self.log(f"Ledger restore notice: {e}")
 
     def _init_signal_handlers(self):
         """Trap Ctrl+C (SIGINT) and termination signals for graceful flush."""
         def handle_exit(signum, frame):
             print("\n")
-            self.log("Interrupt received! Initiating safe shutdown and exporting IEEE report...")
+            self.log("Interrupt received! Initiating safe shutdown and exporting report...")
             self.running = False
 
         signal.signal(signal.SIGINT, handle_exit)
@@ -160,40 +206,55 @@ class LiveQuantPaperTrader:
 
     def update_volatility_model(self, force: bool = False):
         """
-        Estimate EGARCH(1,1) volatility & Gaussian HMM regime on 2-year daily history.
-        Caches estimate and only recalculates every 30 minutes to avoid Yahoo Finance throttling.
+        Multi-Timeframe Volatility Engine:
+        Fuses near-term 5-min realized volatility (65%) with daily EGARCH(1,1) (35%).
+        Captures intraday volatility spikes and mean-reverting dislocations in real time.
+        Re-calibrates every 300 seconds (5 minutes).
         """
         now_ts = time.time()
-        if not force and (now_ts - self.last_vol_update < 1800.0) and self.last_vol_update > 0:
+        if not force and (now_ts - self.last_vol_update < 300.0) and self.last_vol_update > 0:
             return
 
         try:
             import yfinance as yf
-            nifty = yf.download("^NSEI", period="2y", interval="1d", progress=False)
+            # 1. Fetch near-term 5-minute intraday bars (last 5 days) to capture intraday volatility spikes
+            df_5m = yf.download("^NSEI", period="5d", interval="5m", progress=False)
+            if isinstance(df_5m.columns, pd.MultiIndex):
+                df_5m.columns = [c[0] for c in df_5m.columns]
+            close_5m = df_5m["Close"] if "Close" in df_5m else None
+
+            # 2. Fetch daily history for baseline EGARCH model
+            nifty = yf.download("^NSEI", period="1y", interval="1d", progress=False)
             if isinstance(nifty.columns, pd.MultiIndex):
                 nifty.columns = [c[0] for c in nifty.columns]
-            ret_series = np.log(nifty['Close'] / nifty['Close'].shift(1)).dropna()
+            ret_series = np.log(nifty["Close"] / nifty["Close"].shift(1)).dropna()
 
             sample_annual_vol = float(ret_series.std() * np.sqrt(252))
 
-            # Fit EGARCH(1,1)
-            vol_res = forecast_volatility(pd.Series(ret_series.values.flatten()))
-            model_vol = vol_res.get("final_vol", sample_annual_vol)
+            # Multi-timeframe Volatility Fusion
+            vol_res = forecast_volatility(pd.Series(ret_series.values.flatten()), close_5m)
+            daily_vol = vol_res.get("daily_vol", sample_annual_vol)
+            intraday_5m_vol = vol_res.get("intraday_vol")
 
-            # Robust sanity guardrail: Volatility for NIFTY must be within [0.06, 0.45]
-            if 0.06 <= model_vol <= 0.45:
-                self.egarch_vol = float(model_vol)
+            self.daily_vol = float(daily_vol) if 0.05 <= daily_vol <= 0.45 else sample_annual_vol
+
+            if intraday_5m_vol and 0.05 <= intraday_5m_vol <= 0.60:
+                self.intraday_vol = float(intraday_5m_vol)
+                # Intraday fusion: 65% near-term 5m realized vol + 35% daily vol
+                fused_vol = (0.65 * self.intraday_vol) + (0.35 * self.daily_vol)
+                self.egarch_vol = float(fused_vol)
             else:
-                self.egarch_vol = float(sample_annual_vol)
+                self.egarch_vol = float(self.daily_vol)
 
-            # Classify regime
+            self.tci = vol_res.get("tci", 0.0)
             reg_res = classify_volatility_regime(pd.Series(ret_series.values.flatten()))
             self.regime = reg_res.get("regime", "NORMAL_VOL")
             self.last_vol_update = now_ts
-            self.log(f"Econometric Volatility Model Calibrated: EGARCH={self.egarch_vol*100:.2f}% | Regime={self.regime}")
+            self.log(f"⚡ Intraday Volatility Engine Updated: Fused={self.egarch_vol*100:.2f}% (5m Realized={self.intraday_vol*100:.2f}% | Daily={self.daily_vol*100:.2f}%) | Regime={self.regime}")
         except Exception as e:
             self.log(f"Volatility calibration fallback ({e}); using baseline vol {self.egarch_vol*100:.2f}%")
             self.last_vol_update = now_ts
+
 
     def fetch_market_state(self) -> dict | None:
         """Fetch live spot and option chain from direct NSE feed."""
@@ -404,11 +465,16 @@ class LiveQuantPaperTrader:
             dist_entry = abs(p["entry_price"] - p["entry_fair"])
             dist_curr = abs(curr_ltp - curr_fair)
             p["converged"] = dist_curr < dist_entry
+            mispricing_narrowed = (dist_entry - dist_curr) / dist_entry if dist_entry > 0 else 0.0
+            p["mispricing_narrowed_pct"] = round(mispricing_narrowed * 100, 1)
 
-            # Risk Management Rules: Take-Profit (TP), Stop-Loss (SL), EOD Square-Off
+            # Risk Management Rules: Take-Profit (TP), Fast Convergence Target, Stop-Loss (SL), EOD Square-Off
             exit_reason = None
             if ret_pct >= self.take_profit_pct:
                 exit_reason = f"TARGET_PROFIT (+{ret_pct:.1f}%)"
+            elif ret_pct >= 15.0 and mispricing_narrowed >= 0.45:
+                # Intraday Statistical Arbitrage Exit: Mispricing has mean-reverted & profit locked in
+                exit_reason = f"CONVERGENCE_PROFIT (+{ret_pct:.1f}% | {mispricing_narrowed*100:.0f}% converged)"
             elif ret_pct <= -self.stop_loss_pct:
                 exit_reason = f"STOP_LOSS ({ret_pct:.1f}%)"
 
@@ -493,8 +559,66 @@ class LiveQuantPaperTrader:
                 print(f"  {t['trade_id']} │ {t['instrument']:<15} {t['side']:<4} │ Entry: ₹{t['entry_price']:.1f} → Exit: ₹{t['exit_price']:.1f} │ Net: {pnl_str:<10} ({ret_str}) │ {status_icon} │ {t['exit_reason']}")
 
         print("=" * 108)
-        print(f"  [Auto-Refresh every {self.update_interval}s | Press Ctrl+C to close positions & export IEEE validation report]")
+        print(f"  [Auto-Refresh every {self.update_interval}s | Press Ctrl+C to close positions & export validation report]")
         print("=" * 108)
+
+        # Also write live markdown dashboard for real-time visibility in editor
+        try:
+            live_md_path = OUTPUT_DIR / "LIVE_TERMINAL_DASHBOARD.md"
+            active_rows = "\n".join([
+                f"| `{p['trade_id']}` | {p['strategy']} | {p['instrument']} | **{p['side']}** | {p['qty']} | ₹{p['entry_price']:.1f} | ₹{p['current_price']:.1f} | ₹{p['entry_fair']:.1f} | **{'+' if p['net_pnl'] >= 0 else ''}₹{p['net_pnl']:,.1f}** | {p['return_pct']:+.1f}% | {p['entry_mscore']:+.2f}σ | {'🟢 ' + str(p.get('mispricing_narrowed_pct', 0)) + '% (YES)' if p['converged'] else '⚪ ' + str(p.get('mispricing_narrowed_pct', 0)) + '%'} |"
+                for p in self.positions
+            ]) if self.positions else "| - | - | Scanning option chain for statistical mispricings... | - | - | - | - | - | - | - | - | - |"
+
+            closed_rows = "\n".join([
+                f"| `{t['trade_id']}` | {t['instrument']} | {t['side']} | ₹{t['entry_price']:.1f} | ₹{t['exit_price']:.1f} | **{'+' if t['realized_pnl'] >= 0 else ''}₹{t['realized_pnl']:,.1f}** | {t['return_pct']:+.1f}% | {'🟢 PROFIT' if t['realized_pnl'] >= 0 else '🔴 LOSS'} | {t['exit_reason']} |"
+                for t in self.closed_trades[-8:]
+            ]) if self.closed_trades else "| - | No trades closed yet | - | - | - | - | - | - | - |"
+
+            with open(live_md_path, "w") as f:
+                f.write(f"""# ⚡ LIVE QUANT TERMINAL — NIFTY 50 OPTIONS ENGINE
+**Last Market Tick:** `{now_str} IST` | **Underlying:** `{self.symbol}` | **Auto-Refresh:** Every `{self.update_interval}s`
+
+---
+
+### 📊 Real-Time Portfolio & Econometric Volatility
+| Metric | Real-Time Value |
+| :--- | :--- |
+| **NIFTY Spot Price** | **₹{self.current_spot:,.2f}** (Δ {self.current_spot - self.initial_spot:+.2f}) |
+| **Fused Model Volatility** | **{self.egarch_vol*100:.2f}%** (65% 5m Realized + 35% Daily EGARCH) |
+| **Near-Term 5m Realized Vol** | **{self.intraday_vol*100:.2f}%** (Captures intraday volatility spikes) |
+| **Daily EGARCH Baseline Vol** | {self.daily_vol*100:.2f}% |
+| **HMM Regime** | `{self.regime}` |
+| **Total Net Realized P&L** | **{'+' if total_realized_net >= 0 else ''}₹{total_realized_net:,.2f}** |
+| **Total Unrealized P&L** | **{'+' if total_unrealized_net >= 0 else ''}₹{total_unrealized_net:,.2f}** |
+| **Total Net P&L (All)** | **{'+' if total_net_pnl >= 0 else ''}₹{total_net_pnl:,.2f}** |
+| **Total Gross P&L** | ₹{total_gross_pnl:,.2f} |
+| **Frictional Costs (STT + Fees)**| ₹{total_friction_incurred:,.2f} |
+| **Win Rate** | **{win_rate:5.1f}%** ({winning_trades}/{all_trades_count} closed) |
+| **Mispricing Convergence Rate** | **{convergence_pct:5.1f}%** ({converged_positions}/{total_positions_evaluated} converged) |
+| **Net Portfolio Delta (Δ)** | **{net_delta:+.1f} Δ** |
+
+---
+
+### 🟢 Active Open Positions ({len(self.positions)}/{self.max_positions})
+| Trade ID | Strategy | Contract | Side | Qty | Entry Price | Current LTP | BS Fair Value | Net P&L (₹) | Return % | M-Score | Convergence Progress |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{active_rows}
+
+---
+
+### 📜 Recent Closed Trades ({len(self.closed_trades)} Total Trades)
+| Trade ID | Contract | Side | Entry Price | Exit Price | Net P&L (₹) | Return % | Status | Exit Reason |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{closed_rows}
+
+---
+*Engine is autonomously running and tracking convergence until market close (15:30 IST).*
+""")
+        except Exception:
+            pass
+
+
 
     def export_audit_report(self):
         """Export comprehensive Model Performance & Trade Logs report in Markdown, CSV, and JSON."""
