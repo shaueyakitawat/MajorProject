@@ -12,11 +12,12 @@ def black_scholes_price(
     risk_free_rate: float,
     volatility: float,
     option_type: str,
+    dividend_yield: float = 0.0125,
     expected_vrp: float | None = None,
     use_adjusted_vol: bool = True
 ) -> float:
     """
-    Calculate theoretical option price using Black-Scholes model.
+    Calculate theoretical option price using Black-Scholes-Merton model with continuous dividend yield.
     """
     sigma = volatility
     if use_adjusted_vol and expected_vrp is not None and np.isfinite(expected_vrp):
@@ -25,17 +26,23 @@ def black_scholes_price(
     if time_to_expiry <= 0 or sigma <= 0 or spot <= 0 or strike <= 0:
         return 0.0
 
-    d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
+    q = dividend_yield
+    r = risk_free_rate
+
+    d1 = (np.log(spot / strike) + (r - q + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
     d2 = d1 - sigma * np.sqrt(time_to_expiry)
 
+    df_q = np.exp(-q * time_to_expiry)
+    df_r = np.exp(-r * time_to_expiry)
+
     if option_type.lower() == "call":
-        price = spot * norm.cdf(d1) - strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)
+        price = spot * df_q * norm.cdf(d1) - strike * df_r * norm.cdf(d2)
     elif option_type.lower() == "put":
-        price = strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(-d2) - spot * norm.cdf(-d1)
+        price = strike * df_r * norm.cdf(-d2) - spot * df_q * norm.cdf(-d1)
     else:
         raise ValueError(f"Invalid option_type: {option_type}. Must be 'call' or 'put'.")
     
-    return float(price)
+    return float(max(0.0, price))
 
 
 def calculate_greeks(
@@ -44,34 +51,42 @@ def calculate_greeks(
     time_to_expiry: float,
     risk_free_rate: float,
     volatility: float,
-    option_type: str = "call"
+    option_type: str = "call",
+    dividend_yield: float = 0.0125
 ) -> dict[str, float]:
     """
-    Calculate analytical Black-Scholes Greeks: Delta, Gamma, Theta, Vega.
+    Calculate analytical Black-Scholes-Merton Greeks: Delta, Gamma, Theta, Vega with dividend yield.
     """
     if time_to_expiry <= 0 or volatility <= 0 or spot <= 0 or strike <= 0:
         return {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0}
 
     sigma = volatility
-    d1 = (np.log(spot / strike) + (risk_free_rate + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
+    q = dividend_yield
+    r = risk_free_rate
+
+    d1 = (np.log(spot / strike) + (r - q + 0.5 * sigma**2) * time_to_expiry) / (sigma * np.sqrt(time_to_expiry))
     d2 = d1 - sigma * np.sqrt(time_to_expiry)
 
     pdf_d1 = norm.pdf(d1)
+    df_q = np.exp(-q * time_to_expiry)
+    df_r = np.exp(-r * time_to_expiry)
 
     # Gamma (same for Call and Put)
-    gamma = pdf_d1 / (spot * sigma * np.sqrt(time_to_expiry))
+    gamma = (df_q * pdf_d1) / (spot * sigma * np.sqrt(time_to_expiry))
 
     # Vega (same for Call and Put, per 1% vol change)
-    vega = (spot * pdf_d1 * np.sqrt(time_to_expiry)) / 100.0
+    vega = (spot * df_q * pdf_d1 * np.sqrt(time_to_expiry)) / 100.0
 
     if option_type.lower() == "call":
-        delta = norm.cdf(d1)
-        theta = (- (spot * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
-                 - risk_free_rate * strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(d2)) / 365.0
+        delta = df_q * norm.cdf(d1)
+        theta = (- (spot * df_q * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
+                 - r * strike * df_r * norm.cdf(d2)
+                 + q * spot * df_q * norm.cdf(d1)) / 365.0
     else:
-        delta = norm.cdf(d1) - 1.0
-        theta = (- (spot * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
-                 + risk_free_rate * strike * np.exp(-risk_free_rate * time_to_expiry) * norm.cdf(-d2)) / 365.0
+        delta = df_q * (norm.cdf(d1) - 1.0)
+        theta = (- (spot * df_q * pdf_d1 * sigma) / (2 * np.sqrt(time_to_expiry))
+                 + r * strike * df_r * norm.cdf(-d2)
+                 - q * spot * df_q * norm.cdf(-d1)) / 365.0
 
     return {
         "delta": float(delta),
