@@ -16,10 +16,12 @@ def calculate_implied_volatility(
     T: float,
     r: float,
     market_price: float,
-    option_type: str = "call"
+    option_type: str = "call",
+    dividend_yield: float = 0.0125
 ) -> float | None:
     """
     Calculate implied volatility by solving BS(vol) - market_price = 0.
+    Robustly handles sub-intrinsic, extreme OTM, and boundary quotes without throwing bracket exceptions.
 
     Args:
         S: Spot price
@@ -28,16 +30,35 @@ def calculate_implied_volatility(
         r: Risk-free rate (decimal)
         market_price: Observed market option price (LTP or mid)
         option_type: "call" or "put"
+        dividend_yield: Dividend yield (decimal)
 
     Returns:
         float: Implied volatility as decimal (e.g. 0.20 = 20%), or None if solver fails
     """
     if market_price <= 0 or S <= 0 or K <= 0 or T <= 0:
-        logger.warning(
-            f"IV calculation skipped: invalid inputs "
-            f"(S={S}, K={K}, T={T}, market_price={market_price})"
-        )
         return None
+
+    import math
+
+    # Analytical arbitrage boundary checks
+    df_r = math.exp(-r * T)
+    df_q = math.exp(-dividend_yield * T)
+    is_call = option_type.lower() == "call"
+
+    if is_call:
+        intrinsic = max(0.0, S * df_q - K * df_r)
+        upper_bound = S * df_q
+    else:
+        intrinsic = max(0.0, K * df_r - S * df_q)
+        upper_bound = K * df_r
+
+    # Sub-intrinsic quote (negative or zero extrinsic value) -> vol is at lower floor
+    if market_price <= intrinsic + 1e-4:
+        return 0.001
+
+    # Price exceeds theoretical max -> vol is bounded at upper ceiling
+    if market_price >= upper_bound - 1e-4:
+        return 3.0
 
     def objective(vol: float) -> float:
         return black_scholes_price(
@@ -46,15 +67,24 @@ def calculate_implied_volatility(
             time_to_expiry=T,
             risk_free_rate=r,
             volatility=vol,
-            option_type=option_type
+            option_type=option_type,
+            dividend_yield=dividend_yield
         ) - market_price
 
+    f_low = objective(0.0001)
+    f_high = objective(4.0)
+
+    # Bracket check: f(a) and f(b) must have different signs for brentq
+    if f_low * f_high > 0:
+        if f_low > 0:
+            return 0.001
+        return 3.0
+
     try:
-        iv = brentq(objective, 0.0001, 5.0, xtol=1e-6, maxiter=200)
-        logger.info(f"IV solved: {iv:.4f} (S={S:.2f}, K={K:.2f}, T={T:.4f}, mkt={market_price:.2f})")
+        iv = brentq(objective, 0.0001, 4.0, xtol=1e-5, maxiter=100)
         return float(iv)
-    except (ValueError, RuntimeError) as e:
-        logger.warning(f"IV solver failed: {e}")
+    except Exception as e:
+        logger.debug(f"IV solver fallback: {e}")
         return None
 
 

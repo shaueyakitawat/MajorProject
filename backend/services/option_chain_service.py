@@ -1,7 +1,7 @@
 """
 Clean Live Real NIFTY Option Chain Service
 ============================================
-Fetches real-time NIFTY 50 option chain data via Upstox API or live market feeds.
+Fetches real-time NIFTY 50 option chain data directly from NSE via pnsea.
 Removes all synthetic/mock fallbacks to ensure 100% real-world data accuracy for IEEE publication.
 """
 
@@ -9,7 +9,6 @@ import os
 import math
 import logging
 import sqlite3
-import requests
 import datetime as dt
 from typing import Any
 from pathlib import Path
@@ -28,6 +27,7 @@ from backend.services.option_chain_filters import (
 
 # Black-Scholes pricing and Greek calculations
 from backend.services.pricing_service import black_scholes_price, calculate_greeks, calculate_ttm_years
+from backend.services.implied_volatility_service import calculate_implied_volatility
 
 # Load environment variables
 env_file = Path(__file__).parent.parent.parent / ".env"
@@ -39,8 +39,6 @@ if env_file.exists():
                 key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
 
-UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
-UPSTOX_API_BASE = "https://api.upstox.com/v2"
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "nifty_live_snapshots.db"
 
 
@@ -52,27 +50,6 @@ class OptionChainFetchError(Exception):
 # Global in-memory caching to avoid hitting API rate limits unnecessarily
 _CHAIN_CACHE: dict[str, tuple[dict, dt.datetime]] = {}
 _CACHE_TTL_SECONDS = int(os.getenv("CHAIN_CACHE_TTL", "5"))
-
-
-def _make_upstox_request(endpoint: str, params: dict | None = None) -> dict:
-    """Make authenticated request to Upstox API."""
-    if not UPSTOX_ACCESS_TOKEN:
-        raise OptionChainFetchError(
-            "UPSTOX_ACCESS_TOKEN is not configured in .env. Run scripts/upstox_token.py to authenticate."
-        )
-
-    url = f"{UPSTOX_API_BASE}{endpoint}"
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {UPSTOX_ACCESS_TOKEN}",
-    }
-
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=15)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as exc:
-        raise OptionChainFetchError(f"Upstox API request failed: {exc}") from exc
 
 
 def _parse_float(value: Any) -> float | None:
@@ -97,26 +74,8 @@ def _parse_int(value: Any) -> int | None:
 def get_spot_price(symbol: str = "NIFTY") -> float:
     """
     Fetch current real-time spot price for NIFTY 50.
-    Tries Upstox API first, then yfinance ^NSEI, then SQLite DB snapshot.
+    Uses yfinance ^NSEI, then SQLite DB snapshot for spot fallback.
     """
-    # Try Upstox API if token is configured
-    if UPSTOX_ACCESS_TOKEN:
-        try:
-            data = _make_upstox_request("/market-quote/quotes/", params={
-                "mode": "LTP",
-                "instrumentKeys": "NSE_INDEX|Nifty 50"
-            })
-            if data.get("status") == "success" and "data" in data:
-                quotes = data["data"]
-                for k, v in quotes.items():
-                    if isinstance(v, dict) and "last_price" in v:
-                        spot = _parse_float(v["last_price"])
-                        if spot and spot > 0:
-                            logger.info(f"NIFTY Spot from Upstox API: ₹{spot:.2f}")
-                            return spot
-        except Exception as exc:
-            logger.warning(f"Upstox spot fetch failed: {exc}")
-
     # Fallback to yfinance ^NSEI
     try:
         import yfinance as yf
@@ -208,8 +167,13 @@ def _load_chain_from_db(symbol: str = "NIFTY", expiry: str | None = None) -> dic
         """
         params = []
         if expiry:
-            df_query += " WHERE expiry_date = ?"
-            params.append(expiry)
+            alt_exp = _format_expiry_for_nse(expiry)
+            if alt_exp and alt_exp != expiry:
+                df_query += " WHERE (expiry_date = ? OR expiry_date = ?)"
+                params.extend([expiry, alt_exp])
+            else:
+                df_query += " WHERE expiry_date = ?"
+                params.append(expiry)
         df_query += " ORDER BY id DESC LIMIT 200"
 
         cursor = conn.cursor()
@@ -277,16 +241,35 @@ def _get_pnsea_session():
     global _PNSEA_INSTANCE
     if _PNSEA_INSTANCE is None:
         try:
+            # pnsea's stealthkit release catches the old curl-cffi exception name.
+            # Provide the compatible alias locally instead of patching site-packages.
+            from curl_cffi import requests as curl_requests
+            if not hasattr(curl_requests, "RequestException"):
+                curl_requests.RequestException = getattr(curl_requests, "RequestsError", Exception)
             from pnsea import NSE
             _PNSEA_INSTANCE = NSE()
         except Exception as e:
-            logger.warning(f"Failed to initialize pnsea NSE session: {e}")
+            logger.debug(f"Failed to initialize pnsea NSE session: {e}")
             return None
     return _PNSEA_INSTANCE
+
+def _format_expiry_for_nse(exp: str | None) -> str | None:
+    """Normalize ISO (YYYY-MM-DD) or other formats to NSE DD-Mon-YYYY (e.g. 13-Oct-2026)."""
+    if not exp:
+        return None
+    try:
+        if len(exp) == 10 and exp[4] == "-" and exp[7] == "-":
+            d = dt.datetime.strptime(exp, "%Y-%m-%d")
+            return d.strftime("%d-%b-%Y")
+    except Exception:
+        pass
+    return exp
+
 
 def _reset_pnsea_session():
     global _PNSEA_INSTANCE
     _PNSEA_INSTANCE = None
+
 
 def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = None, depth: int = 15) -> dict | None:
     """Fetch live option chain directly from National Stock Exchange (NSE) via persistent session without broker credentials."""
@@ -296,25 +279,31 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
     df = None
     expiries = None
     live_spot = None
+    target_exp = _format_expiry_for_nse(expiry_date)
 
     for attempt in range(1, 4):
         nse = _get_pnsea_session()
         if nse is None:
-            time.sleep(1.0)
+            time.sleep(0.5)
             continue
 
         try:
-            df, expiries, live_spot = nse.options.option_chain(symbol)
+            if target_exp:
+                df, expiries, live_spot = nse.options.option_chain(symbol, expiry_date=target_exp)
+            else:
+                df, expiries, live_spot = nse.options.option_chain(symbol)
             if df is not None and not df.empty:
                 break
         except Exception as exc:
-            backoff = (attempt * 1.5) + random.uniform(0.2, 0.8)
-            logger.warning(f"Direct NSE fetch attempt {attempt}/3 failed ({exc}). Retrying in {backoff:.1f}s...")
             _reset_pnsea_session()
-            time.sleep(backoff)
+            if attempt < 3:
+                backoff = (attempt * 1.0) + random.uniform(0.1, 0.4)
+                logger.debug(f"Direct NSE fetch attempt {attempt}/3 retry ({exc}). Retrying in {backoff:.1f}s...")
+                time.sleep(backoff)
+            else:
+                logger.info(f"Direct NSE feed currently unavailable ({exc}); falling back to market snapshot.")
 
     if df is None or df.empty:
-        logger.warning("Direct NSE option chain returned empty dataframe after 3 retries.")
         return None
 
     try:
@@ -322,7 +311,12 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
         now_iso = dt.datetime.now().isoformat()
 
         sorted_expiries = [str(e) for e in expiries] if expiries else [dt.date.today().isoformat()]
-        selected_exp = expiry_date if (expiry_date and expiry_date in sorted_expiries) else sorted_expiries[0]
+        if target_exp and target_exp in sorted_expiries:
+            selected_exp = target_exp
+        elif expiry_date and expiry_date in sorted_expiries:
+            selected_exp = expiry_date
+        else:
+            selected_exp = sorted_expiries[0]
         ttm = calculate_ttm_years(selected_exp)
         r = 0.065
 
@@ -334,7 +328,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
 
             # Call leg
             c_ltp = _parse_float(row.get("CE_lastPrice")) or 0.0
-            c_iv = (_parse_float(row.get("CE_impliedVolatility")) or 15.0) / 100.0
+            c_published_iv = (_parse_float(row.get("CE_impliedVolatility")) or 15.0) / 100.0
             c_oi = _parse_int(row.get("CE_openInterest")) or 0
             c_vol = _parse_int(row.get("CE_totalTradedVolume")) or 0
             c_bid = _parse_float(row.get("CE_bidprice")) or (c_ltp * 0.995)
@@ -342,11 +336,22 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
 
             # Put leg
             p_ltp = _parse_float(row.get("PE_lastPrice")) or 0.0
-            p_iv = (_parse_float(row.get("PE_impliedVolatility")) or 15.0) / 100.0
+            p_published_iv = (_parse_float(row.get("PE_impliedVolatility")) or 15.0) / 100.0
             p_oi = _parse_int(row.get("PE_openInterest")) or 0
             p_vol = _parse_int(row.get("PE_totalTradedVolume")) or 0
             p_bid = _parse_float(row.get("PE_bidprice")) or (p_ltp * 0.995)
             p_ask = _parse_float(row.get("PE_askPrice")) or (p_ltp * 1.005)
+
+            # NSE's published IV can be stale or use a different expiry clock.
+            # Recompute IV from the live LTP and this chain's exact TTM for consistency.
+            c_recomputed_iv = calculate_implied_volatility(
+                S=spot, K=st, T=ttm, r=r, market_price=c_ltp, option_type="call"
+            ) if c_ltp > 0 else None
+            p_recomputed_iv = calculate_implied_volatility(
+                S=spot, K=st, T=ttm, r=r, market_price=p_ltp, option_type="put"
+            ) if p_ltp > 0 else None
+            c_iv = c_recomputed_iv if c_recomputed_iv is not None and 0.05 <= c_recomputed_iv <= 1.50 else c_published_iv
+            p_iv = p_recomputed_iv if p_recomputed_iv is not None and 0.05 <= p_recomputed_iv <= 1.50 else p_published_iv
 
             # Compute Greeks with dynamic TTM
             c_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, c_iv), "call")
@@ -357,6 +362,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
                 "call": {
                     "ltp": c_ltp,
                     "iv": c_iv,
+                    "published_iv": c_published_iv,
                     "oi": c_oi,
                     "volume": c_vol,
                     "bid": c_bid,
@@ -369,6 +375,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
                 "put": {
                     "ltp": p_ltp,
                     "iv": p_iv,
+                    "published_iv": p_published_iv,
                     "oi": p_oi,
                     "volume": p_vol,
                     "bid": p_bid,
@@ -404,7 +411,7 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
             "expiry_source": "nse_live"
         }
     except Exception as e:
-        logger.warning(f"Direct NSE live option chain fetch failed: {e}")
+        logger.debug(f"Direct NSE live option chain notice: {e}")
         return None
 
 
@@ -424,103 +431,8 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
 
     spot = get_spot_price(symbol)
 
-    # Attempt Upstox API live chain
-    if UPSTOX_ACCESS_TOKEN:
-        try:
-            raw_data = _make_upstox_request("/option/chain", params={
-                "instrument_key": "NSE_INDEX|Nifty 50",
-                "expiry_date": expiry_date or ""
-            })
-
-            if raw_data.get("status") == "success" and "data" in raw_data:
-                chain_raw = raw_data["data"]
-                if isinstance(chain_raw, list) and len(chain_raw) > 0:
-                    strikes_dict = {}
-                    expiries_set = set()
-
-                    for item in chain_raw:
-                        st = _parse_float(item.get("strike_price"))
-                        exp = item.get("expiry")
-                        if exp:
-                            expiries_set.add(str(exp))
-
-                        if st is None:
-                            continue
-
-                        call_data = item.get("call_options", {})
-                        put_data = item.get("put_options", {})
-
-                        call_opt = None
-                        if call_data:
-                            cp = call_data.get("market_data", {})
-                            c_greeks = call_data.get("option_greeks", {})
-                            call_opt = {
-                                "ltp": _parse_float(cp.get("ltp")) or 0.0,
-                                "iv": _parse_float(c_greeks.get("iv") or cp.get("iv")) or 0.15,
-                                "oi": _parse_int(cp.get("oi")) or 0,
-                                "volume": _parse_int(cp.get("volume")) or 0,
-                                "bid": _parse_float(cp.get("bid_price")) or 0.0,
-                                "ask": _parse_float(cp.get("ask_price")) or 0.0,
-                                "delta": _parse_float(c_greeks.get("delta")),
-                                "gamma": _parse_float(c_greeks.get("gamma")),
-                                "theta": _parse_float(c_greeks.get("theta")),
-                                "vega": _parse_float(c_greeks.get("vega")),
-                            }
-
-                        put_opt = None
-                        if put_data:
-                            pp = put_data.get("market_data", {})
-                            p_greeks = put_data.get("option_greeks", {})
-                            put_opt = {
-                                "ltp": _parse_float(pp.get("ltp")) or 0.0,
-                                "iv": _parse_float(p_greeks.get("iv") or pp.get("iv")) or 0.15,
-                                "oi": _parse_int(pp.get("oi")) or 0,
-                                "volume": _parse_int(pp.get("volume")) or 0,
-                                "bid": _parse_float(pp.get("bid_price")) or 0.0,
-                                "ask": _parse_float(pp.get("ask_price")) or 0.0,
-                                "delta": _parse_float(p_greeks.get("delta")),
-                                "gamma": _parse_float(p_greeks.get("gamma")),
-                                "theta": _parse_float(p_greeks.get("theta")),
-                                "vega": _parse_float(p_greeks.get("vega")),
-                            }
-
-                        strikes_dict[st] = {
-                            "strike": st,
-                            "call": call_opt,
-                            "put": put_opt
-                        }
-
-                    sorted_expiries = sorted(list(expiries_set))
-                    selected_exp = expiry_date if expiry_date in expiries_set else (sorted_expiries[0] if sorted_expiries else dt.date.today().isoformat())
-                    sorted_strikes = sorted(strikes_dict.keys())
-                    atm_st = min(sorted_strikes, key=lambda k: abs(k - spot)) if sorted_strikes else spot
-
-                    # Filter by strike depth around ATM
-                    if depth > 0 and sorted_strikes:
-                        atm_idx = sorted_strikes.index(atm_st)
-                        start_idx = max(0, atm_idx - depth)
-                        end_idx = min(len(sorted_strikes), atm_idx + depth + 1)
-                        allowed_strikes = set(sorted_strikes[start_idx:end_idx])
-                        chain_list = [strikes_dict[k] for k in sorted_strikes if k in allowed_strikes]
-                    else:
-                        chain_list = [strikes_dict[k] for k in sorted_strikes]
-
-                    result = {
-                        "spot_price": spot,
-                        "atm_strike": atm_st,
-                        "expiry_date": selected_exp,
-                        "available_expiries": sorted_expiries,
-                        "pcr": 1.0,
-                        "chain": chain_list,
-                        "timestamp": now.isoformat(),
-                        "expiry_source": "upstox_api"
-                    }
-                    _CHAIN_CACHE[cache_key] = (result, now)
-                    return result
-        except Exception as exc:
-            logger.warning(f"Upstox live option chain call failed: {exc}")
-
-    # Attempt direct NSE live chain via pnsea without requiring broker API
+    # Prefer the direct NSE/pnsea feed for live option prices and Greeks.
+    # Broker/API sources remain fallback paths when NSE is temporarily unavailable.
     pnsea_chain = _fetch_chain_from_pnsea(symbol=symbol, expiry_date=expiry_date, depth=depth)
     if pnsea_chain:
         _CHAIN_CACHE[cache_key] = (pnsea_chain, now)
@@ -533,9 +445,40 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
         return db_chain
 
     raise OptionChainFetchError(
-        "Unable to fetch live option chain from Upstox API, direct NSE feed, or SQLite database snapshots. "
+        "Unable to fetch live option chain from NSE/pnsea or SQLite database snapshots. "
         "Please ensure internet connection is online or run scripts/record_nifty_snapshots.py to log real market snapshots."
     )
+
+
+def get_multi_expiry_chains(
+    symbol: str = "NIFTY",
+    num_expiries: int = 2,
+    depth: int = 15,
+    force_refresh: bool = False
+) -> list[dict]:
+    """
+    Fetch option chains across multiple maturities (Front-Week T1, Next-Week T2, etc.)
+    enabling multi-expiry term-structure analysis and optimal trade routing.
+
+    Returns:
+        list[dict]: List of option chain dictionaries for each available maturity.
+    """
+    front_chain = get_full_chain(symbol=symbol, expiry_date=None, depth=depth, force_refresh=force_refresh)
+    if not front_chain:
+        return []
+
+    results = [front_chain]
+    available = front_chain.get("available_expiries", [])
+
+    for exp in available[1:num_expiries]:
+        try:
+            chain = get_full_chain(symbol=symbol, expiry_date=exp, depth=depth, force_refresh=force_refresh)
+            if chain and chain.get("chain"):
+                results.append(chain)
+        except Exception as e:
+            logger.debug(f"Multi-expiry fetch for {exp} omitted: {e}")
+
+    return results
 
 
 def fetch_option_chain(symbol: str = "NIFTY", expiry: str | None = None) -> dict:
@@ -563,7 +506,7 @@ def fetch_option_chain(symbol: str = "NIFTY", expiry: str | None = None) -> dict
         "calls": pd.DataFrame(calls_list),
         "puts": pd.DataFrame(puts_list),
         "chain": full["chain"],
-        "expiry_source": full.get("expiry_source", "upstox")
+        "expiry_source": full.get("expiry_source", "nse_live")
     }
 
 

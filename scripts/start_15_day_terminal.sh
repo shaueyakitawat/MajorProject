@@ -4,6 +4,8 @@ set -euo pipefail
 PROJECT_ROOT="${0:A:h}/.."
 cd "$PROJECT_ROOT"
 
+export PATH="/Users/shauryakitavat/.pyenv/shims:$PATH"
+
 SESSION_DATE="$(date +%Y%m%d)"
 LOG_DIR="$PROJECT_ROOT/outputs/terminal_sessions"
 LOG_FILE="$LOG_DIR/live_terminal_${SESSION_DATE}.log"
@@ -20,17 +22,20 @@ type python >/dev/null 2>&1 || {
 
 TRADER_ARGS=(
   scripts/live_paper_trader.py
-  --new-session \
-  --max-pos 8 \
-  --min-mscore 2.0 \
-  --tp 20 \
-  --sl 12 \
-  --interval 10 \
+  --capital 2500000
+  --lot-size 65
+  --max-pos 16
+  --min-mscore 1.2
+  --tp 26
+  --sl 13
+  --interval 10
   --duration-hours 6
+  --multi-expiry
+  --no-eod-squareoff
 )
 
 if command -v caffeinate >/dev/null 2>&1; then
-  caffeinate -dimsu python "${TRADER_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+  caffeinate -dimsu python -u "${TRADER_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
 else
-  python "${TRADER_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+  python -u "${TRADER_ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
 fi

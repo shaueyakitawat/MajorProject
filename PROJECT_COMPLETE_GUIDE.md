@@ -39,7 +39,6 @@ MajorProject/
 │       ├── pricing_service.py           # Black-Scholes pricing & analytical Greeks
 │       ├── regime_service.py            # HMM Gaussian 4-state regime classifier
 │       ├── strategy_service.py          # Option spread & delta-neutral trade generator
-│       ├── upstox_option_chain_service.py # Upstox API compatibility wrapper
 │       ├── volatility_service.py        # EGARCH(1,1) forecast & intraday vol fusion
 │       └── vrp_service.py               # Variance Risk Premium calculator
 ├── data/
@@ -54,7 +53,6 @@ MajorProject/
 ├── scripts/
 │   ├── generate_visual_results.py       # Metrics infographic plot generator
 │   ├── record_nifty_snapshots.py       # Live NIFTY option chain snapshot logger
-│   └── upstox_token.py                  # Upstox OAuth access token exchanger
 ├── validation/
 │   └── daily_mispricing_validator.py    # Empirical Real NIFTY Data Validator
 ├── .env.example                         # Environment configuration template

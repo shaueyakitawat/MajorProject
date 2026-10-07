@@ -71,7 +71,7 @@ export function renderOptionChainGrid(container) {
         <div class="chain-header-bar">
           <div class="chain-title-block">
             <span class="chain-main-title">NIFTY OPTION CHAIN</span>
-            <span class="badge-source">SOURCE: UPSTOX FEED / DB SNAPSHOT</span>
+            <span class="badge-source">SOURCE: NSE / PNSEA LIVE FEED</span>
             ${s.chainLoading ? '<span class="loading-spinner">SYNCING...</span>' : ''}
           </div>
 

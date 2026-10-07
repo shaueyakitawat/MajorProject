@@ -34,7 +34,7 @@ export function renderSystemMonitors(container) {
                   <td class="tabular text-right"><span class="status-led led-green"></span> <strong class="text-bull">CONNECTED / LIVE</strong></td>
                 </tr>
                 <tr>
-                  <td><strong>Option Chain Feed (Upstox / Snapshots)</strong></td>
+                  <td><strong>Option Chain Feed (NSE / pnsea)</strong></td>
                   <td class="tabular text-right"><span class="status-led led-green"></span> <strong class="text-bull">HEALTHY (15s Cache TTL)</strong></td>
                 </tr>
                 <tr>

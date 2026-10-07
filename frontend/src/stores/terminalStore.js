@@ -77,8 +77,8 @@ class TerminalStore {
       // Strategy
       activeSignal: null,
       strategyBuilderLegs: [
-        { id: 1, action: 'sell', type: 'call', strike: 22400, expiry: '2026-10-16', qty: 50, price: 303.00, iv: 0.158, delta: 0.52, gamma: 0.0004, theta: -12.5, vega: 18.2 },
-        { id: 2, action: 'sell', type: 'put', strike: 22400, expiry: '2026-10-16', qty: 50, price: 225.30, iv: 0.155, delta: -0.48, gamma: 0.0004, theta: -11.8, vega: 18.1 },
+        { id: 1, action: 'sell', type: 'call', strike: 22400, expiry: '2026-10-16', qty: 65, price: 303.00, iv: 0.158, delta: 0.52, gamma: 0.0004, theta: -12.5, vega: 18.2 },
+        { id: 2, action: 'sell', type: 'put', strike: 22400, expiry: '2026-10-16', qty: 65, price: 225.30, iv: 0.155, delta: -0.48, gamma: 0.0004, theta: -11.8, vega: 18.1 },
       ],
 
       // Portfolio

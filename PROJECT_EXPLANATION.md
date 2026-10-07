@@ -24,7 +24,7 @@ As a result, options systematically become **mispriced** in the real world—tra
 To solve this, we constructed a multi-layered quantitative software engine. It doesn't use static math; it dynamically adjusts to the market's mood.
 
 **The Step-by-Step Data Flow:**
-1. **Data Ingestion:** The engine pulls real market data (utilizing NSE Bhavcopy datasets for historical backtesting and Upstox/Yahoo Finance APIs for live spot prices).
+1. **Data Ingestion:** The engine pulls live NIFTY option-chain data directly from NSE through `pnsea`, with yfinance used only for spot and volatility-history fallbacks.
 2. **Logarithmic Transformation:** Raw prices are useless to algorithms. We convert the daily price movements into "Log Returns," standardizing the financial data into pure mathematical variance.
 3. **Volatility Forecasting:** We run the returns through specialized math to predict *tomorrow's* volatility.
 4. **Regime AI Classification:** An unsupervised machine learning algorithm classifies the current "state" of the market (e.g., Extreme Panic vs. Calm).

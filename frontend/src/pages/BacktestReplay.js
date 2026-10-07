@@ -38,7 +38,7 @@ export function renderBacktestReplay(container) {
             strategy: t.direction === 'BUY' ? 'Long Volatility' : 'Short Volatility (Delta-Neutral)',
             entryPrice: mktPrice,
             exitPrice: exitPrice,
-            qty: 50,
+            qty: 65,
             pnl: pnlVal,
             returnPct: ret,
             mScore: t.signal_score ? t.signal_score * 10 : 2.5,

@@ -109,7 +109,7 @@ export function renderOptionDetailDrawer(container) {
         type: isCall ? 'call' : 'put',
         strike: opt.strike,
         expiry: s.selectedExpiry,
-        qty: 50,
+        qty: 65,
         price: ltp,
         iv: iv,
         delta: opt.delta || 0.5,
