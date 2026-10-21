@@ -459,6 +459,7 @@ def get_multi_expiry_chains(
     """
     Fetch option chains across multiple maturities (Front-Week T1, Next-Week T2, etc.)
     enabling multi-expiry term-structure analysis and optimal trade routing.
+    Leverages concurrent execution for sub-second multi-maturity retrieval.
 
     Returns:
         list[dict]: List of option chain dictionaries for each available maturity.
@@ -467,16 +468,27 @@ def get_multi_expiry_chains(
     if not front_chain:
         return []
 
-    results = [front_chain]
     available = front_chain.get("available_expiries", [])
+    remaining_expiries = available[1:num_expiries]
+    if not remaining_expiries:
+        return [front_chain]
 
-    for exp in available[1:num_expiries]:
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _fetch_sub(exp_date):
         try:
-            chain = get_full_chain(symbol=symbol, expiry_date=exp, depth=depth, force_refresh=force_refresh)
-            if chain and chain.get("chain"):
-                results.append(chain)
+            return get_full_chain(symbol=symbol, expiry_date=exp_date, depth=depth, force_refresh=force_refresh)
         except Exception as e:
-            logger.debug(f"Multi-expiry fetch for {exp} omitted: {e}")
+            logger.debug(f"Multi-expiry fetch for {exp_date} omitted: {e}")
+            return None
+
+    results = [front_chain]
+    with ThreadPoolExecutor(max_workers=len(remaining_expiries)) as executor:
+        sub_chains = list(executor.map(_fetch_sub, remaining_expiries))
+
+    for sc in sub_chains:
+        if sc and sc.get("chain"):
+            results.append(sc)
 
     return results
 

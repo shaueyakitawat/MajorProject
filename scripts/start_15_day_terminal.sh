@@ -24,14 +24,16 @@ TRADER_ARGS=(
   scripts/live_paper_trader.py
   --capital 2500000
   --lot-size 65
-  --max-pos 16
+  --max-pos 8
   --min-mscore 1.2
-  --tp 26
-  --sl 13
-  --interval 10
+  --tp 28
+  --sl 9.5
+  --interval 5
   --duration-hours 6
   --multi-expiry
-  --no-eod-squareoff
+  --lots-per-trade 3
+  --max-closed-trades 50
+  --target-margin-roi 0.50
 )
 
 if command -v caffeinate >/dev/null 2>&1; then
