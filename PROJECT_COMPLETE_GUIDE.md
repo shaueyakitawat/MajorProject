@@ -39,10 +39,24 @@ MajorProject/
 │       ├── pricing_service.py           # Black-Scholes pricing & analytical Greeks
 │       ├── regime_service.py            # HMM Gaussian 4-state regime classifier
 │       ├── strategy_service.py          # Option spread & delta-neutral trade generator
+│       ├── trade_service.py             # Paper trading DMA order routing & SQLite persistence
 │       ├── volatility_service.py        # EGARCH(1,1) forecast & intraday vol fusion
 │       └── vrp_service.py               # Variance Risk Premium calculator
+├── frontend/                            # QuantLens Institutional Terminal (React + Vite + TS)
+│   ├── src/
+│   │   ├── components/                  # Header, Sidebar, StatusBar, CommandPalette, ContractDrawer
+│   │   ├── config/                      # routes.ts (12 workspaces, shortcuts 1-9, 0, -, =)
+│   │   ├── services/                    # api.ts (REST client), websocket.ts (Tick streaming)
+│   │   ├── stores/                      # terminalStore.ts (Reactive Zustand shared store)
+│   │   ├── types/                       # index.ts (Full TypeScript typed contracts)
+│   │   └── workspaces/                  # 12 Modular Institutional Workspaces (Overview, Chain,
+│   │                                    # Vol Lab, Scanner, Strategy, Backtest, Monitor, Paper,
+│   │                                    # Ledger, Risk, Pipeline DAG, Model Registry)
+│   ├── index.html                       # Terminal bootstrap mount point
+│   ├── vite.config.js                   # Vite 6 bundler config with proxy & Tailwind
+│   └── tsconfig.json                    # Strict TypeScript configuration
 ├── data/
-│   └── nifty_live_snapshots.db          # Real live option chain snapshot database
+│   └── nifty_live_snapshots.db          # SQLite WAL database (904+ audited trades)
 ├── docs/
 │   ├── options_mispricing_technical_audit.md
 │   ├── validation_results_real.json     # Empirical IEEE JSON benchmark output
@@ -52,12 +66,12 @@ MajorProject/
 ├── images/                              # Publication visual figures & plots
 ├── scripts/
 │   ├── generate_visual_results.py       # Metrics infographic plot generator
-│   ├── record_nifty_snapshots.py       # Live NIFTY option chain snapshot logger
+│   └── record_nifty_snapshots.py       # Live NIFTY option chain snapshot logger
 ├── validation/
 │   └── daily_mispricing_validator.py    # Empirical Real NIFTY Data Validator
 ├── .env.example                         # Environment configuration template
 ├── Dockerfile                           # Containerized production deployment
-├── main.py                              # Production FastAPI REST backend (19 routes)
+├── main.py                              # Production FastAPI REST backend (25 routes)
 ├── PROJECT_COMPLETE_GUIDE.md            # Comprehensive project documentation
 ├── PROJECT_EXPLANATION.md
 ├── requirements.txt                     # Verified dependency manifest

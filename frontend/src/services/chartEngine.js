@@ -270,6 +270,132 @@ export class ChartEngine {
   }
 
   /**
+   * 2b. High-Performance Financial Line / Cumulative Equity Curve Chart
+   * Specifically optimized for publication-grade capital progression charts.
+   */
+  static renderLineChart(canvas, dataPoints, options = {}) {
+    const { ctx, width, height } = this.setupCanvas(canvas);
+    if (!dataPoints || dataPoints.length === 0) {
+      this.drawEmptyState(ctx, width, height, 'No equity curve points available');
+      return;
+    }
+
+    const padLeft = 15;
+    const padRight = 85;
+    const padTop = 25;
+    const padBottom = 30;
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+
+    ctx.fillStyle = options.bgColor || '#070a10';
+    ctx.fillRect(0, 0, width, height);
+
+    // Compute min and max
+    let minY = Infinity, maxY = -Infinity;
+    dataPoints.forEach(pt => {
+      const v = typeof pt === 'number' ? pt : pt.y;
+      if (v < minY) minY = v;
+      if (v > maxY) maxY = v;
+    });
+
+    const baseline = options.baseline !== undefined ? options.baseline : 2500000.0;
+    if (baseline < minY) minY = baseline;
+    if (baseline > maxY) maxY = baseline;
+
+    const yMargin = (maxY - minY) * 0.12 || 1000.0;
+    minY -= yMargin;
+    maxY += yMargin;
+    const rangeY = (maxY - minY) || 1.0;
+
+    // Draw horizontal grid lines and currency axis
+    ctx.strokeStyle = '#141d2e';
+    ctx.lineWidth = 1;
+    const gridRows = 5;
+    for (let i = 0; i <= gridRows; i++) {
+      const y = padTop + (chartH / gridRows) * i;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(width - padRight, y);
+      ctx.stroke();
+
+      const labelVal = maxY - (rangeY / gridRows) * i;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`₹${Math.round(labelVal).toLocaleString('en-IN')}`, width - padRight + 8, y + 3);
+    }
+
+    // Draw baseline reference line (e.g. ₹25L starting capital)
+    if (baseline >= minY && baseline <= maxY) {
+      const baseNormY = padTop + chartH * (1.0 - (baseline - minY) / rangeY);
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padLeft, baseNormY);
+      ctx.lineTo(width - padRight, baseNormY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '9px monospace';
+      ctx.fillText('BASE CAPITAL FLOOR (₹25,00,000)', padLeft + 6, baseNormY - 4);
+    }
+
+    const n = dataPoints.length;
+    const stepX = chartW / Math.max(1, n - 1);
+    const lineColor = options.lineColor || '#00e676';
+
+    // Draw filled area gradient
+    const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
+    grad.addColorStop(0, options.areaColor || 'rgba(0, 230, 118, 0.22)');
+    grad.addColorStop(1, 'rgba(0, 230, 118, 0.0)');
+
+    ctx.beginPath();
+    ctx.moveTo(padLeft, padTop + chartH);
+    dataPoints.forEach((pt, i) => {
+      const v = typeof pt === 'number' ? pt : pt.y;
+      const x = padLeft + i * stepX;
+      const y = padTop + chartH * (1.0 - (v - minY) / rangeY);
+      if (i === 0) ctx.lineTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.lineTo(padLeft + (n - 1) * stepX, padTop + chartH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Draw stroke line
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = options.lineWidth || 2.2;
+    ctx.beginPath();
+    dataPoints.forEach((pt, i) => {
+      const v = typeof pt === 'number' ? pt : pt.y;
+      const x = padLeft + i * stepX;
+      const y = padTop + chartH * (1.0 - (v - minY) / rangeY);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // End point highlight dot
+    const lastVal = typeof dataPoints[n - 1] === 'number' ? dataPoints[n - 1] : dataPoints[n - 1].y;
+    const lastX = padLeft + (n - 1) * stepX;
+    const lastY = padTop + chartH * (1.0 - (lastVal - minY) / rangeY);
+
+    ctx.fillStyle = lineColor;
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Title & Legend
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = '11px monospace';
+    ctx.fillText(`${options.title || 'Cumulative Portfolio Equity'} · Current: ₹${Math.round(lastVal).toLocaleString('en-IN')}`, padLeft + 6, padTop - 8);
+  }
+
+
+  /**
    * 3. Interactive 3D Surface Engine with Real-Time Perspective Projection
    * Supports: Strike (X) x Days to Expiry (Y) x Volatility/M-score (Z)
    * Mouse rotation and 4D vertex coloring.
@@ -389,7 +515,10 @@ export class ChartEngine {
     ctx.fillStyle = '#f59e0b';
     ctx.font = '11px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`Z: ${options.zLabel || 'Implied Volatility'} [Min: ${(minZ * 100).toFixed(1)}% | Max: ${(maxZ * 100).toFixed(1)}%]`, 12, 18);
+    const isMScore = (options.zLabel || '').toLowerCase().includes('m-score');
+    const minZFormatted = isMScore ? `${minZ.toFixed(2)}σ` : `${(minZ * 100).toFixed(1)}%`;
+    const maxZFormatted = isMScore ? `${maxZ.toFixed(2)}σ` : `${(maxZ * 100).toFixed(1)}%`;
+    ctx.fillText(`Z: ${options.zLabel || 'Implied Volatility'} [Min: ${minZFormatted} | Max: ${maxZFormatted}]`, 12, 18);
     ctx.fillStyle = '#94a3b8';
     ctx.fillText(`X: Strike Range | Y: Days to Expiry | Drag mouse to rotate 3D view`, 12, 34);
   }

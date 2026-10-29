@@ -26,6 +26,7 @@ export function renderMispricingScanner(container) {
   }
 
   function update() {
+    if (terminalStore.getState().activeRoute !== 'mispricing-scanner') return;
     const s = terminalStore.getState();
     const chain = s.optionChain || [];
 
@@ -154,6 +155,7 @@ export function renderMispricingScanner(container) {
                     <th>Spread</th>
                     <th>Liquidity</th>
                     <th>Signal</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -181,6 +183,11 @@ export function renderMispricingScanner(container) {
                         <span class="badge-signal ${c.signal === 'overpriced' ? 'tag-overpriced' : (c.signal === 'underpriced' ? 'tag-underpriced' : 'tag-fair')}">
                           ${c.signal === 'overpriced' ? 'SELL / RICH' : (c.signal === 'underpriced' ? 'BUY / CHEAP' : 'FAIR')}
                         </span>
+                      </td>
+                      <td>
+                        <button class="btn btn-xs btn-primary btn-scan-trade" data-strike="${c.strike}" data-type="${c.type}" data-side="${c.signal === 'overpriced' ? 'SELL' : 'BUY'}" data-price="${c.ltp}" data-expiry="${c.expiry}" title="Pre-fill DMA Ticket & Route to Terminal">
+                          Trade ⚡
+                        </button>
                       </td>
                     </tr>
                   `).join('')}
@@ -257,6 +264,30 @@ export function renderMispricingScanner(container) {
         const type = row.getAttribute('data-type');
         const c = contracts.find(x => x.strike === strike && x.type === type);
         if (c) terminalStore.openOptionDetail(c);
+      };
+    });
+
+    // 1-Click Trade buttons
+    container.querySelectorAll('.btn-scan-trade').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const strike = parseFloat(btn.getAttribute('data-strike'));
+        const type = (btn.getAttribute('data-type') || 'call').toUpperCase() === 'CALL' ? 'CE' : 'PE';
+        const side = btn.getAttribute('data-side') || 'SELL';
+        const price = parseFloat(btn.getAttribute('data-price') || '100');
+        const expiry = btn.getAttribute('data-expiry') || s.selectedExpiry;
+
+        terminalStore.setState({
+          activeRoute: 'live-terminal',
+          pendingOrder: {
+            strike,
+            type,
+            side,
+            price,
+            expiry,
+            strategy: side === 'SELL' ? 'RV Short Overvalued Option' : 'Statistical Long Mispricing'
+          }
+        });
       };
     });
 

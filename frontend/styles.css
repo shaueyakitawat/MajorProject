@@ -838,3 +838,376 @@ body {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ==========================================================================
+   QUANT PIPELINE FLOW ARCHITECTURE & MANIFOLD STYLING
+   ========================================================================== */
+.pipeline-graph-viewport {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 16px 12px;
+  background: radial-gradient(circle at 50% 50%, #0e1523 0%, #070a10 100%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pipeline-flow-track {
+  display: flex;
+  align-items: center;
+  min-width: 1320px;
+  gap: 0;
+  padding: 4px 8px;
+}
+
+.pipeline-node-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.pipeline-node {
+  width: 138px;
+  min-height: 98px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pipeline-node:hover {
+  border-color: var(--color-amber);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.15);
+}
+
+.pipeline-node.active-node {
+  border-color: var(--color-amber);
+  background: linear-gradient(180deg, #182030 0%, #0d121c 100%);
+  box-shadow: 0 0 0 1px var(--color-amber), 0 8px 24px rgba(245, 158, 11, 0.25);
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.node-icon { font-size: 13px; }
+.node-num { font-size: 10px; font-weight: 800; color: var(--color-amber); font-family: var(--font-mono); }
+.node-tag {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background-color: var(--bg-highlight);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.node-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-main);
+  margin-bottom: 6px;
+  flex: 1;
+}
+
+.node-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+}
+
+.node-latency { color: var(--text-dim); }
+
+.pipeline-connector {
+  display: flex;
+  align-items: center;
+  width: 28px;
+  position: relative;
+  justify-content: center;
+}
+
+.flow-line {
+  width: 100%;
+  height: 2px;
+  background-color: var(--border-strong);
+}
+
+.flow-arrow {
+  position: absolute;
+  right: -2px;
+  color: var(--color-amber);
+  font-size: 8px;
+  transform: translateY(-50%);
+  top: 50%;
+}
+
+.flow-pulse {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-amber);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--color-amber);
+  animation: flowPulse 2.4s infinite linear;
+}
+
+@keyframes flowPulse {
+  0% { left: 0%; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { left: 90%; opacity: 0; }
+}
+
+/* Stage Inspector Styling */
+.equation-box {
+  background-color: #05080e;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--color-amber);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.eq-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--color-amber);
+  margin-bottom: 4px;
+}
+
+.eq-latex {
+  font-size: 12px;
+  color: var(--color-info);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.stage-desc-text {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.stage-io-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.io-column {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.io-col-header {
+  background-color: var(--bg-highlight);
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Alpha Dislocation Box */
+.alpha-dislocation-metric-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 12px;
+  margin: 10px 0;
+}
+
+.card-kpi-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-bottom: 8px;
+}
+
+.kpi-block {
+  text-align: center;
+}
+
+.kpi-lbl {
+  display: block;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.kpi-val {
+  font-size: 15px;
+  font-family: var(--font-mono);
+}
+
+.kpi-operator {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.kpi-explainer {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.top-candidate-mini-box {
+  background-color: #070b12;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 8px;
+  margin-top: 10px;
+}
+
+.mini-box-title {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--color-amber);
+  margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   PORTFOLIO LEDGER & SUBNAV STYLING
+   ========================================================================== */
+.panel-subnav-bar {
+  display: flex;
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border-strong);
+  overflow-x: auto;
+}
+
+.subnav-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.subnav-btn:hover {
+  color: var(--text-main);
+  background-color: var(--bg-surface);
+}
+
+.subnav-btn.active {
+  color: var(--color-amber);
+  border-bottom-color: var(--color-amber);
+  background-color: var(--bg-surface);
+  font-weight: 700;
+}
+
+.equity-stats-bar {
+  display: flex;
+  gap: 16px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: 3px;
+}
+
+.eq-pill {
+  font-size: 11px;
+}
+.eq-pill .lbl { color: var(--text-muted); font-size: 9px; margin-right: 4px; }
+
+.pagination-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-indicator {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.search-input-xs {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 2px;
+  width: 220px;
+}
+
+.search-input-xs:focus {
+  outline: none;
+  border-color: var(--color-amber);
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+}
+
+.status-active {
+  background-color: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.status-profit {
+  background-color: rgba(0, 230, 118, 0.15);
+  color: var(--color-bull);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+}
+
+.status-loss {
+  background-color: rgba(255, 82, 82, 0.15);
+  color: var(--color-bear);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+}
+
+.empty-state-box {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state-icon { font-size: 32px; margin-bottom: 8px; }
+.empty-state-title { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
+.empty-state-desc { font-size: 11px; color: var(--text-dim); max-width: 480px; margin: 0 auto; line-height: 1.4; }
+

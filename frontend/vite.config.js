@@ -1,21 +1,48 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
   root: '.',
+  plugins: [
+    react(),
+    tailwindcss()
+  ],
   server: {
     port: 3000,
+    host: '0.0.0.0',
     open: false,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true
       },
-      '/pipeline': {
+      '/health': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true
       },
-      '/health': {
+      '/nifty': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/option-chain': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/strategy': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/forecast-vol': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/regime': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
+      '/backtest': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true
       },
@@ -25,22 +52,9 @@ export default defineConfig({
       }
     }
   },
-  plugins: [
-    {
-      name: 'vite-plugin-static-rewrite',
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          if (req.url && req.url.startsWith('/static/')) {
-            req.url = req.url.replace(/^\/static/, '');
-          }
-          next();
-        });
-      }
-    }
-  ],
   resolve: {
     alias: {
-      '/static': path.resolve(__dirname, '.')
+      '@': path.resolve(__dirname, './src')
     }
   }
 });

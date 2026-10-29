@@ -16,17 +16,13 @@ import { renderEvaluationModal } from './components/EvaluationModal.js';
 import { renderOptionDetailDrawer } from './components/OptionDetailDrawer.js';
 
 // Workspace pages
-import { renderCommandCenter } from './pages/CommandCenter.js';
-import { renderVolatilityCockpit } from './pages/VolatilityCockpit.js';
-import { renderRegimeTerminal } from './pages/RegimeTerminal.js';
+import { renderDashboardLive } from './pages/DashboardLive.js';
+import { renderLiveTerminal } from './pages/LiveTerminal.js';
 import { renderOptionChainGrid } from './pages/OptionChainGrid.js';
+import { renderHistoricalLedger } from './pages/HistoricalLedger.js';
+import { renderPipelineFlow } from './pages/PipelineFlow.js';
 import { renderSurfaces3D } from './pages/Surfaces3D.js';
 import { renderMispricingScanner } from './pages/MispricingScanner.js';
-import { renderStrategyBuilder } from './pages/StrategyBuilder.js';
-import { renderPortfolioRisk } from './pages/PortfolioRisk.js';
-import { renderBacktestReplay } from './pages/BacktestReplay.js';
-import { renderResearchWorkbench } from './pages/ResearchWorkbench.js';
-import { renderSystemMonitors } from './pages/SystemMonitors.js';
 
 export class TerminalApp {
   constructor() {
@@ -35,6 +31,10 @@ export class TerminalApp {
 
   init() {
     console.log('[TERMINAL] Initializing Institutional Quantitative Workstation...');
+
+    // Expose store and app to window for terminal bus and test automation
+    window.terminalStore = terminalStore;
+    window.terminalApp = this;
 
     // Mount persistent shell regions
     renderTopBar(document.getElementById('topbar-container'));
@@ -140,66 +140,48 @@ export class TerminalApp {
     console.log(`[TERMINAL] Routing to workspace: ${routeId}`);
 
     switch (routeId) {
+      case 'dashboard':
+      case 'command-center':
       case 'overview':
-      case 'nifty-chart':
-      case 'market-depth':
-        renderCommandCenter(stage);
+        renderDashboardLive(stage);
         break;
 
-      case 'volatility-cockpit':
-      case 'egarch-model':
-      case 'realized-vol':
-      case 'vrp-terminal':
-        renderVolatilityCockpit(stage);
-        break;
-
-      case 'hmm-regime':
-        renderRegimeTerminal(stage);
+      case 'live-terminal':
+        renderLiveTerminal(stage);
         break;
 
       case 'option-chain':
+      case 'option-scanner':
         renderOptionChainGrid(stage);
         break;
 
+      case 'ledger':
+      case 'portfolio-trades':
+      case 'portfolio-positions':
+      case 'portfolio-risk':
+        renderHistoricalLedger(stage);
+        break;
+
+      case 'pipeline-flow':
+        renderPipelineFlow(stage);
+        break;
+
+      case 'volatility-surfaces':
+      case 'surfaces-3d':
       case 'iv-surface':
       case 'dislocation-surface':
       case 'greeks-surface':
+      case 'volatility-cockpit':
         renderSurfaces3D(stage);
         break;
 
       case 'mispricing-scanner':
-      case 'option-scanner':
         renderMispricingScanner(stage);
         break;
 
-      case 'strategy-signals':
-      case 'strategy-builder':
-      case 'payoff-matrix':
-        renderStrategyBuilder(stage);
-        break;
-
-      case 'portfolio-positions':
-      case 'portfolio-risk':
-        renderPortfolioRisk(stage);
-        break;
-
-      case 'backtest-overview':
-      case 'trade-replay':
-        renderBacktestReplay(stage);
-        break;
-
-      case 'research-workbench':
-        renderResearchWorkbench(stage);
-        break;
-
-      case 'data-monitor':
-      case 'model-monitor':
-      case 'alerts-feed':
-        renderSystemMonitors(stage);
-        break;
-
       default:
-        renderCommandCenter(stage);
+        console.warn(`[TERMINAL] Unknown route: ${routeId}, defaulting to dashboard`);
+        renderDashboardLive(stage);
         break;
     }
   }
@@ -235,39 +217,49 @@ export class TerminalApp {
 
       if (isInput) return;
 
-      // Fast Navigation Keys: 1..6
+      // Fast Navigation Keys: 1..7 Direct Switch
       switch (e.key) {
         case '1':
           e.preventDefault();
-          terminalStore.setActiveRoute('overview');
+          terminalStore.setActiveRoute('dashboard');
           break;
         case '2':
           e.preventDefault();
-          terminalStore.setActiveRoute('option-chain');
+          terminalStore.setActiveRoute('live-terminal');
           break;
         case '3':
           e.preventDefault();
-          terminalStore.setActiveRoute('mispricing-scanner');
+          terminalStore.setActiveRoute('option-chain');
           break;
         case '4':
           e.preventDefault();
-          terminalStore.setActiveRoute('strategy-builder');
+          terminalStore.setActiveRoute('ledger');
           break;
         case '5':
           e.preventDefault();
-          terminalStore.setActiveRoute('portfolio-positions');
+          terminalStore.setActiveRoute('pipeline-flow');
           break;
         case '6':
           e.preventDefault();
-          terminalStore.setActiveRoute('backtest-overview');
+          terminalStore.setActiveRoute('volatility-surfaces');
+          break;
+        case '7':
+          e.preventDefault();
+          terminalStore.setActiveRoute('mispricing-scanner');
           break;
       }
     });
   }
 }
 
-// Auto-boot upon DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+// Auto-boot reliably whether document is still loading or already parsed
+function boot() {
   const app = new TerminalApp();
   app.init();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}

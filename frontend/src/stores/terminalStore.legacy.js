@@ -11,7 +11,7 @@ class TerminalStore {
 
     this.state = {
       // Navigation & Layout
-      activeRoute: 'overview',
+      activeRoute: 'dashboard',
       theme: localStorage.getItem(THEME_STORAGE_KEY) || 'dark',
       density: localStorage.getItem(DENSITY_STORAGE_KEY) || 'compact',
       sidebarCollapsed: false,
@@ -37,9 +37,9 @@ class TerminalStore {
       regime: 'NORMAL_VOL',
       regimeConfidence: 0.84,
       atmStrike: 22400,
-      selectedExpiry: '2026-10-16',
-      secondExpiry: '2026-10-30',
-      availableExpiries: ['2026-10-16', '2026-10-23', '2026-10-30'],
+      selectedExpiry: '03-Nov-2026',
+      secondExpiry: '09-Nov-2026',
+      availableExpiries: ['03-Nov-2026', '09-Nov-2026', '17-Nov-2026', '23-Nov-2026'],
       timeframe: 'daily',
       tradingHorizon: 'positional',
 

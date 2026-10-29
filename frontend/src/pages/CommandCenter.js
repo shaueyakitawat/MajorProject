@@ -222,7 +222,10 @@ export function renderCommandCenter(container) {
         <div class="terminal-panel span-6">
           <div class="panel-header">
             <span class="panel-title">ACTIVE STRATEGY SIGNALS & REASONING</span>
-            <button class="btn btn-xs btn-primary" id="btn-goto-strategy">Open Builder →</button>
+            <div class="panel-controls">
+              <button class="btn btn-xs btn-primary" id="btn-goto-pipeline">Visual Pipeline Flow ►</button>
+              <button class="btn btn-xs btn-secondary" id="btn-goto-strategy">Open Builder →</button>
+            </div>
           </div>
           <div class="panel-body compact-padding">
             <div class="active-signal-card">
@@ -262,8 +265,10 @@ export function renderCommandCenter(container) {
       };
     });
 
-    container.querySelector('#btn-goto-scanner').onclick = () => terminalStore.setActiveRoute('mispricing-scanner');
-    container.querySelector('#btn-goto-strategy').onclick = () => terminalStore.setActiveRoute('strategy-builder');
+    container.querySelector('#btn-goto-scanner').onclick = () => terminalStore.setActiveRoute('option-chain');
+    container.querySelector('#btn-goto-strategy').onclick = () => terminalStore.setActiveRoute('surfaces-3d');
+    const pipeBtn = container.querySelector('#btn-goto-pipeline');
+    if (pipeBtn) pipeBtn.onclick = () => terminalStore.setActiveRoute('pipeline-flow');
 
     // Click row -> open Option Detail
     container.querySelectorAll('.clickable-row').forEach(row => {

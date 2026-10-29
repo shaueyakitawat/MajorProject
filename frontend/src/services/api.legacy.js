@@ -113,6 +113,69 @@ class ApiService {
     return this._fetch('/backtest', { symbol, timeframe });
   }
 
+  async getTrades(date = null) {
+    return this._fetch('/api/trades', { date });
+  }
+
+  async closeTrade(tradeId) {
+    const url = new URL(`${API_BASE}/api/trades/close`);
+    url.searchParams.set('trade_id', tradeId);
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { Accept: 'application/json' }
+      });
+      const json = await response.json();
+      const isSuccess = response.ok && (json.status === 'success' || json.success === true || json.data?.success === true);
+      return {
+        success: isSuccess,
+        data: json.data || json,
+        error: json.message || json.detail || json.error
+      };
+    } catch (err) {
+      console.error('[API] Close trade failed:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  async executeTrade(tradeParams) {
+    const url = new URL(`${API_BASE}/api/trades/execute`);
+    Object.entries(tradeParams).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        url.searchParams.set(k, v);
+      }
+    });
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { Accept: 'application/json' }
+      });
+      const json = await response.json();
+      const isSuccess = response.ok && (json.status === 'success' || json.success === true || json.data?.success === true);
+      return {
+        success: isSuccess,
+        data: json.data || json,
+        error: json.message || json.detail || json.error
+      };
+    } catch (err) {
+      console.error('[API] Execute trade failed:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  async getNews() {
+    return this._fetch('/api/news');
+  }
+
+  async getPipelineFlow(symbol = 'NIFTY', expiry = null) {
+    return this._fetch('/api/pipeline-flow', { symbol, expiry });
+  }
+
+  async getVolatilitySurface(symbol = 'NIFTY') {
+    return this._fetch('/api/volatility-surface', { symbol });
+  }
+
+
   /**
    * Normalizes raw option chain records and computes derived institutional metrics.
    * Clearly flags if chain data is simulated or live.

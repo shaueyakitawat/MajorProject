@@ -82,7 +82,7 @@ export function renderOptionDetailDrawer(container) {
         <!-- Footer / Action -->
         <div class="drawer-footer">
           <button class="btn btn-secondary" id="btn-copy-contract">Copy Details</button>
-          <button class="btn btn-primary" id="btn-add-to-builder">+ Add to Strategy Builder</button>
+          <button class="btn btn-primary" id="btn-add-to-builder">⚡ Route to Live Execution Terminal</button>
         </div>
       </div>
     `;
@@ -102,24 +102,16 @@ export function renderOptionDetailDrawer(container) {
 
     // Action handlers
     container.querySelector('#btn-add-to-builder').onclick = () => {
-      const curLegs = s.strategyBuilderLegs;
-      const newLeg = {
-        id: Date.now(),
-        action: devPct > 5 ? 'sell' : 'buy',
-        type: isCall ? 'call' : 'put',
-        strike: opt.strike,
-        expiry: s.selectedExpiry,
-        qty: 65,
-        price: ltp,
-        iv: iv,
-        delta: opt.delta || 0.5,
-        gamma: opt.gamma || 0.0004,
-        theta: opt.theta || -12.0,
-        vega: opt.vega || 18.0,
-      };
       terminalStore.setState({
-        strategyBuilderLegs: [...curLegs, newLeg],
-        activeRoute: 'strategy-builder'
+        pendingOrder: {
+          strike: opt.strike,
+          type: isCall ? 'CE' : 'PE',
+          side: devPct > 5 ? 'SELL' : 'BUY',
+          price: ltp,
+          expiry: s.selectedExpiry,
+          strategy: devPct > 5 ? 'RV Short Overvalued Option' : 'Statistical Long Mispricing'
+        },
+        activeRoute: 'live-terminal'
       });
       terminalStore.closeOptionDetail();
     };

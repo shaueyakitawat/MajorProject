@@ -33,6 +33,7 @@ export function renderOptionChainGrid(container) {
   }
 
   function update() {
+    if (terminalStore.getState().activeRoute !== 'option-chain') return;
     const s = terminalStore.getState();
     const chain = s.optionChain || [];
     const filters = s.chainFilters;
@@ -202,10 +203,13 @@ export function renderOptionChainGrid(container) {
 
     // Row Click Handlers for opening Option Detail Drawer
     container.querySelectorAll('.opt-clickable-cell').forEach(cell => {
-      cell.onclick = () => {
-        const strike = parseInt(cell.getAttribute('data-strike'));
+      cell.onclick = (e) => {
+        // If clicking a trade button inside the row, do not trigger row drawer
+        if (e.target.closest('.btn-chain-trade')) return;
+
+        const strike = parseFloat(cell.getAttribute('data-strike'));
         const type = cell.getAttribute('data-type');
-        const row = chain.find(r => r.strike === strike);
+        const row = chain.find(r => Math.abs(r.strike - strike) < 0.1);
         const optData = row ? row[type] : null;
 
         if (optData) {
@@ -215,6 +219,30 @@ export function renderOptionChainGrid(container) {
             ...optData
           });
         }
+      };
+    });
+
+    // 1-Click Trade buttons on list view
+    container.querySelectorAll('.btn-chain-trade').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const strike = parseFloat(btn.getAttribute('data-strike'));
+        const rawType = btn.getAttribute('data-type') || 'call';
+        const type = rawType.toUpperCase() === 'CALL' ? 'CE' : 'PE';
+        const side = btn.getAttribute('data-side') || 'SELL';
+        const price = parseFloat(btn.getAttribute('data-price') || '100');
+
+        terminalStore.setState({
+          activeRoute: 'live-terminal',
+          pendingOrder: {
+            strike,
+            type,
+            side,
+            price,
+            expiry: s.selectedExpiry,
+            strategy: side === 'SELL' ? 'RV Short Overvalued Option' : 'Statistical Long Mispricing'
+          }
+        });
       };
     });
   }
@@ -363,6 +391,7 @@ export function renderOptionChainGrid(container) {
             <th>Volume</th>
             <th>Liquidity</th>
             <th>Signal</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -387,6 +416,11 @@ export function renderOptionChainGrid(container) {
                 <span class="badge-signal ${c.signal === 'overpriced' ? 'tag-overpriced' : (c.signal === 'underpriced' ? 'tag-underpriced' : 'tag-fair')}">
                   ${c.signal?.toUpperCase() || 'FAIR'}
                 </span>
+              </td>
+              <td>
+                <button class="btn btn-xs btn-primary btn-chain-trade" data-strike="${c.strike}" data-type="${c.type}" data-price="${c.ltp}" data-side="${c.signal === 'overpriced' ? 'SELL' : 'BUY'}">
+                  Trade ⚡
+                </button>
               </td>
             </tr>
           `).join('')}

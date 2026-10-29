@@ -9,7 +9,7 @@ export function renderEvaluationModal(container) {
   const steps = [
     {
       title: 'Step 1: Real-Time NIFTY 50 Market Data Seed',
-      targetRoute: 'overview',
+      targetRoute: 'command-center',
       summary: 'Data acquisition pipeline extracts real NIFTY 50 OHLCV data from market feeds and computes daily log returns.',
       formula: 'r_t = ln(S_t / S_{t-1})',
       inputs: 'NIFTY Index Spot = 22,421.95, Daily Volume = 345M',
@@ -17,7 +17,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 2: EGARCH(1,1) Volatility Forecasting & Multi-Timeframe Fusion',
-      targetRoute: 'volatility-cockpit',
+      targetRoute: 'pipeline-flow',
       summary: 'Asymmetric EGARCH(1,1) captures leverage effect (downward shocks generate higher volatility than upward shocks). Realized volatility is computed across 5m, 15m, 1h, and fused with dynamic annualization.',
       formula: 'ln(σ_t^2) = ω + β ln(σ_{t-1}^2) + α [|z_{t-1}| - E|z_{t-1}|] + γ z_{t-1}',
       inputs: 'Daily Return Window = 2000 bars, Intraday 5m RV = 10.55%',
@@ -25,7 +25,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 3: 4-State Gaussian HMM Volatility Regime Classification',
-      targetRoute: 'hmm-regime',
+      targetRoute: 'pipeline-flow',
       summary: 'Continuous volatility observations are mapped into latent Hidden Markov Model states (LOW_VOL, NORMAL_VOL, HIGH_VOL, EXTREME_VOL) with forward-backward probability estimation.',
       formula: 'P(S_t = j | O_{1:t}) \\propto \\sum_i P(S_{t-1} = i | O_{1:t-1}) A_{ij} B_j(o_t)',
       inputs: 'Annualized σ = 14.61%, Transition Matrix A',
@@ -41,7 +41,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 5: Black-Scholes Fair Value & Mispricing Deviation',
-      targetRoute: 'mispricing-scanner',
+      targetRoute: 'pipeline-flow',
       summary: 'Substitutes model forecast volatility (rather than market IV) into the Black-Scholes equation to obtain the model-implied fair price and percentage deviation.',
       formula: 'Deviation = (P_{market} - P_{fair}) / P_{fair}',
       inputs: 'Market Price = ₹303.01, BS Fair Price (σ_model) = ₹92.65',
@@ -49,7 +49,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 6: Institutional Composite M-Score & Rolling Z-Score',
-      targetRoute: 'mispricing-scanner',
+      targetRoute: 'pipeline-flow',
       summary: 'Constructs an institutional 5-factor composite score combining price dislocation, vega exposure, gamma curvature, timeframe coherence (TCI), and VRP deviation.',
       formula: 'M = 0.50(Dev) + 0.15(Vega) + 0.15(Gamma) + 0.10(TCI) + 0.10(ΔVRP)',
       inputs: 'Weights: w1=0.50, w2=0.15, w3=0.15, w4=0.10, w5=0.10',
@@ -57,7 +57,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 7: Delta-Neutral Strategy Generation',
-      targetRoute: 'strategy-builder',
+      targetRoute: 'surfaces-3d',
       summary: 'Regime-aware strategy rule matrix synthesizes a delta-neutral structure to harvest volatility premium while immunizing first-order underlying price movement.',
       formula: 'Δ_{portfolio} = \\sum w_i Δ_i \\approx 0',
       inputs: 'Regime = NORMAL_VOL, M-Score = +3.74, Vol Edge = -1.22%',
@@ -65,7 +65,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 8: Payoff Profiling & 5x5 Stress Scenario Matrix',
-      targetRoute: 'strategy-builder',
+      targetRoute: 'portfolio-trades',
       summary: 'Evaluates multi-leg portfolio P&L across underlying price shocks (±5%) and implied volatility shocks (±2 vol points).',
       formula: 'P&L(S, σ, t) = V(S, σ, t) - V_0',
       inputs: 'Leg 1: Sell 22,400 CE @ 303.0, Leg 2: Sell 22,400 PE @ 225.3',
@@ -73,7 +73,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 9: Out-of-Sample Walk-Forward Backtesting',
-      targetRoute: 'backtest-overview',
+      targetRoute: 'portfolio-trades',
       summary: 'Validates statistical significance across historical walk-forward rolling windows without lookahead bias. Computes Sharpe ratio, t-statistic, and hit rate.',
       formula: 't_{stat} = \\bar{R} / (σ_R / \\sqrt{N})',
       inputs: 'Train Window = 60 bars rolling, Transaction costs = 0.05%',
@@ -81,7 +81,7 @@ export function renderEvaluationModal(container) {
     },
     {
       title: 'Step 10: Empirical Quantitative Research Workbench',
-      targetRoute: 'research-workbench',
+      targetRoute: 'surfaces-3d',
       summary: 'Interactive hypothesis testing environment correlating VRP with subsequent realized volatility, M-Score predictive power, and structural regime transitions.',
       formula: 'R^2 = 1 - (SS_{res} / SS_{tot})',
       inputs: 'X = Volatility Risk Premium (VRP), Y = Subsequent 5-Day Realized Volatility',
