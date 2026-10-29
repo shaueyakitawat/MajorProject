@@ -146,3 +146,4 @@ $$M = w_{dev} Z_{dev} + w_{vrp} Z_{vrp} + w_{regime} Z_{regime}$$
 - **Zero Fabricated Data**: Outside market hours (09:15–15:30 IST), data feeds are explicitly labeled `SIMULATION_REPLAY` and `is_simulated: true`.
 - **Methodological Transparency**: Walk-forward backtests are accurately tagged as underlying-direction proxies to preserve scientific integrity.
 - **Auditable Source Code**: Every model card in `ModelRegistryWorkspace` links directly to its verified source file under `backend/services/`.
+
