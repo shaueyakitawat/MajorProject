@@ -28,12 +28,13 @@ TRADER_ARGS=(
   --min-mscore 1.2
   --tp 28
   --sl 9.5
-  --interval 5
+  --interval 2
   --duration-hours 6
   --multi-expiry
   --lots-per-trade 3
   --max-closed-trades 50
-  --target-margin-roi 0.50
+  --target-margin-roi 2.00
+  --max-daily-loss 15000
 )
 
 if command -v caffeinate >/dev/null 2>&1; then

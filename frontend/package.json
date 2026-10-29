@@ -1,0 +1,15 @@
+{
+  "name": "nifty-options-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "NIFTY 50 Quantitative Options Mispricing Terminal Frontend",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

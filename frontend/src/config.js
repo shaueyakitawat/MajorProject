@@ -2,8 +2,12 @@
  * Terminal Global Configuration & Constants
  */
 
-export const API_BASE = window.location.origin;
-export const WS_BASE = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host;
+export const API_BASE = window.location.port === '3000'
+  ? `${window.location.protocol}//${window.location.hostname}:8000`
+  : window.location.origin;
+
+export const WS_BASE = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + 
+  (window.location.port === '3000' ? `${window.location.hostname}:8000` : window.location.host);
 
 export const THEME_STORAGE_KEY = 'bloomberg_terminal_theme';
 export const DENSITY_STORAGE_KEY = 'bloomberg_terminal_density';

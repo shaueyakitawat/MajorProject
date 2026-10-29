@@ -453,7 +453,7 @@ def get_full_chain(symbol: str = "NIFTY", expiry_date: str | None = None, depth:
 def get_multi_expiry_chains(
     symbol: str = "NIFTY",
     num_expiries: int = 2,
-    depth: int = 15,
+    depth: int = 25,
     force_refresh: bool = False
 ) -> list[dict]:
     """

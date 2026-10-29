@@ -1330,7 +1330,7 @@ run_pipeline.cache_ttl_seconds = 300  # 5-minute TTL
 
 # ========== ENDPOINTS ==========
 
-@app.get("/")
+@app.get("/api/status", tags=["System"])
 def root():
     return create_response({"status": "running"})
 
@@ -2015,6 +2015,7 @@ if os.path.isdir(_FRONTEND_DIR):
     # Serve static assets (CSS, JS, images)
     app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="frontend-static")
     
+    @app.get("/", include_in_schema=False)
     @app.get("/dashboard", include_in_schema=False)
     @app.get("/app", include_in_schema=False)
     def serve_frontend():

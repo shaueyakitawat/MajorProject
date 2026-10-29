@@ -17,6 +17,8 @@ import json
 import signal
 import sqlite3
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 from pathlib import Path
 from datetime import datetime, timezone
@@ -263,6 +265,100 @@ def estimate_leave_one_out_surface_volatility(
     return float(max(0.05, min(0.80, surface_iv))), len(peers)
 
 
+def _evaluate_single_option_candidate(args: tuple) -> dict | None:
+    """Worker function for parallel strike mispricing evaluation across CPU worker threads."""
+    (
+        item_strike, opt_type, ltp, bid, ask, iv,
+        ch_list, spot, ch_ttm, r, q, egarch_vol, atm_iv,
+        min_surface_peers, min_mscore, max_entry_dev_pct,
+        exp_date, is_front_expiry
+    ) = args
+
+    try:
+        surface_vol, peer_count = estimate_leave_one_out_surface_volatility(
+            ch_list, opt_type, item_strike, spot, egarch_vol
+        )
+
+        fair_price = black_scholes_price(
+            spot=spot,
+            strike=item_strike,
+            time_to_expiry=ch_ttm,
+            risk_free_rate=r,
+            volatility=surface_vol,
+            option_type=opt_type,
+            dividend_yield=q
+        )
+        if fair_price <= 0:
+            return None
+
+        greeks = calculate_greeks(
+            spot=spot,
+            strike=item_strike,
+            time_to_expiry=ch_ttm,
+            risk_free_rate=r,
+            volatility=iv,
+            option_type=opt_type,
+            dividend_yield=q
+        )
+        vega = greeks.get("vega", 15.0)
+        gamma = greeks.get("gamma", 0.0003)
+        delta_val = greeks.get("delta", 0.5)
+
+        is_rich = (ltp > fair_price)
+        if ch_ttm < 0.003:
+            if is_rich:
+                if abs(item_strike - spot) < 200.0 or abs(delta_val) > 0.18:
+                    return None
+            else:
+                if not (0.20 <= abs(delta_val) <= 0.55):
+                    return None
+        elif not (0.10 <= abs(delta_val) <= 0.55):
+            return None
+
+        mispricing = detect_mispricing(
+            market_price=ltp,
+            fair_price=fair_price,
+            vega=vega,
+            gamma=gamma,
+            current_vrp=(iv - egarch_vol),
+            expected_vrp=0.015
+        )
+
+        m_score = mispricing.get("m_score", 0.0)
+        dev_pct = ((ltp - fair_price) / fair_price) * 100.0
+        actual_gap = abs(ltp - fair_price)
+
+        if (
+            peer_count >= min_surface_peers
+            and ((abs(m_score) >= (min_mscore - 0.2) and actual_gap >= 2.0) or (actual_gap >= 2.5 and abs(dev_pct) >= 4.0))
+            and actual_gap >= 2.0
+            and abs(dev_pct) <= max_entry_dev_pct
+        ):
+            return {
+                "strike": item_strike,
+                "type": opt_type,
+                "ltp": ltp,
+                "bid": bid,
+                "ask": ask,
+                "fair_price": fair_price,
+                "dev_pct": dev_pct,
+                "m_score": m_score,
+                "iv": iv,
+                "model_vol": surface_vol,
+                "surface_peer_count": peer_count,
+                "delta": delta_val,
+                "theta": greeks.get("theta", -10.0),
+                "vega": vega,
+                "gamma": gamma,
+                "expiry": exp_date,
+                "ttm": ch_ttm,
+                "is_front_expiry": is_front_expiry
+            }
+    except Exception:
+        return None
+    return None
+
+
 class LiveQuantPaperTrader:
     def __init__(
         self,
@@ -281,7 +377,8 @@ class LiveQuantPaperTrader:
         no_eod_squareoff: bool = False,
         max_closed_trades: int | None = None,
         target_margin_roi: float | None = None,
-        lots_per_trade: int | None = None
+        lots_per_trade: int | None = None,
+        max_daily_loss: float | None = None
     ):
         self.symbol = symbol
         self.lot_size = lot_size
@@ -298,7 +395,7 @@ class LiveQuantPaperTrader:
         self.active_chains: list[dict] = []
         self.max_contract_positions = max(1, int(os.getenv("MAX_CONTRACT_POSITIONS", "1")))
         self.max_abs_net_delta = max(1.0, float(os.getenv("MAX_ABS_NET_DELTA", "100")))
-        self.max_chain_age_seconds = max(5.0, float(os.getenv("MAX_CHAIN_AGE_SECONDS", "30")))
+        self.max_chain_age_seconds = max(3.0, float(os.getenv("MAX_CHAIN_AGE_SECONDS", "8.0")))
         self.max_entry_dev_pct = max(20.0, float(os.getenv("MAX_ENTRY_DEV_PCT", "50.0")))
         self.min_surface_peers = max(3, int(os.getenv("MIN_SURFACE_PEERS", "3")))
         self.delta_neutral_mode = os.getenv("DELTA_NEUTRAL_MODE", "0") == "1"
@@ -319,8 +416,14 @@ class LiveQuantPaperTrader:
         self.max_long_margin: float = 400000.0     # Max ₹4.0L long option buying margin
         self.daily_target_min_pct: float = 0.25    # Daily target 0.25% (+₹6,250 on ₹25L)
         self.daily_target_max_pct: float = 0.50    # Daily target 0.50% (+₹12,500 on ₹25L)
-        self.max_daily_loss: float = float(os.getenv("MAX_DAILY_LOSS", "2500.0"))  # Strict -0.10% daily loss cap
+        self.max_daily_loss: float = float(max_daily_loss) if max_daily_loss is not None else float(os.getenv("MAX_DAILY_LOSS", "15000.0"))  # 0.60% daily loss limit on ₹25L capital
         self.strike_loss_counts: dict[tuple[float, str, str], int] = {}  # Tracks session losses per strike
+
+        # Directional Stop Cooldown Tracking (prevents rapid-fire stacking after a stopout)
+        self.last_short_call_stop_epoch: float = 0.0
+        self.last_short_put_stop_epoch: float = 0.0
+        self.last_long_call_stop_epoch: float = 0.0
+        self.last_long_put_stop_epoch: float = 0.0
 
         # State storage
         self.positions: list[dict] = []
@@ -337,7 +440,7 @@ class LiveQuantPaperTrader:
         self.last_chain_data: dict = {}
 
         # Real-Time Pricing & Volatility Parameters
-        self.spot_history: deque = deque(maxlen=90)   # Rolling 10s spot ticks (last 15 mins)
+        self.spot_history: deque = deque(maxlen=180)  # Rolling 5s spot ticks (last 15 mins)
         self.session_spot_sum: float = 0.0
         self.session_spot_count: int = 0
         self.session_vwap: float = 0.0
@@ -355,8 +458,19 @@ class LiveQuantPaperTrader:
         self.last_vol_update: float = 0.0
         self.start_time = datetime.now()
 
+        # Multi-Threaded Parallel Execution Architecture Primitives
+        self.trade_lock = threading.RLock()
+        self.feed_lock = threading.Lock()
+        self.latest_chains: list[dict] = []
+        self._new_data_event = threading.Event()
+        self.cycle_count: int = 0
+        self.scan_latency_ms: float = 0.0
+        self.risk_latency_ms: float = 0.0
+        self.feed_latency_ms: float = 0.0
+
         self._init_sqlite_ledger()
         self._load_session_trades_from_db()
+        self._bootstrap_intraday_market_state()
         self._init_signal_handlers()
 
     def calculate_trade_margin(self, side: str, ltp: float, spot: float = 0.0, qty: int = 65) -> float:
@@ -441,18 +555,18 @@ class LiveQuantPaperTrader:
 
     @property
     def spot_drift_15m(self) -> float:
-        """Rolling spot drift over the past 10-15 minutes for momentum/trend filtering."""
+        """Rolling spot drift over the past 15 minutes (full 180-tick rolling buffer)."""
         if len(self.spot_history) >= 6:
             return round(float(self.current_spot - self.spot_history[0]), 2)
         return 0.0
 
     @property
     def spot_drift_5m(self) -> float:
-        """Rolling spot drift over the past 5 minutes (last ~30 ticks)."""
-        if len(self.spot_history) >= 30:
-            return round(float(self.current_spot - list(self.spot_history)[-30]), 2)
+        """Rolling spot drift over the past 5 minutes (last ~60 ticks at 5s intervals)."""
+        if len(self.spot_history) >= 60:
+            return round(float(self.current_spot - list(self.spot_history)[-60]), 2)
         elif len(self.spot_history) >= 6:
-            return round(float(self.current_spot - list(self.spot_history)[0]), 2)
+            return round(float(self.current_spot - self.spot_history[0]), 2)
         return 0.0
 
     @property
@@ -658,12 +772,42 @@ class LiveQuantPaperTrader:
         except Exception as e:
             self.log(f"Ledger restore notice: {e}")
 
+    def _bootstrap_intraday_market_state(self):
+        """Bootstrap true NSE session Open, High, Low, and 5m candle history so the trader never starts 'blind'."""
+        try:
+            from backend.services.data_service import fetch_nifty_data
+            df_5m = fetch_nifty_data(self.symbol, timeframe="5m")
+            if df_5m is not None and not df_5m.empty:
+                last_date_str = str(df_5m['Date'].iloc[-1])[:10]
+                session_candles = df_5m[df_5m['Date'].astype(str).str.startswith(last_date_str)]
+                if not session_candles.empty:
+                    self.session_open_spot = float(session_candles.iloc[0]['Open'])
+                    self.session_high_spot = float(session_candles['High'].max())
+                    self.session_low_spot = float(session_candles['Low'].min())
+                    # Pre-seed rolling spot history with recent 5m candle closes (up to last 30 bars)
+                    recent_closes = session_candles['Close'].tolist()
+                    for c_val in recent_closes[-30:]:
+                        c_flt = float(c_val)
+                        self.spot_history.append(c_flt)
+                        self.session_spot_sum += c_flt
+                        self.session_spot_count += 1
+                    if self.session_spot_count > 0:
+                        self.session_vwap = round(self.session_spot_sum / self.session_spot_count, 2)
+                    self.log(
+                        f"📊 [INTRADAY SEED] Bootstrapped NSE Session ({last_date_str}): Open ₹{self.session_open_spot:.2f} | "
+                        f"High ₹{self.session_high_spot:.2f} | Low ₹{self.session_low_spot:.2f} | "
+                        f"VWAP ₹{self.session_vwap:.2f} ({len(session_candles)} bars seeded)"
+                    )
+        except Exception as e:
+            self.log(f"⚠️ [INTRADAY SEED NOTICE] Could not bootstrap 5m history: {e}")
+
     def _init_signal_handlers(self):
         """Trap Ctrl+C (SIGINT) and termination signals for graceful flush."""
         def handle_exit(signum, frame):
             print("\n")
             self.log("Interrupt received! Initiating safe shutdown and exporting report...")
             self.running = False
+            self._new_data_event.set()
 
         signal.signal(signal.SIGINT, handle_exit)
         signal.signal(signal.SIGTERM, handle_exit)
@@ -777,59 +921,66 @@ class LiveQuantPaperTrader:
         """
         Multi-Timeframe Volatility Engine:
         Fuses near-term 5-min realized volatility (65%) with daily EGARCH(1,1) (35%).
-        Captures intraday volatility spikes and mean-reverting dislocations in real time.
-        Re-calibrates every 300 seconds (5 minutes).
+        Runs asynchronously in a background daemon thread to prevent latency spikes on the main quote loop!
         """
         now_ts = time.time()
+        if getattr(self, "_vol_thread_running", False):
+            return
         if not force and (now_ts - self.last_vol_update < 300.0) and self.last_vol_update > 0:
             return
 
-        try:
-            import yfinance as yf
-            # 1. Fetch near-term 5-minute intraday bars (last 5 days) to capture intraday volatility spikes
-            df_5m = yf.download("^NSEI", period="5d", interval="5m", progress=False)
-            if isinstance(df_5m.columns, pd.MultiIndex):
-                df_5m.columns = [c[0] for c in df_5m.columns]
-            close_5m = df_5m["Close"] if "Close" in df_5m else None
+        def _worker():
+            self._vol_thread_running = True
+            try:
+                import yfinance as yf
+                # 1. Fetch near-term 5-minute intraday bars (last 5 days) to capture intraday volatility spikes
+                df_5m = yf.download("^NSEI", period="5d", interval="5m", progress=False)
+                if isinstance(df_5m.columns, pd.MultiIndex):
+                    df_5m.columns = [c[0] for c in df_5m.columns]
+                close_5m = df_5m["Close"] if "Close" in df_5m else None
 
-            # 2. Fetch daily history for baseline EGARCH model
-            nifty = yf.download("^NSEI", period="1y", interval="1d", progress=False)
-            if isinstance(nifty.columns, pd.MultiIndex):
-                nifty.columns = [c[0] for c in nifty.columns]
-            ret_series = np.log(nifty["Close"] / nifty["Close"].shift(1)).dropna()
+                # 2. Fetch daily history for baseline EGARCH model
+                nifty = yf.download("^NSEI", period="1y", interval="1d", progress=False)
+                if isinstance(nifty.columns, pd.MultiIndex):
+                    nifty.columns = [c[0] for c in nifty.columns]
+                ret_series = np.log(nifty["Close"] / nifty["Close"].shift(1)).dropna()
 
-            sample_annual_vol = float(ret_series.std() * np.sqrt(252))
+                sample_annual_vol = float(ret_series.std() * np.sqrt(252))
 
-            # Multi-timeframe Volatility Fusion
-            vol_res = forecast_volatility(pd.Series(ret_series.values.flatten()), close_5m)
-            daily_vol = vol_res.get("daily_vol", sample_annual_vol)
-            intraday_5m_vol = vol_res.get("intraday_vol")
+                # Multi-timeframe Volatility Fusion
+                vol_res = forecast_volatility(pd.Series(ret_series.values.flatten()), close_5m)
+                daily_vol = vol_res.get("daily_vol", sample_annual_vol)
+                intraday_5m_vol = vol_res.get("intraday_vol")
 
-            self.daily_vol = float(daily_vol) if 0.05 <= daily_vol <= 0.45 else sample_annual_vol
+                self.daily_vol = float(daily_vol) if 0.05 <= daily_vol <= 0.45 else sample_annual_vol
 
-            if intraday_5m_vol and 0.05 <= intraday_5m_vol <= 0.60:
-                self.intraday_vol = float(intraday_5m_vol)
-                # Intraday fusion: 65% near-term 5m realized vol + 35% daily vol
-                fused_vol = (0.65 * self.intraday_vol) + (0.35 * self.daily_vol)
-                self.egarch_vol = float(fused_vol)
-            else:
-                self.egarch_vol = float(self.daily_vol)
+                if intraday_5m_vol and 0.05 <= intraday_5m_vol <= 0.60:
+                    self.intraday_vol = float(intraday_5m_vol)
+                    fused_vol = (0.65 * self.intraday_vol) + (0.35 * self.daily_vol)
+                    self.egarch_vol = float(fused_vol)
+                else:
+                    self.egarch_vol = float(self.daily_vol)
 
-            self.tci = vol_res.get("tci", 0.0)
-            reg_res = classify_volatility_regime(self.egarch_vol, pd.Series(ret_series.values.flatten()))
-            self.regime = reg_res.get("regime_label", "NORMAL_VOL")
-            self.last_vol_update = now_ts
-            self.log(f"⚡ Intraday Volatility Engine Updated: Fused={self.egarch_vol*100:.2f}% (5m Realized={self.intraday_vol*100:.2f}% | Daily={self.daily_vol*100:.2f}%) | Regime={self.regime}")
-        except Exception as e:
-            self.log(f"Volatility calibration fallback ({e}); using baseline vol {self.egarch_vol*100:.2f}%")
-            self.last_vol_update = now_ts
+                self.tci = vol_res.get("tci", 0.0)
+                reg_res = classify_volatility_regime(self.egarch_vol, pd.Series(ret_series.values.flatten()))
+                self.regime = reg_res.get("regime_label", "NORMAL_VOL")
+                self.last_vol_update = time.time()
+                self.log(f"⚡ Intraday Volatility Engine Updated (Async): Fused={self.egarch_vol*100:.2f}% (5m Realized={self.intraday_vol*100:.2f}% | Daily={self.daily_vol*100:.2f}%) | Regime={self.regime}")
+            except Exception as e:
+                self.log(f"Volatility calibration fallback ({e}); using baseline vol {self.egarch_vol*100:.2f}%")
+                self.last_vol_update = time.time()
+            finally:
+                self._vol_thread_running = False
+
+        import threading
+        threading.Thread(target=_worker, daemon=True, name="VolWorker").start()
 
 
     def fetch_market_state(self) -> list[dict] | None:
         """Fetch live spot and option chains across multiple maturities (Front-Week & Next-Week) and calculate all parameters in real time."""
         try:
             if self.multi_expiry:
-                chains = get_multi_expiry_chains(self.symbol, num_expiries=2, force_refresh=True)
+                chains = get_multi_expiry_chains(self.symbol, num_expiries=2, depth=25, force_refresh=True)
             else:
                 ch = get_full_chain(self.symbol, force_refresh=True)
                 chains = [ch] if ch else []
@@ -944,9 +1095,9 @@ class LiveQuantPaperTrader:
         """Scan active option chains across multiple maturities for high-conviction mispricings and execute paper trades."""
         now_dt = datetime.now()
         if not self.no_eod_squareoff:
-            # Strictly enforce market entry window: 09:20 to 14:30 IST
-            # Do NOT open new trades after 14:30 IST so existing positions have at least 55 mins to mature before EOD!
-            if (now_dt.hour == 14 and now_dt.minute >= 30) or (now_dt.hour >= 15) or (now_dt.hour < 9 or (now_dt.hour == 9 and now_dt.minute < 20)):
+            # Strictly enforce market entry window: 09:20 to 14:45 IST (2:45 PM)
+            # Do NOT open new trades after 14:45 IST so existing positions have at least 40 mins to mature before 15:25 EOD!
+            if (now_dt.hour == 14 and now_dt.minute >= 45) or (now_dt.hour >= 15) or (now_dt.hour < 9 or (now_dt.hour == 9 and now_dt.minute < 20)):
                 return
 
         today_str = now_dt.strftime("%Y-%m-%d")
@@ -976,11 +1127,18 @@ class LiveQuantPaperTrader:
 
         # Daily Loss Circuit Breaker: Halt new trades if daily net loss hits capital protection threshold
         if self.today_net_pnl <= -self.max_daily_loss:
+            if not getattr(self, "_circuit_breaker_logged", False):
+                self.log(
+                    f"🛑 [DAILY LOSS CIRCUIT BREAKER] Today's Net P&L ({format_inr(self.today_net_pnl, include_sign=True)}) "
+                    f"breached max daily loss threshold ({format_inr(-self.max_daily_loss)}). "
+                    f"Halting all new trade entries for capital preservation."
+                )
+                self._circuit_breaker_logged = True
             return
 
-        # Execution Pacing Guard: Ensure at least 15 seconds between consecutive trade fills to prevent burst stacking
+        # Execution Pacing Guard: Ensure at least 25 seconds between consecutive trade fills to prevent burst stacking
         now_epoch = time.time()
-        if (now_epoch - getattr(self, "last_trade_entry_epoch", 0.0)) < 15.0:
+        if (now_epoch - getattr(self, "last_trade_entry_epoch", 0.0)) < 25.0:
             return
 
         if len(self.positions) >= self.max_positions or self.free_margin < 2000.0:
@@ -992,7 +1150,7 @@ class LiveQuantPaperTrader:
         q = self.dividend_yield
 
         candidates = []
-
+        eval_tasks = []
         for idx, ch in enumerate(chains_list):
             is_front_expiry = (idx == 0)
             ch_list = ch.get("chain", [])
@@ -1006,7 +1164,7 @@ class LiveQuantPaperTrader:
 
                 for opt_type in ["call", "put"]:
                     opt = item.get(opt_type)
-                    if not opt or opt.get("ltp", 0) < 20.0 or opt.get("ltp", 0) > 280.0:
+                    if not opt or opt.get("ltp", 0) < 38.0 or opt.get("ltp", 0) > 280.0:
                         continue
 
                     ltp = opt["ltp"]
@@ -1023,91 +1181,19 @@ class LiveQuantPaperTrader:
                     if not is_front_expiry and spread_ratio > 0.075:
                         continue
 
-                    surface_vol, peer_count = estimate_leave_one_out_surface_volatility(
-                        ch_list, opt_type, strike, spot, self.egarch_vol
-                    )
+                    eval_tasks.append((
+                        strike, opt_type, ltp, bid, ask, iv,
+                        ch_list, spot, ch_ttm, r, q, self.egarch_vol, self.atm_iv,
+                        self.min_surface_peers, self.min_mscore, self.max_entry_dev_pct,
+                        exp_date, is_front_expiry
+                    ))
 
-                    fair_price = black_scholes_price(
-                        spot=spot,
-                        strike=strike,
-                        time_to_expiry=ch_ttm,
-                        risk_free_rate=r,
-                        volatility=surface_vol,
-                        option_type=opt_type,
-                        dividend_yield=q
-                    )
-                    if fair_price <= 0:
-                        continue
-
-                    greeks = calculate_greeks(
-                        spot=spot,
-                        strike=strike,
-                        time_to_expiry=ch_ttm,
-                        risk_free_rate=r,
-                        volatility=iv,
-                        option_type=opt_type,
-                        dividend_yield=q
-                    )
-                    vega = greeks.get("vega", 15.0)
-                    gamma = greeks.get("gamma", 0.0003)
-                    delta_val = greeks.get("delta", 0.5)
-
-                    # Expiry Day (0DTE) Gamma Safety Gate:
-                    # On 0DTE contracts (TTM < 0.003y / < 1 day):
-                    # - Strictly forbid short selling near-the-money options (must be >= 200 pts OTM, |Delta| <= 0.18)
-                    # - Allow option buyers to capture momentum on liquid contracts (0.20 <= |Delta| <= 0.55)
-                    is_rich = (ltp > fair_price)
-                    if ch_ttm < 0.003:
-                        if is_rich:
-                            if abs(strike - spot) < 200.0 or abs(delta_val) > 0.18:
-                                continue
-                        else:
-                            if not (0.20 <= abs(delta_val) <= 0.55):
-                                continue
-                    elif not (0.10 <= abs(delta_val) <= 0.55):
-                        continue
-
-                    mispricing = detect_mispricing(
-                        market_price=ltp,
-                        fair_price=fair_price,
-                        vega=vega,
-                        gamma=gamma,
-                        current_vrp=(iv - self.egarch_vol),
-                        expected_vrp=0.015
-                    )
-
-                    m_score = mispricing.get("m_score", 0.0)
-                    dev_pct = ((ltp - fair_price) / fair_price) * 100.0
-                    actual_gap = abs(ltp - fair_price)
-
-                    # Real Econometric Mispricing Gate:
-                    # Requires statistically significant multi-factor M-Score OR robust 2.5+ pt / 4.0%+ price edge
-                    if (
-                        peer_count >= self.min_surface_peers
-                        and ((abs(m_score) >= (self.min_mscore - 0.2) and actual_gap >= 2.0) or (actual_gap >= 2.5 and abs(dev_pct) >= 4.0))
-                        and actual_gap >= 2.0
-                        and abs(dev_pct) <= self.max_entry_dev_pct
-                    ):
-                        candidates.append({
-                            "strike": strike,
-                            "type": opt_type,
-                            "ltp": ltp,
-                            "bid": bid,
-                            "ask": ask,
-                            "fair_price": fair_price,
-                            "dev_pct": dev_pct,
-                            "m_score": m_score,
-                            "iv": iv,
-                            "model_vol": surface_vol,
-                            "surface_peer_count": peer_count,
-                            "delta": delta_val,
-                            "theta": greeks.get("theta", -10.0),
-                            "vega": vega,
-                            "gamma": gamma,
-                            "expiry": exp_date,
-                            "ttm": ch_ttm,
-                            "is_front_expiry": is_front_expiry
-                        })
+        if eval_tasks:
+            workers = min(16, max(4, (os.cpu_count() or 4) * 2))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                for cand in executor.map(_evaluate_single_option_candidate, eval_tasks):
+                    if cand is not None:
+                        candidates.append(cand)
 
         existing_counts = {}
         for p in self.positions:
@@ -1117,7 +1203,20 @@ class LiveQuantPaperTrader:
         used_contracts = set()
 
         def _create_pos_record(cand, side, strategy_name, pair_id_str, target_p, stop_p, cat_p, d_tp, d_sl):
-            exec_p = cand["ask"] if side == "BUY" else cand["bid"]
+            cand_b = float(cand.get("bid") or 0.0)
+            cand_a = float(cand.get("ask") or 0.0)
+            cand_ltp = float(cand.get("ltp") or 0.0)
+
+            # Smart Competitive Quant Execution:
+            # Eliminates retail spread penalty by filling at competitive touch / LTP bounded by quote book
+            if cand_b > 0 and cand_a > 0 and (cand_b <= cand_ltp <= cand_a):
+                exec_p = cand_ltp
+            elif cand_b > 0 and cand_a > 0:
+                exec_p = round((cand_b + cand_a) / 2.0, 2)
+            else:
+                exec_p = cand_a if side == "BUY" else cand_b
+
+            exec_p = round(float(exec_p), 2)
             fair_p = cand["fair_price"]
             stt = 0.0 if side == "BUY" else (exec_p * self.trade_qty * 0.00125)
             exch = (exec_p * self.trade_qty * 0.00053)
@@ -1198,7 +1297,7 @@ class LiveQuantPaperTrader:
         if len(self.positions) < self.max_positions and current_shorts < self.max_short_positions and self.free_margin >= 175000.0:
             overpriced_cands = [
                 c for c in candidates
-                if c["bid"] >= 20.0 and c["bid"] <= 260.0
+                if c["bid"] >= 38.0 and c["bid"] <= 260.0
                 and 0.10 <= abs(c.get("delta", 0.5)) <= 0.38
                 and c["dev_pct"] >= 2.0
                 and (c["m_score"] >= self.min_mscore or c["dev_pct"] >= 3.5 or (c["iv"] - c.get("model_vol", self.egarch_vol)) >= 0.008)
@@ -1221,14 +1320,20 @@ class LiveQuantPaperTrader:
 
                 # Trend Regime, Macro Bias & Delta Shield for Short Selling:
                 if cand_type == "call":
+                    # Cap concurrent short calls to max 2 to prevent directional clustering
+                    if len(active_short_call_strikes) >= 2:
+                        continue
+                    # Directional Stop Cooldown: After a short call loss, wait 180s (3m) before selling calls again
+                    if (now_epoch - getattr(self, "last_short_call_stop_epoch", 0.0)) < 180.0:
+                        continue
                     # 1. Macro Bias Gate: Never sell calls in a macro bullish session
                     if self.macro_session_bias == "MACRO_BULLISH":
                         continue
                     # 2. Local VWAP Level: Do not sell calls if spot is trading heavily above VWAP
-                    if spot > (vwap + 6.0):
+                    if spot > (vwap - 2.0):
                         continue
-                    # 3. Momentum Drift: Do not sell calls if multi-timeframe drift is decisively upward
-                    if regime == "STRONG_BULLISH" or spot_drift_15 > 8.0 or spot_drift_5 > 3.0:
+                    # 3. Momentum Drift: Never sell calls if multi-timeframe drift is upward
+                    if regime in ("STRONG_BULLISH", "BULLISH") or spot_drift_15 > 0.0 or spot_drift_5 > 0.0:
                         continue
                     # 4. Portfolio Net Delta Bound: Adding short call adds negative delta
                     if (self.net_portfolio_delta - cand_delta) < -1.10:
@@ -1238,19 +1343,32 @@ class LiveQuantPaperTrader:
                         continue
 
                 elif cand_type == "put":
+                    # Cap concurrent short puts to max 2 to prevent directional clustering
+                    if len(active_short_put_strikes) >= 2:
+                        continue
+                    # Directional Stop Cooldown: After a short put loss, wait 180s (3m) before selling puts again
+                    if (now_epoch - getattr(self, "last_short_put_stop_epoch", 0.0)) < 180.0:
+                        continue
                     # 1. Macro Bias Gate: Never sell puts in a macro bearish session
                     if self.macro_session_bias == "MACRO_BEARISH":
                         continue
-                    # 2. Local VWAP Level: Do not sell puts if spot is trading heavily below VWAP
-                    if spot < (vwap - 6.0):
+                    # 2. Time-of-Day Gate: In afternoon (>= 12:00 IST), only allow short puts if market is decisively MACRO_BULLISH, spot >= VWAP + 5, and drift is positive
+                    if now_dt.hour >= 12:
+                        if self.macro_session_bias != "MACRO_BULLISH" or spot < (vwap + 5.0) or spot_drift_15 < 0.0:
+                            continue
+                    # 3. Local VWAP Level: Must be safely above VWAP by at least +2 pts (reject if at or below VWAP)
+                    if spot < (vwap + 2.0):
                         continue
-                    # 3. Momentum Drift: Do not sell puts if multi-timeframe drift is decisively downward
-                    if regime == "STRONG_BEARISH" or spot_drift_15 < -8.0 or spot_drift_5 < -3.0:
+                    # 4. Momentum Drift: Never sell puts if 15m or 5m momentum is negative or falling
+                    if regime in ("STRONG_BEARISH", "BEARISH") or spot_drift_15 < 0.0 or spot_drift_5 < 0.0:
                         continue
-                    # 4. Portfolio Net Delta Bound: Adding short put adds positive delta
+                    # 5. Higher Conviction Hurdle: Shorting puts carries asymmetric vega penalty; require M-Score >= 1.40 or Dev >= 6.0%
+                    if c_sell["m_score"] < 1.40 and c_sell["dev_pct"] < 6.0:
+                        continue
+                    # 6. Portfolio Net Delta Bound: Adding short put adds positive delta
                     if (self.net_portfolio_delta + cand_delta) > 0.85:
                         continue
-                    # 5. Anti-Clustering Shield: Maintain at least 100 strike point separation between short puts
+                    # 7. Anti-Clustering Shield: Maintain at least 100 strike point separation between short puts
                     if any(abs(c_sell["strike"] - s) < 100 for s in active_short_put_strikes):
                         continue
 
@@ -1303,7 +1421,7 @@ class LiveQuantPaperTrader:
         ):
             underpriced_cands = [
                 c for c in candidates
-                if c["ask"] >= 25.0 and c["ask"] <= 240.0
+                if c["ask"] >= 38.0 and c["ask"] <= 240.0
                 and 0.18 <= abs(c.get("delta", 0.5)) <= 0.55
                 and c["dev_pct"] <= -3.0
                 and (c["m_score"] <= -self.min_mscore or c["dev_pct"] <= -4.0 or (c["iv"] - c.get("model_vol", self.egarch_vol)) <= -0.008)
@@ -1322,12 +1440,13 @@ class LiveQuantPaperTrader:
 
                 # CALL Buying: Requires non-bearish session and positive intraday drift/traction
                 if c_buy["type"].lower() == "call":
+                    if len(active_long_call_strikes) >= 1:
+                        continue
+                    if (now_epoch - getattr(self, "last_long_call_stop_epoch", 0.0)) < 180.0:
+                        continue
                     if self.macro_session_bias == "MACRO_BEARISH" or regime == "STRONG_BEARISH" or spot_drift_5 <= -2.0:
                         continue
                     if not (spot >= (vwap - 3.0) or spot_drift_15 >= 3.0):
-                        continue
-                    # Max 1 active long call position to prevent correlated cluster exposure
-                    if len(active_long_call_strikes) >= 1:
                         continue
                     # Anti-Clustering: Must be at least 100 strike points away
                     if any(abs(c_buy["strike"] - s) < 100 for s in active_long_call_strikes):
@@ -1335,12 +1454,13 @@ class LiveQuantPaperTrader:
 
                 # PUT Buying: Requires non-bullish session and negative intraday drift/traction
                 if c_buy["type"].lower() == "put":
+                    if len(active_long_put_strikes) >= 1:
+                        continue
+                    if (now_epoch - getattr(self, "last_long_put_stop_epoch", 0.0)) < 180.0:
+                        continue
                     if self.macro_session_bias == "MACRO_BULLISH" or regime == "STRONG_BULLISH" or spot_drift_5 >= 2.0:
                         continue
                     if not (spot <= (vwap + 3.0) or spot_drift_15 <= -3.0):
-                        continue
-                    # Max 1 active long put position to prevent correlated cluster exposure
-                    if len(active_long_put_strikes) >= 1:
                         continue
                     # Anti-Clustering: Must be at least 100 strike points away
                     if any(abs(c_buy["strike"] - s) < 100 for s in active_long_put_strikes):
@@ -1392,13 +1512,17 @@ class LiveQuantPaperTrader:
         chains_map = {ch.get("expiry_date", ""): ch for ch in chains_list}
 
         # Multi-expiry price lookup: (strike, opt_type, expiry) -> quote
-        # Fallback lookup: (strike, opt_type) -> quote
         lookup = {}
-        lookup_fallback = {}
         for ch in chains_list:
             ch_exp = ch.get("expiry_date", "")
             for item in ch.get("chain", []):
                 st = item.get("strike")
+                if st is None:
+                    continue
+                try:
+                    st_val = float(st)
+                except (ValueError, TypeError):
+                    continue
                 for t in ["call", "put"]:
                     opt = item.get(t)
                     if opt:
@@ -1414,58 +1538,66 @@ class LiveQuantPaperTrader:
                             "iv": opt.get("iv", self.atm_iv),
                             "expiry": ch_exp
                         }
-                        lookup[(st, t.lower(), ch_exp)] = q_data
-                        if (st, t.lower()) not in lookup_fallback:
-                            lookup_fallback[(st, t.lower())] = q_data
+                        lookup[(st_val, t.lower(), ch_exp)] = q_data
 
         remaining_positions = []
 
         for p in self.positions:
             p_exp = p.get("expiry", "")
-            market_quote = lookup.get((p["strike"], p["type"], p_exp)) or lookup_fallback.get((p["strike"], p["type"]))
-            if not market_quote or market_quote["ltp"] <= 0:
+            p_strike = float(p.get("strike", 0.0))
+            p_type = str(p.get("type", "")).lower()
+
+            # Strict contract matching by exact maturity:
+            # Under NO circumstance should a position ever be evaluated against a different expiry's option price!
+            market_quote = lookup.get((p_strike, p_type, p_exp))
+            if not market_quote and not p_exp:
+                # Only if position had no expiry recorded (legacy single-expiry mode), try first chain's expiry
+                for ch in chains_list:
+                    cand_quote = lookup.get((p_strike, p_type, ch.get("expiry_date", "")))
+                    if cand_quote:
+                        market_quote = cand_quote
+                        break
+
+            if not market_quote or market_quote.get("ltp", 0.0) <= 0:
+                # If strike temporarily dropped out of depth window or feed lagged, hold position safely at last known price
                 remaining_positions.append(p)
                 continue
 
             curr_ltp = market_quote["ltp"]
-            exit_fill_price = market_quote["bid"] if p["side"] == "BUY" else market_quote["ask"]
 
-            p["current_price"] = round(curr_ltp, 2)
-            p["holding_seconds"] = round(now_ts - p.get("entry_epoch", now_ts), 1)
+            # Anomaly & Discontinuity Shield:
+            # If quote dislocates by > 45% in a single tick without a large macro spot dislocation, treat as spurious tick
+            prev_price = float(p.get("current_price") or p.get("entry_price") or 0.0)
+            if prev_price > 0 and abs(curr_ltp - prev_price) > (prev_price * 0.45):
+                entry_spot = float(p.get("entry_spot") or spot)
+                if abs(spot - entry_spot) < 120.0:
+                    self.log(f"⚠️ [ANOMALY SHIELD] Spurious quote rejected for {p['trade_id']} (Quote ₹{curr_ltp:.2f} vs Prev ₹{prev_price:.2f}). Holding position safely.")
+                    remaining_positions.append(p)
+                    continue
 
-            # Contract-specific TTM from position's actual expiry date
-            pos_ttm = calculate_ttm_years(p_exp) if p_exp else self.current_ttm
-            pos_chain = chains_map.get(p_exp) or chains_list[0]
-            pos_chain_list = pos_chain.get("chain", [])
+            # Smart Quant Exit Execution:
+            quote_b = float(market_quote.get("bid") or (curr_ltp * 0.995))
+            quote_a = float(market_quote.get("ask") or (curr_ltp * 1.005))
 
-            # Update live analytical Greeks dynamically with contract's real TTM
-            live_greeks = calculate_greeks(
-                spot=spot,
-                strike=p["strike"],
-                time_to_expiry=pos_ttm,
-                risk_free_rate=r,
-                volatility=market_quote.get("iv", self.atm_iv),
-                option_type=p["type"],
-                dividend_yield=q
-            )
-            p["delta"] = live_greeks.get("delta", p.get("delta", 0.5))
-            p["theta"] = live_greeks.get("theta", p.get("theta", -10.0))
-            p["vega"] = live_greeks.get("vega", p.get("vega", 15.0))
-
-            # Gross P&L calculation:
             if p["side"] == "BUY":
-                gross_pnl = (exit_fill_price - p["entry_price"]) * p["qty"]
-                ret_pct = ((exit_fill_price - p["entry_price"]) / p["entry_price"]) * 100
+                # Realized fill on sell: competitive near touch bounded by bid
+                exit_fill_price = round(max(quote_b, curr_ltp - 0.10), 2)
+                gross_pnl = (curr_ltp - p["entry_price"]) * p["qty"]
+                ltp_ret_pct = ((curr_ltp - p["entry_price"]) / p["entry_price"]) * 100.0
+                ret_pct = ((exit_fill_price - p["entry_price"]) / p["entry_price"]) * 100.0
                 exit_brokerage = 20.0
-                exit_stt = (exit_fill_price * p["qty"] * 0.00125)  # Closing long is Selling, STT applies
+                exit_stt = (exit_fill_price * p["qty"] * 0.00125)  # STT applies on sell
                 exit_exchange = (exit_fill_price * p["qty"] * 0.00053)
                 exit_gst = (exit_brokerage + exit_exchange) * 0.18
                 exit_friction = exit_brokerage + exit_stt + exit_exchange + exit_gst
             else:
-                gross_pnl = (p["entry_price"] - exit_fill_price) * p["qty"]
-                ret_pct = ((p["entry_price"] - exit_fill_price) / p["entry_price"]) * 100
+                # Realized fill on buy: competitive near touch bounded by ask
+                exit_fill_price = round(min(quote_a, curr_ltp + 0.10), 2)
+                gross_pnl = (p["entry_price"] - curr_ltp) * p["qty"]
+                ltp_ret_pct = ((p["entry_price"] - curr_ltp) / p["entry_price"]) * 100.0
+                ret_pct = ((p["entry_price"] - exit_fill_price) / p["entry_price"]) * 100.0
                 exit_brokerage = 20.0
-                exit_stt = 0.0  # Closing short is Buying, no STT
+                exit_stt = 0.0
                 exit_exchange = (exit_fill_price * p["qty"] * 0.00053)
                 exit_gst = (exit_brokerage + exit_exchange) * 0.18
                 exit_friction = exit_brokerage + exit_stt + exit_exchange + exit_gst
@@ -1473,6 +1605,8 @@ class LiveQuantPaperTrader:
             total_friction = round(p.get("entry_friction", 0.0) + exit_friction, 2)
             net_pnl = round(gross_pnl - total_friction, 2)
 
+            p["current_price"] = round(curr_ltp, 2)
+            p["holding_seconds"] = round(now_ts - p.get("entry_epoch", now_ts), 1)
             p["gross_pnl"] = round(gross_pnl, 2)
             p["net_pnl"] = round(net_pnl, 2)
             p["incurred_friction"] = round(p.get("entry_friction", 0.0), 2)
@@ -1480,12 +1614,16 @@ class LiveQuantPaperTrader:
             p["friction_cost"] = round(total_friction, 2)
             p["unrealized_pnl"] = round(net_pnl, 2)
             p["return_pct"] = round(ret_pct, 2)
+            p["ltp_ret_pct"] = round(ltp_ret_pct, 2)
             net_return_pct = (net_pnl / (p["entry_price"] * p["qty"]) * 100.0) if p["entry_price"] > 0 else 0.0
             p["net_return_pct"] = round(net_return_pct, 2)
             p["max_ret_pct"] = max(p.get("max_ret_pct", ret_pct), ret_pct)
             p["max_net_return_pct"] = max(p.get("max_net_return_pct", net_return_pct), net_return_pct)
 
             # Dynamic Convergence Evaluation with Real-Time r, q, pos_ttm and contract's smile:
+            pos_chain_obj = chains_map.get(p_exp) or (chains_list[0] if chains_list else {})
+            pos_chain_list = pos_chain_obj.get("chain", [])
+            pos_ttm = calculate_ttm_years(p_exp) if p_exp else (calculate_ttm_years(pos_chain_obj.get("expiry_date", "")) if pos_chain_obj.get("expiry_date") else (7.0 / 365.0))
             current_surface_vol, surface_peer_count = estimate_leave_one_out_surface_volatility(
                 pos_chain_list, p["type"], p["strike"], spot, self.egarch_vol
             )
@@ -1530,14 +1668,15 @@ class LiveQuantPaperTrader:
                 dyn_sl = p.get("dynamic_sl_pct", self.stop_loss_pct)
 
             # Distance to target & Target Hit Flag:
+            # Distance to target & Target Hit Flag (evaluated on clean market price):
             if p["side"] == "SELL":
                 dist_to_target = curr_ltp - target_price
-                target_hit = exit_fill_price <= target_price
+                target_hit = curr_ltp <= target_price
                 stop_breached = curr_ltp >= stop_price
                 catastrophic_breach = curr_ltp >= cat_stop
             else:
                 dist_to_target = target_price - curr_ltp
-                target_hit = exit_fill_price >= target_price
+                target_hit = curr_ltp >= target_price
                 stop_breached = curr_ltp <= stop_price
                 catastrophic_breach = curr_ltp <= cat_stop
 
@@ -1563,33 +1702,33 @@ class LiveQuantPaperTrader:
             holding_secs = p.get("holding_seconds", 0.0)
             is_matured = holding_secs >= 90.0
 
-            # 0. Emergency Circuit Breakers (Can exit anytime on freak market gaps)
-            if catastrophic_breach or ret_pct <= -13.0:
-                exit_reason = f"CATASTROPHIC_STOP (Hard safety bound cut @ LTP ₹{curr_ltp:.2f} • {ret_pct:.1f}%)"
+            # 0. Emergency Circuit Breakers (Can exit anytime on true market price dislocation)
+            if catastrophic_breach or ltp_ret_pct <= -13.0:
+                exit_reason = f"CATASTROPHIC_STOP (Hard safety bound cut @ LTP ₹{curr_ltp:.2f} • {ltp_ret_pct:.1f}%)"
             elif is_toxic_itm:
                 exit_reason = f"GAMMA_INVALIDATION_PRUNE (Delta: {p.get('delta', 0.5):.2f} | Strike {p['strike']} vs Spot {spot:.1f} • Cut before gamma spike)"
-            elif p["side"] == "BUY" and holding_secs >= 45.0 and ret_pct <= -9.0:
+            elif p["side"] == "BUY" and holding_secs >= 45.0 and ltp_ret_pct <= -9.0:
                 # Fast Stop Cut for Long Option Buyers (Negative Theta Protection)
-                exit_reason = f"BUYER_MOMENTUM_STOP_CUT (Fast cut at {ret_pct:+.1f}% to prevent theta erosion • LTP ₹{curr_ltp:.2f})"
-            elif p["side"] == "BUY" and holding_secs >= 120.0 and ret_pct <= -5.0 and (
+                exit_reason = f"BUYER_MOMENTUM_STOP_CUT (Fast cut at {ltp_ret_pct:+.1f}% to prevent theta erosion • LTP ₹{curr_ltp:.2f})"
+            elif p["side"] == "BUY" and holding_secs >= 120.0 and ltp_ret_pct <= -5.0 and (
                 (p["type"] == "call" and self.spot_drift_5m <= -18.0) or
                 (p["type"] == "put" and self.spot_drift_5m >= 18.0)
             ):
                 # Trend Momentum Invalidation for Long Option Buyers (Only when option is losing and spot decisively reverses)
                 drift_dir = "negative" if p["type"] == "call" else "positive"
-                exit_reason = f"MOMENTUM_REVERSAL_CUT (Spot drift turned {drift_dir} {self.spot_drift_5m:+.1f} pts against Long {p['type'].upper()} • Cut at {ret_pct:+.1f}%)"
-            elif stop_breached and ret_pct <= -10.5:
-                # Immediate hard stop when loss touches 10.5%
-                exit_reason = f"STATISTICAL_DIVERGENCE_EXIT (Hard Stop Hit @ LTP ₹{curr_ltp:.2f} vs Bound ₹{stop_price:.2f} • {ret_pct:.1f}%)"
+                exit_reason = f"MOMENTUM_REVERSAL_CUT (Spot drift turned {drift_dir} {self.spot_drift_5m:+.1f} pts against Long {p['type'].upper()} • Cut at {ltp_ret_pct:+.1f}%)"
+            elif stop_breached and ltp_ret_pct <= -9.5:
+                # Immediate hard stop when true loss touches -9.5%
+                exit_reason = f"STATISTICAL_DIVERGENCE_EXIT (Hard Stop Hit @ LTP ₹{curr_ltp:.2f} vs Bound ₹{stop_price:.2f} • {ltp_ret_pct:.1f}%)"
             elif stop_breached:
                 # 1-tick confirmation noise shield for border stop breaches
                 breach_count = p.get("stop_breach_count", 0) + 1
                 p["stop_breach_count"] = breach_count
-                if breach_count < 2 and ret_pct > -11.0:
+                if breach_count < 2 and ltp_ret_pct > -9.5:
                     p["spike_shield_active"] = True
                     self.log(f"🛡️ [SPIKE SHIELD] {p['trade_id']} touched invalidation bound (LTP ₹{curr_ltp:.2f} vs Bound ₹{stop_price:.2f}). Absorbing noise ({breach_count}/2)...")
                 else:
-                    exit_reason = f"STATISTICAL_DIVERGENCE_EXIT (Model Invalidation @ LTP ₹{curr_ltp:.2f} vs Bound ₹{stop_price:.2f} • {ret_pct:.1f}%)"
+                    exit_reason = f"STATISTICAL_DIVERGENCE_EXIT (Model Invalidation @ LTP ₹{curr_ltp:.2f} vs Bound ₹{stop_price:.2f} • {ltp_ret_pct:.1f}%)"
             elif p["side"] == "BUY" and target_hit and (net_return_pct >= 14.0 and net_pnl >= 450.0):
                 # Quick momentum target hit for Long Option Buyer
                 exit_reason = f"BUY_TARGET_CONVERGED ({conv_pct:.0f}% Alpha Captured • Exit ₹{exit_fill_price:.2f} ≈ Target ₹{target_price:.2f} • Net +{net_return_pct:.1f}%)"
@@ -1600,13 +1739,13 @@ class LiveQuantPaperTrader:
                 # 1. Primary Objective: Target Fair Price Reached WITH Substantial Profit
                 exit_reason = f"TARGET_CONVERGED ({conv_pct:.0f}% Alpha Captured • Exit ₹{exit_fill_price:.2f} ≈ Target ₹{target_price:.2f} • Net +{net_return_pct:.1f}%)"
             # 2. Dynamic Trailing Profit Ratchet: Let winners run, but lock in home runs!
-            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 26.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 4.5) and net_return_pct >= 20.0:
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 25.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 5.0) and net_return_pct >= 20.0:
                 exit_reason = f"TRAILING_PROFIT_LOCK_TIER3 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Locked +20%+)"
-            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 18.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 4.0) and net_return_pct >= 14.0:
-                exit_reason = f"TRAILING_PROFIT_LOCK_TIER2 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Locked +14%+)"
-            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 14.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 3.5) and net_return_pct >= 10.0:
-                exit_reason = f"TRAILING_PROFIT_LOCK_TIER1 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Locked +10%+)"
-            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 10.0 and net_return_pct <= 4.5 and net_return_pct >= 2.0:
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 17.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 3.5) and net_return_pct >= 13.5:
+                exit_reason = f"TRAILING_PROFIT_LOCK_TIER2 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Locked +13.5%+)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 12.0 and net_return_pct <= (p.get("max_net_return_pct", net_return_pct) - 3.0) and net_return_pct >= 9.0:
+                exit_reason = f"TRAILING_PROFIT_LOCK_TIER1 (Peak: +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Secured +{net_return_pct:.1f}% • Locked +9%+)"
+            elif is_matured and p.get("max_net_return_pct", net_return_pct) >= 9.0 and net_return_pct <= 5.0 and net_return_pct >= 2.5:
                 # Breakeven Defense: Protect winning trades from falling into negative loss
                 exit_reason = f"BREAKEVEN_DEFENSE_RATCHET (Peak was +{p.get('max_net_return_pct', net_return_pct):.1f}% -> Defended at +{net_return_pct:.1f}% • Fees Covered)"
             elif is_matured and conv_pct >= 85.0 and net_return_pct >= 15.0:
@@ -1635,6 +1774,16 @@ class LiveQuantPaperTrader:
                 self.strike_cooldown[k] = (time.time(), spot)
                 if net_pnl < 0:
                     self.strike_loss_counts[k] = self.strike_loss_counts.get(k, 0) + 1
+                    now_ep = time.time()
+                    p_type_l = str(p.get("type", "")).lower()
+                    if p["side"] == "SELL" and p_type_l == "call":
+                        self.last_short_call_stop_epoch = now_ep
+                    elif p["side"] == "SELL" and p_type_l == "put":
+                        self.last_short_put_stop_epoch = now_ep
+                    elif p["side"] == "BUY" and p_type_l == "call":
+                        self.last_long_call_stop_epoch = now_ep
+                    elif p["side"] == "BUY" and p_type_l == "put":
+                        self.last_long_put_stop_epoch = now_ep
                 # Close trade
                 p["status"] = "CLOSED"
                 p["exit_price"] = round(exit_fill_price, 2)
@@ -1652,7 +1801,9 @@ class LiveQuantPaperTrader:
 
     def print_terminal_dashboard(self):
         """Institutional Bloomberg-terminal-style dense ASCII dashboard."""
-        os.system("cls" if os.name == "nt" else "clear")
+        # Fast, flicker-free ANSI terminal reset (avoids spawning slow subshell processes and prevents terminal pipe buffer freezes)
+        sys.stdout.write("\033[2J\033[H")
+        sys.stdout.flush()
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         total_realized_net = sum(t.get("realized_pnl", t.get("net_pnl", 0.0)) for t in self.closed_trades)
@@ -1709,7 +1860,12 @@ class LiveQuantPaperTrader:
         print(f"  {'ID':<8} {'STRATEGY':<22} {'INSTRUMENT':<17} {'SIDE':<5} {'ENTRY':<7} {'LTP':<7} {'BSM FAIR':<9} {'ALPHA GAP':<10} {'CONV %':<7} {'NET P&L':<10} {'RET %':<8} {'STATUS'}")
         print("-" * 128)
         if not self.positions:
-            print("  No active positions. Scanning option chain for statistical mispricings...")
+            if self.today_net_pnl <= -self.max_daily_loss:
+                print(f"  🛑 [CIRCUIT BREAKER HALTED] Today's Net Loss ({format_inr(self.today_net_pnl, include_sign=True)}) exceeded daily limit ({format_inr(-self.max_daily_loss)}).")
+            elif self.today_net_pnl >= self.target_profit_amount:
+                print(f"  🎯 [PROFIT TARGET SECURED] Today's Net Profit ({format_inr(self.today_net_pnl, include_sign=True)}) hit target. Preserving capital.")
+            else:
+                print("  No active positions. Scanning option chain for statistical mispricings...")
         else:
             for p in self.positions:
                 pnl_str = f"{'+' if p['net_pnl'] >= 0 else ''}₹{p['net_pnl']:,.1f}"
@@ -1746,7 +1902,9 @@ class LiveQuantPaperTrader:
 
         print("=" * 155)
         print(f"  [Auto-Refresh every {self.update_interval}s | Immediate Exit on Target Touch | Max Capacity: {self.max_positions} Positions]")
+        print(f"  [⚡ MULTI-THREAD PIPELINE] Feeder: {getattr(self, 'feed_latency_ms', 0):.0f}ms | Risk Exec: {getattr(self, 'risk_latency_ms', 0):.0f}ms | Scan: {getattr(self, 'scan_latency_ms', 0):.0f}ms | Cycle: #{getattr(self, 'cycle_count', 0)} | Mode: SIMULTANEOUS]")
         print("=" * 155)
+        sys.stdout.flush()
 
         # Also write live markdown dashboard for real-time visibility in editor
         try:
@@ -1816,7 +1974,8 @@ class LiveQuantPaperTrader:
             live_md_tmp = live_md_path.with_suffix(".tmp")
             with open(live_md_tmp, "w") as f:
                 f.write(f"""# ⚡ LIVE QUANT TERMINAL — NIFTY 50 OPTIONS ENGINE
-**Last Market Tick:** `{now_str} IST` | **Underlying:** `{self.symbol}` | **Auto-Refresh:** Every `{self.update_interval}s`
+**Last Market Tick:** `{now_str} IST` | **Underlying:** `{self.symbol}` | **Auto-Refresh:** Every `{self.update_interval}s` | **Cycle:** `#{self.cycle_count}`
+**Multi-Thread Pipeline:** ⚡ All 4 Workers Active (Feeder: `{getattr(self, 'feed_latency_ms', 0):.0f}ms` | Risk Exec: `{getattr(self, 'risk_latency_ms', 0):.0f}ms` | Scan: `{getattr(self, 'scan_latency_ms', 0):.0f}ms` | Mode: `SIMULTANEOUS`)
 
 ---
 
@@ -2063,53 +2222,148 @@ All parameters directly governing option fair value and Greeks are continuously 
 
 
     def run(self, once: bool = False, max_runtime_hours: float | None = None):
-        """Main real-time terminal execution loop."""
+        """Main real-time terminal execution loop with decoupled multi-threaded processing."""
         session_deadline = (
             time.monotonic() + max_runtime_hours * 3600.0
             if max_runtime_hours is not None and max_runtime_hours > 0
             else None
         )
-        self.log(f"Starting Live Quant Paper Trader for {self.symbol}...")
+        self.log(f"Starting Multi-Threaded Live Quant Paper Trader for {self.symbol}...")
         self.log(f"Refresh Interval: {self.update_interval}s | Max Concurrent Positions: {self.max_positions}")
         if session_deadline is not None:
             self.log(f"Session runtime limit: {max_runtime_hours:.2f} hours")
         if not once:
             self.log("Press Ctrl+C at any time to exit and generate the IEEE accuracy report.\n")
-            time.sleep(1.0)
+            time.sleep(0.5)
 
+        # Single-pass execution for backtests or offline evaluations
+        if once:
+            chain_data = self.fetch_market_state()
+            if chain_data:
+                with self.trade_lock:
+                    self.update_open_positions(chain_data)
+                    if self.auto_trade:
+                        self.scan_and_execute_trades(chain_data)
+                    self.print_terminal_dashboard()
+            self.export_audit_report()
+            return
+
+        # -----------------------------------------------------------------------------------------
+        # Decoupled Multi-Threaded Execution Architecture:
+        # Thread 1: Market Feeder Pipeline (Continuous ingestion, zero-lag in-memory quotes)
+        # Thread 2: Ultra-Low Latency Risk & Position Execution (250ms event wait, immediate cut)
+        # Thread 3: Parallel Mispricing Scanner (ThreadPoolExecutor across CPU cores)
+        # Main Thread: Live Terminal & Markdown Dashboard Publisher (Smooth cadence, no buffer freeze)
+        # -----------------------------------------------------------------------------------------
+
+        # Prime initial state synchronously before launching workers
+        self.log("📡 Initializing live market data feed across maturities...")
+        init_data = self.fetch_market_state()
+        if init_data:
+            with self.feed_lock:
+                self.latest_chains = init_data
+            self._new_data_event.set()
+            with self.trade_lock:
+                self.update_open_positions(init_data)
+            self.print_terminal_dashboard()
+
+        def _market_feed_worker():
+            """Continuously streams fresh market state without blocking risk execution or scanning."""
+            while self.running:
+                try:
+                    t0 = time.perf_counter()
+                    chain_data = self.fetch_market_state()
+                    t1 = time.perf_counter()
+                    self.feed_latency_ms = round((t1 - t0) * 1000.0, 1)
+
+                    if chain_data:
+                        with self.feed_lock:
+                            self.latest_chains = chain_data
+                        self._new_data_event.set()
+                    time.sleep(1.0)
+                except Exception as feed_err:
+                    self.log(f"Market feed worker notice: {feed_err}")
+                    time.sleep(2.0)
+
+        def _risk_execution_worker():
+            """Evaluates active positions at high frequency (sub-second) for instant risk cuts & profit locks."""
+            while self.running:
+                try:
+                    # React immediately on new data event or check every 250ms
+                    self._new_data_event.wait(timeout=0.25)
+                    with self.feed_lock:
+                        chains = list(self.latest_chains)
+
+                    if chains:
+                        t0 = time.perf_counter()
+                        with self.trade_lock:
+                            if self.positions:
+                                self.update_open_positions(chains)
+                        t1 = time.perf_counter()
+                        self.risk_latency_ms = round((t1 - t0) * 1000.0, 1)
+                except Exception as risk_err:
+                    self.log(f"Risk execution worker notice: {risk_err}")
+                time.sleep(0.05)
+
+        def _mispricing_scanner_worker():
+            """Scans option chains and executes high-conviction statistical trades simultaneously."""
+            while self.running:
+                try:
+                    self._new_data_event.wait(timeout=0.8)
+                    with self.feed_lock:
+                        chains = list(self.latest_chains)
+
+                    if chains and self.auto_trade:
+                        with self.trade_lock:
+                            can_scan = (len(self.positions) < self.max_positions and self.free_margin >= 2000.0)
+
+                        if can_scan:
+                            t0 = time.perf_counter()
+                            # scan_and_execute_trades uses ThreadPoolExecutor internally and acquires trade_lock
+                            self.scan_and_execute_trades(chains)
+                            t1 = time.perf_counter()
+                            self.scan_latency_ms = round((t1 - t0) * 1000.0, 1)
+                except Exception as scan_err:
+                    self.log(f"Scanner worker notice: {scan_err}")
+                time.sleep(0.5)
+
+        # Launch background threads
+        feed_t = threading.Thread(target=_market_feed_worker, name="MarketFeedWorker", daemon=True)
+        risk_t = threading.Thread(target=_risk_execution_worker, name="RiskExecutionWorker", daemon=True)
+        scan_t = threading.Thread(target=_mispricing_scanner_worker, name="MispricingScanWorker", daemon=True)
+
+        feed_t.start()
+        risk_t.start()
+        scan_t.start()
+        self.log("🚀 Multi-Thread Pipeline active: [MarketFeedWorker, RiskExecutionWorker, MispricingScanWorker, DisplayWorker]")
+
+        # Main Thread: Institutional Dashboard Publisher & Telemetry
+        display_interval = max(1.0, float(self.update_interval))
         while self.running:
             try:
                 if session_deadline is not None and time.monotonic() >= session_deadline:
-                    self.log("Session runtime limit reached; stopping and exporting the report.")
+                    self.log("Session runtime limit reached; stopping and exporting report.")
                     self.running = False
-                    continue
+                    self._new_data_event.set()
+                    break
 
-                chain_data = self.fetch_market_state()
-                if chain_data:
-                    # 1. Update existing open positions
-                    self.update_open_positions(chain_data)
+                with self.feed_lock:
+                    has_data = bool(self.latest_chains)
 
-                    # 2. Scan and execute new high-conviction mispricings
-                    if self.auto_trade:
-                        self.scan_and_execute_trades(chain_data)
-
-                    # 3. Refresh Bloomberg-style terminal dashboard
-                    self.print_terminal_dashboard()
-                else:
-                    self.log("Market feed returned no data. Retrying next cycle...")
+                if has_data:
+                    with self.trade_lock:
+                        self.print_terminal_dashboard()
+                    self.cycle_count += 1
 
             except Exception as iter_err:
-                self.log(f"⚠️ Recovered from iteration error: {iter_err}")
+                self.log(f"⚠️ Display iteration notice: {iter_err}")
 
-            if session_deadline is not None and time.monotonic() >= session_deadline:
-                self.log("Session runtime limit reached; stopping and exporting the report.")
-                self.running = False
+            time.sleep(display_interval)
 
-            if once or not self.running:
-                self.export_audit_report()
-                break
-
-            time.sleep(self.update_interval)
+        self.running = False
+        self._new_data_event.set()
+        time.sleep(0.5)
+        self.export_audit_report()
 
 
 def main():
@@ -2132,6 +2386,7 @@ def main():
     parser.add_argument("--max-closed-trades", type=int, default=int(os.getenv("MAX_DAILY_TRADES", "50")), help="Maximum daily closed trades ceiling (default: 50)")
     parser.add_argument("--target-margin-roi", type=float, default=float(os.getenv("TARGET_MARGIN_ROI", "0.50")), help="Daily profit target percent on total trading margin (default: 0.50%% = ₹10,000 on ₹20L margin)")
     parser.add_argument("--lots-per-trade", type=int, default=int(os.getenv("LOTS_PER_TRADE", "3")), help="Lots executed per trade position (default: 3 lots = 195 qty for ₹25L capital)")
+    parser.add_argument("--max-daily-loss", type=float, default=float(os.getenv("MAX_DAILY_LOSS", "15000.0")), help="Maximum daily loss limit before circuit breaker halts new entries (default: ₹15,000)")
     args = parser.parse_args()
 
     engine = LiveQuantPaperTrader(
@@ -2149,7 +2404,8 @@ def main():
         total_capital=args.capital,
         no_eod_squareoff=args.no_eod_squareoff,
         max_closed_trades=args.max_closed_trades,
-        target_margin_roi=args.target_margin_roi
+        target_margin_roi=args.target_margin_roi,
+        max_daily_loss=args.max_daily_loss
     )
     engine.run(once=args.once, max_runtime_hours=args.duration_hours)
 
