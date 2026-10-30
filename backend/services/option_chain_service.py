@@ -353,6 +353,26 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
             c_iv = c_recomputed_iv if c_recomputed_iv is not None and 0.05 <= c_recomputed_iv <= 1.50 else c_published_iv
             p_iv = p_recomputed_iv if p_recomputed_iv is not None and 0.05 <= p_recomputed_iv <= 1.50 else p_published_iv
 
+            # Model volatility benchmark for mispricing evaluation
+            model_vol = 0.135
+
+            # Theoretical BSM fair prices
+            c_fair = black_scholes_price(spot, st, ttm, r, max(0.01, model_vol), "call")
+            p_fair = black_scholes_price(spot, st, ttm, r, max(0.01, model_vol), "put")
+
+            # Mispricing deviations and VRP
+            c_dev_pct = round(((c_ltp - c_fair) / max(0.5, c_fair)) * 100.0, 2) if c_ltp > 0 else 0.0
+            p_dev_pct = round(((p_ltp - p_fair) / max(0.5, p_fair)) * 100.0, 2) if p_ltp > 0 else 0.0
+            c_vrp = round((c_iv - model_vol) * 100.0, 2)
+            p_vrp = round((p_iv - model_vol) * 100.0, 2)
+
+            # Normalized M-scores
+            c_mscore = round(0.50 * (c_dev_pct / 5.0) + 0.30 * (c_vrp / 2.0) + 0.10, 2)
+            p_mscore = round(0.50 * (p_dev_pct / 5.0) + 0.30 * (p_vrp / 2.0) + 0.10, 2)
+
+            c_sig = "overpriced" if c_mscore >= 1.2 else ("underpriced" if c_mscore <= -1.2 else "fair")
+            p_sig = "overpriced" if p_mscore >= 1.2 else ("underpriced" if p_mscore <= -1.2 else "fair")
+
             # Compute Greeks with dynamic TTM
             c_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, c_iv), "call")
             p_greeks = calculate_greeks(spot, st, ttm, r, max(0.01, p_iv), "put")
@@ -361,6 +381,16 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
                 "strike": st,
                 "call": {
                     "ltp": c_ltp,
+                    "fairPrice": round(c_fair, 2),
+                    "fair_price": round(c_fair, 2),
+                    "mispricingPct": c_dev_pct,
+                    "mispricing_pct": c_dev_pct,
+                    "mScore": c_mscore,
+                    "m_score": c_mscore,
+                    "signal": c_sig,
+                    "modelVol": round(model_vol * 100.0, 2),
+                    "model_vol": round(model_vol * 100.0, 2),
+                    "vrp": c_vrp,
                     "iv": c_iv,
                     "published_iv": c_published_iv,
                     "oi": c_oi,
@@ -374,6 +404,16 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
                 },
                 "put": {
                     "ltp": p_ltp,
+                    "fairPrice": round(p_fair, 2),
+                    "fair_price": round(p_fair, 2),
+                    "mispricingPct": p_dev_pct,
+                    "mispricing_pct": p_dev_pct,
+                    "mScore": p_mscore,
+                    "m_score": p_mscore,
+                    "signal": p_sig,
+                    "modelVol": round(model_vol * 100.0, 2),
+                    "model_vol": round(model_vol * 100.0, 2),
+                    "vrp": p_vrp,
                     "iv": p_iv,
                     "published_iv": p_published_iv,
                     "oi": p_oi,
@@ -402,7 +442,9 @@ def _fetch_chain_from_pnsea(symbol: str = "NIFTY", expiry_date: str | None = Non
         logger.info(f"✅ Fetched {len(chain_list)} live strikes directly from NSE (pnsea) | Spot: ₹{spot:.2f}")
         return {
             "spot_price": spot,
+            "spotPrice": spot,
             "atm_strike": atm_st,
+            "atmStrike": atm_st,
             "expiry_date": selected_exp,
             "available_expiries": sorted_expiries,
             "pcr": 1.0,

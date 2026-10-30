@@ -23,9 +23,10 @@ export const BacktestingWorkspace: React.FC = () => {
   const runExperiment = async () => {
     setLoading(true);
     try {
-      const res = await apiService.getBacktest(symbol, selectedTf);
-      if (res.success && res.data) {
-        setResult(res.data);
+      const res: any = await apiService.getBacktest(symbol, selectedTf);
+      const bData = res?.data || (res?.sharpe_ratio !== undefined ? res : null);
+      if (bData) {
+        setResult(bData.data || bData);
       }
     } finally {
       setLoading(false);

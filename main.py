@@ -2189,27 +2189,33 @@ async def websocket_market_endpoint(websocket: WebSocket):
     current_spot = base_spot
     tick_count = 0
 
-    # Determine if live market hours: Mon-Fri 09:15 - 15:30 IST (03:45 - 10:00 UTC)
-    now_utc = datetime.now(timezone.utc)
-    is_weekday = now_utc.weekday() < 5
-    utc_minutes = now_utc.hour * 60 + now_utc.minute
-    is_market_hours = is_weekday and (225 <= utc_minutes <= 600)  # 03:45 to 10:00 UTC
-    feed_mode = "NSE_LIVE" if is_market_hours else "SIMULATION_REPLAY"
-
     try:
         while True:
-            # Live micro-movement simulation when market is closed or active tick stream
-            tick_drift = round(random.uniform(-1.25, 1.25), 2)
-            current_spot = round(current_spot + tick_drift, 2)
-            if abs(current_spot - base_spot) > base_spot * 0.005:
-                current_spot = base_spot
+            # Recompute live market status on every tick cycle (09:15 - 15:30 IST / 03:45 - 10:00 UTC)
+            now_utc = datetime.now(timezone.utc)
+            is_weekday = now_utc.weekday() < 5
+            utc_minutes = now_utc.hour * 60 + now_utc.minute
+            is_market_hours = is_weekday and (225 <= utc_minutes <= 600)
+            feed_mode = "NSE_LIVE" if is_market_hours else "SIMULATION_REPLAY"
+
+            # Sync real spot from exchange periodically
+            if tick_count % 5 == 0:
+                try:
+                    live_p = get_spot_price("NIFTY")
+                    if live_p and live_p > 0:
+                        base_spot = live_p
+                except Exception:
+                    pass
+
+            tick_drift = round(random.uniform(-0.5, 0.5), 2)
+            current_spot = round(base_spot + tick_drift, 2)
             
             atm_strike = round(current_spot / 50) * 50
             now_iso = datetime.now(timezone.utc).isoformat()
             tick_count += 1
 
-            atm_call_ltp = round(max(5.0, 303.0 + (current_spot - base_spot) * 0.52 + random.uniform(-0.3, 0.3)), 2)
-            atm_put_ltp = round(max(5.0, 225.3 - (current_spot - base_spot) * 0.48 + random.uniform(-0.3, 0.3)), 2)
+            atm_call_ltp = round(max(5.0, 145.0 + (current_spot - base_spot) * 0.52 + random.uniform(-0.2, 0.2)), 2)
+            atm_put_ltp = round(max(5.0, 155.0 - (current_spot - base_spot) * 0.48 + random.uniform(-0.2, 0.2)), 2)
 
             payload = {
                 "type": "TICK",

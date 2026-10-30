@@ -37,11 +37,15 @@ export const VolatilityLabWorkspace: React.FC = () => {
         apiService.getNews(),
       ]);
 
-      if (surfRes.status === 'fulfilled' && surfRes.value?.success && surfRes.value.data) {
-        setSurfaceData(surfRes.value.data);
+      if (surfRes.status === 'fulfilled') {
+        const sVal: any = surfRes.value;
+        const sData = sVal?.data || (sVal?.surface_matrix ? sVal : null);
+        if (sData) setSurfaceData(sData.data || sData);
       }
-      if (newsRes.status === 'fulfilled' && newsRes.value?.success && newsRes.value.data?.news) {
-        setNewsData(newsRes.value.data.news);
+      if (newsRes.status === 'fulfilled') {
+        const nVal: any = newsRes.value;
+        const nData = nVal?.data || (nVal?.news ? nVal : null);
+        if (nData?.news) setNewsData(nData.news);
       }
     } finally {
       setLoading(false);
@@ -50,6 +54,8 @@ export const VolatilityLabWorkspace: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, [store.selectedInstrument]);
 
   // Render 3D Canvas or 2D Smiles

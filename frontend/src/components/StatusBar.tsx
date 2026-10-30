@@ -19,12 +19,12 @@ export const StatusBar: React.FC = () => {
         </div>
         <div className="status-item">
           <span className="lbl text-muted">DATABASE:</span>{' '}
-          <strong className="text-amber">● SQLITE WAL (903 Trades)</strong>
+          <strong className="text-amber">● SQLITE WAL (Active Ledger)</strong>
         </div>
         <div className="status-item">
           <span className="lbl text-muted">FEED:</span>{' '}
-          <strong className={store.marketData.isSimulated ? 'text-amber' : 'text-bull'}>
-            ● {store.marketData.feedMode}
+          <strong className={store.marketData.feedMode === 'NSE_LIVE' ? 'text-bull' : 'text-amber'}>
+            ● {store.marketData.feedMode || 'NSE_LIVE'}
           </strong>
         </div>
         <div className="status-item">

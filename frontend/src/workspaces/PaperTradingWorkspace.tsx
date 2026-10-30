@@ -37,14 +37,17 @@ export const PaperTradingWorkspace: React.FC = () => {
   }, [store.pendingOrder]);
 
   const loadTrades = async () => {
-    const res = await apiService.getTrades();
-    if (res.success && res.data) {
-      setTradesData(res.data);
+    const res: any = await apiService.getTrades();
+    const tData = res?.data || (res?.summary ? res : null);
+    if (tData) {
+      setTradesData(tData.data || tData);
     }
   };
 
   useEffect(() => {
     loadTrades();
+    const interval = setInterval(loadTrades, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const sum = tradesData?.summary || {

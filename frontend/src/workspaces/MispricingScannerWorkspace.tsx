@@ -26,34 +26,38 @@ export const MispricingScannerWorkspace: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await apiService.getOptionChain(store.selectedInstrument, store.selectedExpiry, 30);
-      if (res.success && res.data?.chain) {
+      const res: any = await apiService.getOptionChain(store.selectedInstrument, store.selectedExpiry, 30);
+      const chainData = res?.data?.chain ? res.data : (res?.chain ? res : null);
+      if (chainData?.chain) {
         const list: any[] = [];
-        res.data.chain.forEach((row: any) => {
+        chainData.chain.forEach((row: any) => {
           (['call', 'put'] as const).forEach((t) => {
             const c = row[t];
             if (c) {
+              const fair = c.fairPrice || c.fair_price || c.ltp;
+              const dev = c.mispricingPct !== undefined ? c.mispricingPct : (c.mispricing_pct !== undefined ? c.mispricing_pct : (c.ltp - fair));
+              const mScore = c.mScore !== undefined ? c.mScore : (c.m_score !== undefined ? c.m_score : 0.0);
               list.push({
                 strike: row.strike,
                 type: t,
                 instrument: `NIFTY ${row.strike} ${t.toUpperCase()}`,
                 expiry: store.selectedExpiry,
                 ltp: c.ltp,
-                fairPrice: c.fairPrice,
-                deviation: c.mispricingPct,
+                fairPrice: fair,
+                deviation: dev,
                 iv: c.iv,
-                modelVol: c.modelVol,
+                modelVol: c.modelVol || c.model_vol,
                 vrp: c.vrp,
-                mScore: c.mScore,
-                zScore: c.zScore,
+                mScore: mScore,
+                zScore: c.zScore || mScore,
                 oi: c.oi,
                 volume: c.volume,
                 spread: c.spread || 0.5,
                 liquidityClass: c.liquidityClass || 'HIGH',
                 liquidityScore: c.liquidityScore || 82,
-                signal: c.signal,
-                absMScore: Math.abs(c.mScore || 0),
-                absDev: Math.abs(c.mispricingPct || 0),
+                signal: c.signal || (mScore >= 1.2 ? 'overpriced' : (mScore <= -1.2 ? 'underpriced' : 'fair')),
+                absMScore: Math.abs(mScore),
+                absDev: Math.abs(dev),
               });
             }
           });
@@ -67,6 +71,8 @@ export const MispricingScannerWorkspace: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 4000);
+    return () => clearInterval(interval);
   }, [store.selectedInstrument, store.selectedExpiry]);
 
   // Filter & Sort

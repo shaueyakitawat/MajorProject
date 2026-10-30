@@ -48,33 +48,39 @@ export const OverviewWorkspace: React.FC = () => {
         });
       }
 
-      if (tradeRes.status === 'fulfilled' && tradeRes.value?.success && tradeRes.value.data) {
-        setTradesData(tradeRes.value.data);
+      if (tradeRes.status === 'fulfilled') {
+        const tVal = tradeRes.value as any;
+        const tData = tVal?.data || (tVal?.summary ? tVal : null);
+        if (tData) setTradesData(tData.data || tData);
       }
 
-      if (chainRes.status === 'fulfilled' && chainRes.value?.success && chainRes.value.data?.chain) {
-        const contracts: any[] = [];
-        chainRes.value.data.chain.forEach((row: any) => {
-          ['call', 'put'].forEach((type) => {
-            const leg = row[type];
-            if (leg && leg.ltp > 0) {
-              contracts.push({
-                strike: row.strike,
-                type,
-                ltp: leg.ltp,
-                fair: leg.fairPrice,
-                dev: leg.mispricingPct,
-                mScore: leg.mScore,
-                iv: leg.iv,
-                modelVol: leg.modelVol,
-                signal: leg.signal,
-                absMScore: Math.abs(leg.mScore || 0)
-              });
-            }
+      if (chainRes.status === 'fulfilled') {
+        const cVal = chainRes.value as any;
+        const cData = cVal?.data?.chain ? cVal.data : (cVal?.chain ? cVal : null);
+        if (cData?.chain) {
+          const contracts: any[] = [];
+          cData.chain.forEach((row: any) => {
+            ['call', 'put'].forEach((type) => {
+              const leg = row[type];
+              if (leg && leg.ltp > 0) {
+                contracts.push({
+                  strike: row.strike,
+                  type,
+                  ltp: leg.ltp,
+                  fair: leg.fairPrice || leg.fair_price || leg.ltp,
+                  dev: leg.mispricingPct !== undefined ? leg.mispricingPct : leg.mispricing_pct,
+                  mScore: leg.mScore !== undefined ? leg.mScore : leg.m_score,
+                  iv: leg.iv,
+                  modelVol: leg.modelVol || leg.model_vol,
+                  signal: leg.signal || 'fair',
+                  absMScore: Math.abs(leg.mScore || leg.m_score || 0)
+                });
+              }
+            });
           });
-        });
-        contracts.sort((a, b) => b.absMScore - a.absMScore);
-        setTopOpportunities(contracts.slice(0, 5));
+          contracts.sort((a, b) => b.absMScore - a.absMScore);
+          setTopOpportunities(contracts.slice(0, 5));
+        }
       }
     } finally {
       setLoading(false);
@@ -83,6 +89,8 @@ export const OverviewWorkspace: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 4000);
+    return () => clearInterval(interval);
   }, [store.selectedTimeframe, store.selectedExpiry]);
 
   useEffect(() => {

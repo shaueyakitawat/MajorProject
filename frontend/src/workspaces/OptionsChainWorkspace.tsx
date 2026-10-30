@@ -23,11 +23,14 @@ export const OptionsChainWorkspace: React.FC = () => {
   const loadChain = async () => {
     setLoading(true);
     try {
-      const res = await apiService.getOptionChain(store.selectedInstrument, store.selectedExpiry, depth);
-      if (res.success && res.data?.chain) {
-        setChain(res.data.chain);
-        if (res.data.spotPrice) store.updateMarketData({ spot: res.data.spotPrice });
-        if (res.data.atmStrike) store.updateMarketData({ atmStrike: res.data.atmStrike });
+      const res: any = await apiService.getOptionChain(store.selectedInstrument, store.selectedExpiry, depth);
+      const chainData = res?.data?.chain ? res.data : (res?.chain ? res : null);
+      if (chainData?.chain) {
+        setChain(chainData.chain);
+        const sp = chainData.spotPrice || chainData.spot_price;
+        const atm = chainData.atmStrike || chainData.atm_strike;
+        if (sp) store.updateMarketData({ spot: sp });
+        if (atm) store.updateMarketData({ atmStrike: atm });
       }
     } finally {
       setLoading(false);
@@ -36,6 +39,8 @@ export const OptionsChainWorkspace: React.FC = () => {
 
   useEffect(() => {
     loadChain();
+    const interval = setInterval(loadChain, 4000);
+    return () => clearInterval(interval);
   }, [store.selectedInstrument, store.selectedExpiry, depth]);
 
   const atmStrike = store.marketData.atmStrike || 22950;

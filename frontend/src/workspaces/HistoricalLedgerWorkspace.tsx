@@ -25,14 +25,17 @@ export const HistoricalLedgerWorkspace: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const loadData = async () => {
-    const res = await apiService.getTrades(selectedDate || null);
-    if (res.success && res.data) {
-      setLedgerData(res.data);
+    const res: any = await apiService.getTrades(selectedDate || null);
+    const lData = res?.data || (res?.summary ? res : null);
+    if (lData) {
+      setLedgerData(lData.data || lData);
     }
   };
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
   }, [selectedDate]);
 
   const sum = ledgerData?.summary || {

@@ -58,7 +58,8 @@ class ApiClient {
 
   // Market OHLCV Candles
   async getNiftyCandles(symbol: string = 'NIFTY', timeframe: string = '1d') {
-    return this.request<any>(`/nifty?symbol=${symbol}&timeframe=${timeframe}`);
+    const tf = timeframe === '1d' ? 'daily' : timeframe;
+    return this.request<any>(`/nifty?symbol=${symbol}&timeframe=${tf}`);
   }
 
   // Option Chain
