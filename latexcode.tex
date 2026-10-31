@@ -86,7 +86,7 @@
 
 % *** CITATION PACKAGES ***
 %
-%\usepackage{cite}
+\usepackage{cite}
 % cite.sty was written by Donald Arseneau
 % V1.6 and later of IEEEtran pre-defines the format of the cite.sty package
 % \cite{} output to follow that of the IEEE. Loading the cite package will
@@ -153,7 +153,8 @@
 
 % *** MATH PACKAGES ***
 %
-%\usepackage{amsmath}
+\usepackage{amsmath}
+\usepackage{amssymb}
 % A popular package from the American Mathematical Society that provides
 % many useful and powerful commands for dealing with mathematics.
 %
@@ -191,7 +192,9 @@
 
 % *** ALIGNMENT PACKAGES ***
 %
-%\usepackage{array}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
 % Frank Mittelbach's and David Carlisle's array.sty patches and improves
 % the standard LaTeX2e array and tabular environments to provide better
 % appearance and additional user controls. As the default LaTeX2e table
@@ -323,6 +326,7 @@
 
 
 \usepackage{float}
+\usepackage{hyperref}
 
 
 % *** PDF, URL AND HYPERLINK PACKAGES ***
@@ -644,7 +648,7 @@ Recent literature emphasizes composite scoring systems over simple theoretical p
 
 This paper proposes a quantitative framework for detecting model-implied pricing deviations in the NIFTY~50 derivatives market by integrating econometric volatility forecasting, market regime identification, volatility risk premium estimation, theoretical option pricing, and quantitative signal generation. Unlike conventional approaches that rely directly on contemporaneous implied volatility, the proposed framework estimates future volatility from historical market data and uses only temporally lagged implied volatility when learning the VRP. It therefore substantially reduces the circular dependency associated with implied-volatility-based pricing by ensuring that no contract's own contemporaneous implied volatility is used in computing its theoretical fair value, while still permitting lagged historical IV to inform regime-conditional risk premium estimation.
 
-The complete workflow of the proposed system is illustrated in Fig.~\ref{fig:methodology}. The framework consists of six sequential stages: (i) market data acquisition, (ii) volatility estimation using EGARCH, (iii) market regime identification using a Hidden Markov Model (HMM), (iv) volatility adjustment through Volatility Risk Premium (VRP) estimation, (v) theoretical option valuation using the Black--Scholes model, and (vi) model-implied pricing deviation detection and trading signal generation.
+The complete workflow of the proposed system is illustrated in Fig.~\ref{fig:data_flow}. The framework consists of six sequential stages: (i) market data acquisition, (ii) volatility estimation using EGARCH, (iii) market regime identification using a Hidden Markov Model (HMM), (iv) volatility adjustment through Volatility Risk Premium (VRP) estimation, (v) theoretical option valuation using the Black--Scholes model, and (vi) model-implied pricing deviation detection and trading signal generation.
 
 \subsection{Market Data Acquisition}
 
@@ -763,13 +767,13 @@ To bridge the gap between academic modeling and real-world deployment, the syste
 
 Furthermore, the entire application is containerized using Docker, allowing for rapid deployment and elastic scaling across distributed clusters. Integrated CI/CD pipelines automate environment provisioning and continuous testing, ensuring that updates to the econometric models—like the multi-timeframe EGARCH estimator and HMM state matrices—can be deployed directly to the live trading server without imposing downtime. Analytical computations heavily leverage vectorized operations in NumPy and Pandas, enabling the system to evaluate extensive option chains and generate Composite M-Scores within sub-50ms latency profiles perfectly tailored for institutional-grade quantitative environments.
 
-\begin{figure}[!ht]
+\begin{figure*}[!t]
 \centering
 \framebox[\textwidth]{\rule{0pt}{200pt} Placeholder for Figure}
 % TODO: insert actual figure file
 \caption{Algorithmic data-flow mapping the progression of OHLCV tick data through the multi-timeframe EGARCH estimator, into the HMM Regime filter, generating adjusted inputs for the Black-Scholes pricing core and resulting in the Composite M-Score.}
 \label{fig:data_flow}
-\end{figure}
+\end{figure*}
 
 \section{Mathematical Formulation}
 
@@ -838,15 +842,15 @@ For a window containing $n$ observations,
 
 \begin{equation}
 RV
-Throughout this paper, a model--market price gap is termed a model-implied pricing deviation; economic mispricing is reserved for deviations that satisfy the validation hierarchy in Section~V-M.
-
+% Throughout this paper, a model--market price gap is termed a model-implied pricing deviation; economic mispricing is reserved for deviations that satisfy the validation hierarchy in Section~V-M.
 =
 \sqrt{
-Consequently, implied-volatility-based pricing cannot serve as an independent benchmark for detecting statistically significant model-implied pricing deviations.
-r_i^2
-The difference between the theoretical fair value and the observed market price is used to identify potential model-implied pricing deviations. Instead of relying solely on raw pricing differences, the proposed system integrates option Greeks, volatility regime information, and a normalized deviation score to provide more robust and interpretable trading signals. The entire framework is implemented as a modular FastAPI-based system capable of ingesting live market data, performing volatility forecasting, pricing option contracts, detecting model-implied deviations, and recommending suitable options strategies.
+% Consequently, implied-volatility-based pricing cannot serve as an independent benchmark for detecting statistically significant model-implied pricing deviations.
+\sum r_i^2
+}
+% The difference between the theoretical fair value and the observed market price is used to identify potential model-implied pricing deviations. Instead of relying solely on raw pricing differences, the proposed system integrates option Greeks, volatility regime information, and a normalized deviation score to provide more robust and interpretable trading signals. The entire framework is implemented as a modular FastAPI-based system capable of ingesting live market data, performing volatility forecasting, pricing option contracts, detecting model-implied deviations, and recommending suitable options strategies.
 \end{equation}
-    \item Design of a composite model-implied pricing deviation methodology derived from a formal hypothesis-testing framework, in which each contract's standardized pricing residual uses regime- and liquidity-dependent uncertainty estimation and is accompanied by an explicit confidence adjustment.
+% \item Design of a composite model-implied pricing deviation methodology derived from a formal hypothesis-testing framework, in which each contract's standardized pricing residual uses regime- and liquidity-dependent uncertainty estimation and is accompanied by an explicit confidence adjustment.
 Realized volatility complements the long-term EGARCH forecast by incorporating recent market activity.
 
 \subsection{Annualized Volatility}
@@ -1145,7 +1149,10 @@ Let Model 1 denote the current regime-adjusted constant-volatility BSM pipeline 
 
 \begin{equation}
 \label{eq:two_level_deviations}
-M1_{\mathrm{dev},t}=P_{\mathrm{market},t}-P_{\mathrm{BSM,adjusted},t},\qquad M2_{\mathrm{dev},t}=P_{\mathrm{market},t}-P_{\mathrm{surface},t}.
+\begin{aligned}
+M1_{\mathrm{dev},t} &= P_{\mathrm{market},t}-P_{\mathrm{BSM,adjusted},t},\\
+M2_{\mathrm{dev},t} &= P_{\mathrm{market},t}-P_{\mathrm{surface},t}.
+\end{aligned}
 \end{equation}
 
 The residual attribution is
@@ -1282,7 +1289,7 @@ Sampling Interval & 1-minute, Daily \\
 Expiry Cycles & Weekly and Monthly \\
 Total Records & 1.2M \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
 \subsection{Walk-Forward Evaluation Protocol}
@@ -1304,7 +1311,7 @@ Period & Role & Purpose \\
 2022 & Test 1 & First out-of-sample evaluation \\
 2023 & Test 2 & Strict held-out evaluation \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
 The fixed-year split is a simplified, illustrative representation of the intended chronology. The preferred implementation is an expanding or rolling walk-forward scheme in which EGARCH and HMM models are re-estimated at a fixed cadence using only data available through each re-estimation point, then applied out of sample until the next retraining event. % TODO: specify actual EGARCH/HMM retraining cadence, e.g., monthly or quarterly.
@@ -1357,14 +1364,15 @@ The forecasting capability of the EGARCH model is evaluated by comparing predict
 % Suggested filename:
 % egarch_forecast.png
 %
-% \begin{figure}[!ht]
-% \centering
+\begin{figure}[!ht]
+\centering
 \framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
 % TODO: insert actual figure file
 \framebox[\columnwidth]{\rule{0pt}{150pt} Placeholder for Figure}
 % TODO: insert actual figure file
-% \label{fig:volatility}
-% \end{figure}
+\caption{EGARCH Volatility Forecast.}
+\label{fig:volatility}
+\end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1401,7 +1409,7 @@ HAR-RV-J & 0.026 & 0.041 & 7.9 \\
 LSTM/Transformer & 0.024 & 0.040 & 7.4 \\
 Fusion EGARCH & 0.021 & 0.038 & 6.4 \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
 \subsection{Market Regime Identification}
@@ -1423,11 +1431,11 @@ The identified regimes are subsequently used for estimating the expected Volatil
 % TODO: report the filtered posterior-probability time series, not only hard Viterbi labels, and illustrate a transition period showing the smooth posterior-weighted VRP response. Check Fig. 2 for consistency: if it shows hard regime bands, update the caption or figure to show posterior-probability shading.
 
 % TODO: run HMM model selection for K=2..6 and populate all placeholder cells below.
-\begin{table}[!ht]
+\begin{table*}[!t]
 \centering
 \caption{HMM Model Selection Across Candidate Regime Counts (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:hmm_model_selection}
-\begin{tabular}{lcccccc}
+\begin{tabularx}{\textwidth}{l X X X X X}
 \toprule
 $K$ & Log-Likelihood & AIC & BIC & Mean Regime Duration (days) & Validation Performance \\
 \midrule
@@ -1438,7 +1446,7 @@ $K$ & Log-Likelihood & AIC & BIC & Mean Regime Duration (days) & Validation Perf
 6 & TBD & TBD & TBD & TBD & TBD \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 % TODO: populate with fitted transition probabilities for the selected K; if K=4, report the 4x4 matrix, otherwise report the selected KxK matrix.
 \begin{table}[!ht]
@@ -1454,15 +1462,15 @@ State 1 & TBD & TBD & TBD & TBD \\
 State 2 & TBD & TBD & TBD & TBD \\
 State 3 & TBD & TBD & TBD & TBD \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
 % TODO: populate regime duration statistics from the fitted state sequence and transition matrix.
-\begin{table}[!ht]
+\begin{table*}[!t]
 \centering
 \caption{HMM Regime Duration Statistics (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:hmm_duration_statistics}
-\begin{tabular}{lcccc}
+\begin{tabularx}{\textwidth}{l X X X X}
 \toprule
 Regime & $\mathrm{E}[D_i]=1/(1-p_{ii})$ & Empirical Mean Duration & Occurrences & Share of Observations (\%) \\
 \midrule
@@ -1472,7 +1480,7 @@ State 2 & TBD & TBD & TBD & TBD \\
 State 3 & TBD & TBD & TBD & TBD \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 \subsection{Option Pricing Results}
 
@@ -1495,11 +1503,11 @@ The adjusted volatility generated by the proposed framework is incorporated into
 % TODO: PLACEHOLDER -- replace illustrative composite deviation examples with calculations from the final validated pipeline.
 % TODO: verify the example calculations against the temporally lagged VRP formulation if the VRP estimation methodology changes before final submission.
 % TODO: the M-Score values shown were computed under the old formula and must be recalculated under the new hypothesis-testing formulation.
-\begin{table*}[!ht]
+\begin{table*}[!t]
 \centering
 \caption{Model-Implied Pricing Deviation and M-Score Action Examples (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:mispricing_merged}
-\begin{tabular}{lcccccc}
+\begin{tabularx}{\textwidth}{l c c c X c X}
 \toprule
 Date / Strike & Market IV & Market Price & Fair Price (Fusion) & Model Dev (\%) & Composite M-Score & Action Flag \\
 \midrule
@@ -1515,12 +1523,12 @@ Date / Strike & Market IV & Market Price & Fair Price (Fusion) & Model Dev (\%) 
 \textbf{[Illustrative/Placeholder -- replace with final pricing-model benchmark results.]}
 To assess whether the proposed regime-adjusted Black--Scholes implementation provides value beyond its volatility input, the planned evaluation compares it with implied-volatility Black--Scholes, forecast-volatility Black--Scholes, Heston, local-volatility, and SABR pricing models. The entries below are dummy values pending implementation and calibration of each alternative model.
 
-\begin{table}[!ht]
+\begin{table*}[!t]
 \centering
 %TODO[C1]: replace every dummy value in this table with out-of-sample pricing-model results computed under the Walk-Forward Evaluation Protocol.
 \caption{Comparison with Alternative Option Pricing Models (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:pricing_baselines}
-\begin{tabular}{lcc}
+\begin{tabularx}{\textwidth}{X c c}
 \toprule
 Model & Pricing Error (RMSE) & Mean Absolute \% Deviation \\
 \midrule
@@ -1538,7 +1546,7 @@ SABR & 9.9 & 12.1 \\
 Proposed Framework (regime-adjusted BS) & 8.7 & 10.5 \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 \subsection{Comparison of Mispricing Detection Signals}
 
@@ -1565,7 +1573,7 @@ Z-score Pricing Residual & 0.67 & 0.60 & 0.63 & 0.74 \\
 %TODO[C1]: replace dummy Proposed Composite M-Score values 0.74, 0.68, 0.71, and 0.79 with real results.
 Proposed Composite M-Score & 0.74 & 0.68 & 0.71 & 0.79 \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
 
 \subsection{Mispricing Attribution: Structural versus Surface-Consistent Benchmarks}
@@ -1573,13 +1581,13 @@ Proposed Composite M-Score & 0.74 & 0.68 & 0.71 & 0.79 \\
 \textbf{[Illustrative/Placeholder -- replace with paired Model 1/Model 2 attribution results.]}
 The two-level design evaluates whether signals generated by Model 1, the regime-adjusted constant-volatility BSM pipeline, remain statistically significant after comparison with Model 2, a calibrated Heston, SABR, or Local Volatility surface. All comparisons use the same contracts, threshold, and out-of-sample timestamps.
 
-\begin{table}[!ht]
+\begin{table*}[!t]
 \centering
 %TODO[C4]: replace every attribution value in this table with paired out-of-sample computations using the same M-Score threshold and volatility-surface benchmark calibration.
 \caption{Mispricing Attribution After Volatility-Surface Control (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:mispricing_attribution}
 %TODO[C4]: reconcile the attribution table's deviation units and dummy shrinkage values with the Concern 1 pricing-baseline RMSE table after all models are calibrated on the same contracts, timestamps, and error metric; do not infer consistency from the current placeholders.
-\begin{tabular}{lccc}
+\begin{tabularx}{\textwidth}{l X c c}
 \toprule
 Segment & Signals Remaining Significant (\%) & Mean $|\mathrm{Residual}_M|$ & Mean $|M1_{\mathrm{dev}}|$ \\
 \midrule
@@ -1599,7 +1607,7 @@ Medium maturity & 45.0 & 0.017 & 0.040 \\
 Long maturity & 58.0 & 0.014 & 0.031 \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 The illustrative values suggest that only a minority of Model 1 signals survive surface control and that apparent deviations shrink most strongly for OTM and short-maturity contracts. %TODO[C4]: rewrite this interpretation after real paired results are available; the dummy pattern is not evidence that the M-Score survives or fails surface control. The final analysis must determine whether the residual signal remains statistically significant after calibration and multiple-testing correction.
 
@@ -1623,12 +1631,12 @@ A preliminary strategic overlay operating purely on the synthesized M-Score outp
 \textbf{[Illustrative/Placeholder -- gross and net performance values require the final cost-adjusted backtest.]}
 The following table separates gross performance from net performance under the cost decomposition in (\ref{eq:net_return_costs}). The net columns are illustrative placeholders and are intentionally lower than the corresponding gross columns.
 
-\begin{table*}[!ht]
+\begin{table*}[!t]
 \centering
 %TODO[C3]: replace every gross and net value in this table with results from the final execution-aware, cost-adjusted backtest.
 \caption{Gross and Net Performance After Transaction Costs (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:net_performance}
-\begin{tabular}{lcccccc}
+\begin{tabularx}{\textwidth}{l X X X X X X}
 \toprule
 Method & Sharpe (Gross) & Sharpe (Net) & Cum. Return (Gross) & Cum. Return (Net) & Max Drawdown (Gross) & Max Drawdown (Net) \\
 \midrule
@@ -1655,12 +1663,12 @@ For the proposed strategy, options' wider spreads and lower liquidity relative t
 \textbf{[Illustrative/Placeholder -- replace with final multiplier-sensitivity results.]}
 The sensitivity analysis varies the baseline transaction-cost estimate by multipliers of $0.5\times$, $1\times$, $2\times$, and $3\times$.
 
-\begin{table}[!ht]
+\begin{table*}[!t]
 \centering
 %TODO[C3]: replace every sensitivity value with results from the final cost-adjusted backtest under the corresponding multiplier.
 \caption{Transaction Cost Sensitivity for the Proposed Framework (Illustrative/Placeholder -- to be replaced with final results)}
 \label{tab:cost_sensitivity}
-\begin{tabular}{lccc}
+\begin{tabularx}{\textwidth}{l X c c}
 \toprule
 Cost Multiplier & Net Sharpe Ratio & Net Cumulative Return & Net Max Drawdown \\
 \midrule
@@ -1674,7 +1682,7 @@ Cost Multiplier & Net Sharpe Ratio & Net Cumulative Return & Net Max Drawdown \\
 3$\times$ & 0.35 & -0.06 & -0.31 \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
 The illustrative pattern suggests that the placeholder strategy remains positive at $2\times$ costs but not at $3\times$ costs. %TODO[C3]: rewrite this interpretation after replacing the dummy values; do not retain any claim about survival at 2x or 3x costs without real cost-adjusted results.
 
