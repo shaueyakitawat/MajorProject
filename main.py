@@ -1910,6 +1910,29 @@ def backtest_endpoint(
         record_result("/backtest", "error", duration_ms, str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/backtest/report/download", summary="Download Backtesting Report (HTML)", tags=["Pipeline"])
+def download_backtest_report():
+    """Download the complete IEEE-grade options backtesting research report as an interactive HTML document."""
+    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "QuantLens_Options_Backtest_IEEE_Report.html")
+    if not os.path.exists(report_path):
+        import subprocess
+        subprocess.run(["python", "scripts/generate_downloadable_report.py"])
+    return FileResponse(
+        path=report_path,
+        filename="QuantLens_Options_Backtest_IEEE_Report.html",
+        media_type="text/html"
+    )
+
+@app.get("/backtest/report/markdown", summary="Download Backtesting Report (Markdown)", tags=["Pipeline"])
+def download_backtest_report_md():
+    """Download the IEEE-grade options backtesting research report in Markdown format."""
+    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "CSV_OPTIONS_BACKTEST_REPORT.md")
+    return FileResponse(
+        path=report_path,
+        filename="QuantLens_Options_Backtest_IEEE_Report.md",
+        media_type="text/markdown"
+    )
+
 @app.get("/option-chain-demo", tags=["Strategy"])
 def get_option_chain_demo(symbol: str = "NIFTY"):
     """
