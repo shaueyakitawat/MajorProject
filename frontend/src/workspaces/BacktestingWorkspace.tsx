@@ -164,7 +164,18 @@ export const BacktestingWorkspace: React.FC = () => {
             </button>
             <button className="btn btn-xs btn-secondary" onClick={exportTradesCSV}>
               <Download size={11} style={{ marginRight: '4px' }} />
-              Export Trades
+              Export Trades (CSV)
+            </button>
+            <button
+              className="btn btn-xs btn-primary"
+              style={{ background: '#0284c7', borderColor: '#0369a1', color: '#ffffff', fontWeight: 700 }}
+              onClick={() => {
+                window.open('http://localhost:8000/backtest/report/download', '_blank');
+              }}
+              title="Download publication-grade HTML research report with embedded SVG equity curve and print-to-PDF styles"
+            >
+              <Download size={11} style={{ marginRight: '4px' }} />
+              Download Report (HTML/PDF)
             </button>
           </div>
         </div>
