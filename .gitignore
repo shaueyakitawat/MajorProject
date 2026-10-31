@@ -4,3 +4,7 @@ __pycache__/
 data/
 outputs/
 .ipynb_checkpoints/
+.DS_Store
+node_modules/
+dist/
+frontend/dist/

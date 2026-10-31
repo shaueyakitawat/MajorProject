@@ -51,28 +51,27 @@ HORIZON_DEFAULT_TIMEFRAMES = {
 def validate_timeframe(timeframe: str) -> str:
     """
     Validate that the provided timeframe is supported.
-    
-    Args:
-        timeframe: Timeframe string to validate (e.g., "1m", "5m", "daily")
-    
-    Returns:
-        str: The validated timeframe string (unchanged if valid)
-    
-    Raises:
-        ValueError: If the timeframe is not in TIMEFRAME_CONFIG
-    
-    Example:
-        >>> validate_timeframe("5m")
-        '5m'
-        >>> validate_timeframe("invalid")
-        ValueError: Invalid timeframe 'invalid'. Must be one of: 1m, 5m, 15m, 1h, daily, weekly
+    Normalizes common aliases like 1d -> daily, 60m -> 1h.
     """
-    if timeframe not in TIMEFRAME_CONFIG:
+    if not timeframe:
+        return "daily"
+    
+    aliases = {
+        "1d": "daily",
+        "d": "daily",
+        "day": "daily",
+        "1w": "weekly",
+        "w": "weekly",
+        "week": "weekly",
+        "60m": "1h",
+    }
+    tf = aliases.get(timeframe.lower(), timeframe)
+    if tf not in TIMEFRAME_CONFIG:
         valid_timeframes = ", ".join(sorted(TIMEFRAME_CONFIG.keys()))
         raise ValueError(
             f"Invalid timeframe '{timeframe}'. Must be one of: {valid_timeframes}"
         )
-    return timeframe
+    return tf
 
 
 def get_annualization_factor(timeframe: str) -> float:

@@ -59,13 +59,15 @@ def fetch_nifty_data(symbol: str = "NIFTY", timeframe: str = "1m") -> pd.DataFra
             f"No data returned from yfinance for symbol '{symbol}' and timeframe '{timeframe}'"
         )
 
-    if len(data) < TARGET_CANDLES:
+    min_required = 100
+    if len(data) < min_required:
         raise ValueError(
             f"Insufficient candles for timeframe '{timeframe}'. "
-            f"Required={TARGET_CANDLES}, fetched={len(data)}"
+            f"Required={min_required}, fetched={len(data)}"
         )
 
-    data = data.tail(TARGET_CANDLES)
+    if len(data) > TARGET_CANDLES:
+        data = data.tail(TARGET_CANDLES)
 
     # Ensure timezone-aware index for stable downstream timestamp handling
     if isinstance(data.index, pd.DatetimeIndex) and data.index.tz is None:

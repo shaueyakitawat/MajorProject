@@ -12,3 +12,4 @@ py_vollib
 pytz
 requests
 hmmlearn
+pnsea==1.1
