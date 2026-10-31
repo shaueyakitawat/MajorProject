@@ -1,7 +1,9 @@
 __pycache__/
 *.pyc
 .env
-data/
+# data/ unignored to track active audit ledger SQLite DB
+*.wal
+*.shm
 outputs/
 .ipynb_checkpoints/
 .DS_Store
