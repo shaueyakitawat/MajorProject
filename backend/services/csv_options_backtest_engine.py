@@ -18,6 +18,7 @@ import pandas as pd
 import scipy.stats as stats
 import yfinance as yf
 from arch import arch_model
+from backend.services.cost_engine import IndianDerivativesCostEngine
 
 logger = logging.getLogger("api")
 
@@ -247,19 +248,22 @@ class CsvOptionsBacktestEngine:
             spots = pd.Series(self.daily_spot_map).sort_index()
             log_returns = np.log(spots / spots.shift(1)).dropna()
 
-        # Rolling 60-day window EGARCH calibration
+        # Rolling 60-day window EGARCH calibration (strictly causal: returns < dt)
         vol_cache = {}
         for date_str in self.trading_dates:
             dt = pd.to_datetime(date_str)
-            sub_returns = log_returns[log_returns.index <= dt]
+            sub_returns = log_returns[log_returns.index < dt]
             if len(sub_returns) >= 40:
                 win = sub_returns.iloc[-60:] * 100.0
                 try:
-                    am = arch_model(win, vol="EGARCH", p=1, q=1, dist="normal")
+                    am = arch_model(win, vol="EGARCH", p=1, o=1, q=1, dist="normal")
                     fit = am.fit(disp="off", show_warning=False)
-                    var_next = fit.forecast(horizon=1).variance.values[-1, 0]
-                    daily_vol = math.sqrt(var_next) / 100.0
-                    ann_vol = daily_vol * math.sqrt(252.0)
+                    if fit.convergence_flag == 0:
+                        var_next = fit.forecast(horizon=1).variance.values[-1, 0]
+                        daily_vol = math.sqrt(var_next) / 100.0
+                        ann_vol = daily_vol * math.sqrt(252.0)
+                    else:
+                        ann_vol = float(sub_returns.iloc[-30:].std() * math.sqrt(252.0))
                 except Exception:
                     ann_vol = float(sub_returns.iloc[-30:].std() * math.sqrt(252.0))
             else:
@@ -270,21 +274,36 @@ class CsvOptionsBacktestEngine:
 
         self.daily_vol_map = vol_cache
 
-        # Classify HMM Regimes
-        vol_vals = list(vol_cache.values())
-        p25, p75, p90 = np.percentile(vol_vals, 25), np.percentile(vol_vals, 75), np.percentile(vol_vals, 90)
-        for d, v in vol_cache.items():
-            if v < p25:
-                reg = "LOW_VOL"
-            elif v <= p75:
-                reg = "NORMAL_VOL"
-            elif v <= p90:
-                reg = "HIGH_VOL"
+        # Causal Trailing Regime Classification (No full-sample look-ahead)
+        trading_dates_list = self.trading_dates
+        for idx, date_str in enumerate(trading_dates_list):
+            curr_v = vol_cache[date_str]
+            # Use trailing 60 to 120 sessions prior to date_str
+            past_dates = trading_dates_list[max(0, idx - 120):idx]
+            if len(past_dates) >= 30:
+                past_vols = [vol_cache[d] for d in past_dates]
+                p25, p75, p90 = np.percentile(past_vols, 25), np.percentile(past_vols, 75), np.percentile(past_vols, 90)
+                if curr_v < p25:
+                    reg = "LOW_VOL"
+                elif curr_v <= p75:
+                    reg = "NORMAL_VOL"
+                elif curr_v <= p90:
+                    reg = "HIGH_VOL"
+                else:
+                    reg = "EXTREME_VOL"
             else:
-                reg = "EXTREME_VOL"
-            self.daily_regime_map[d] = reg
+                # Fixed baseline thresholds for warm-up phase
+                if curr_v < 0.12:
+                    reg = "LOW_VOL"
+                elif curr_v <= 0.18:
+                    reg = "NORMAL_VOL"
+                elif curr_v <= 0.25:
+                    reg = "HIGH_VOL"
+                else:
+                    reg = "EXTREME_VOL"
+            self.daily_regime_map[date_str] = reg
 
-        logger.info(f"[CSV BACKTEST] Volatility calibrated in {time.time()-t0:.2f}s.")
+        logger.info(f"[CSV BACKTEST] Causal volatility and regimes calibrated in {time.time()-t0:.2f}s.")
 
     def run_simulation(self) -> Dict[str, Any]:
         """
@@ -332,26 +351,29 @@ class CsvOptionsBacktestEngine:
                     low_p = quote["low"]
                     close_p = quote["close"]
 
-                    # Check intraday touch
+                    # Check intraday touch (Conservative risk priority: stop-loss evaluates first)
                     if pos["side"] == "SELL":
-                        if low_p <= pos["target_price"]:
-                            exit_price = pos["target_price"]
-                            exit_reason = "ALPHA_HARVESTED"
-                        elif high_p >= pos["stop_price"]:
+                        if high_p >= pos["stop_price"]:
                             exit_price = pos["stop_price"]
                             exit_reason = "STOP_LOSS_CUT"
+                        elif low_p <= pos["target_price"]:
+                            exit_price = pos["target_price"]
+                            exit_reason = "ALPHA_HARVESTED"
                     else:  # BUY
-                        if high_p >= pos["target_price"]:
-                            exit_price = pos["target_price"]
-                            exit_reason = "ALPHA_HARVESTED"
-                        elif low_p <= pos["stop_price"]:
+                        if low_p <= pos["stop_price"]:
                             exit_price = pos["stop_price"]
                             exit_reason = "STOP_LOSS_CUT"
+                        elif high_p >= pos["target_price"]:
+                            exit_price = pos["target_price"]
+                            exit_reason = "ALPHA_HARVESTED"
 
-                    # If expired today, cash settle
+                    # If expired today and not stopped/targeted, cash settle at intrinsic value
                     if exit_price is None and is_expired:
-                        exit_price = quote["settlement"] if quote["settlement"] > 0 else close_p
-                        exit_reason = "EXPIRY_SETTLED"
+                        if pos["option_type"] == "CE":
+                            exit_price = max(0.0, current_spot - pos["strike"])
+                        else:
+                            exit_price = max(0.0, pos["strike"] - current_spot)
+                        exit_reason = "EXPIRY_INTRINSIC"
 
                 elif is_expired:
                     # Intrinsic settlement if quote missing on expiry
@@ -368,7 +390,16 @@ class CsvOptionsBacktestEngine:
                         if pos["side"] == "SELL"
                         else (exit_price - pos["entry_price"]) * pos["qty"]
                     )
-                    friction = estimate_round_trip_friction(pos["entry_price"], exit_price, pos["side"], pos["qty"])
+                    friction_res = IndianDerivativesCostEngine.calculate_round_trip_friction(
+                        entry_date=pos["entry_date"],
+                        exit_date=current_date,
+                        entry_price=pos["entry_price"],
+                        exit_price=exit_price,
+                        side=pos["side"],
+                        qty=pos["qty"],
+                        is_expiry_settlement=(exit_reason == "EXPIRY_INTRINSIC")
+                    )
+                    friction = friction_res.total_friction
                     net_pnl = gross_pnl - friction
                     return_pct = (net_pnl / (pos["entry_price"] * pos["qty"])) * 100.0
 

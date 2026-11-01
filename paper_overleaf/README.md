@@ -18,3 +18,4 @@ This directory contains everything required to compile the IEEE Transactions pub
 - `fig_regime_performance.pdf` / `.png`: Performance and win rate partitioned by Hidden Markov volatility regime.
 - `fig_forward_live_testing.pdf` / `.png`: 4-panel forward live paper testing telemetry (latency, slippage, equity, delta).
 - `fig_robustness_validation.pdf` / `.png`: 4-panel institutional robustness audit (Monte Carlo ruin cone, sensitivity matrix, SEBI SPAN margin compliance, and June 2024 election shock stress test).
+
