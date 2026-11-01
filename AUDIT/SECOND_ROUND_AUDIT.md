@@ -160,3 +160,4 @@ Evaluated under identical signal generation and execution cost rules:
 1. **Daily Resolution Gap:** Daily Bhavcopy precludes modeling exact intraday order-book queue position and microstructure micro-bursts during market opens.
 2. **Multi-Asset Spillover:** Current framework is single-asset (NIFTY 50); cross-asset index spreads against BANKNIFTY and FINNIFTY remain unmodeled.
 3. **Execution Latency Generalization:** 14.2 ms latency measures internal server-side pipeline latency and broker API dispatch, not exchange-matching-engine round-trip colocation latency.
+
