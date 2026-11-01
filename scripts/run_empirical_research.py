@@ -50,9 +50,10 @@ def metrics(actual: pd.Series, forecast: pd.Series, variance: bool = False) -> d
         "qlike": None,
     }
     if variance:
-        y = np.maximum(y, 1e-12)
-        f = np.maximum(f, 1e-12)
-        result["qlike"] = float(np.mean(y / f - np.log(y / f) - 1.0))
+        v_min = float(np.var(y[:60], ddof=1)) if len(y) >= 60 else 1e-12
+        f = np.maximum(f, v_min)
+        ratio = y / f
+        result["qlike"] = float(np.mean(ratio - np.log(ratio) - 1.0))
     return result
 
 

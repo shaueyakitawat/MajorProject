@@ -367,16 +367,16 @@ def main() -> int:
     for name in ("rolling20_volatility", "one_step_volatility", "garch11_vol", "egarch11_vol"):
         valid = comparison[["target_vol", name]].dropna()
         variance_valid = comparison[["target_variance", name]].dropna()
+        y = variance_valid["target_variance"].to_numpy()
+        f = variance_valid[name].to_numpy() ** 2
+        v_min = float(np.var(y[:60], ddof=1)) if len(y) >= 60 else 1e-12
+        f = np.maximum(f, v_min)
+        ratio = y / f
         model_metrics[name] = {
             "n": int(len(valid)),
             "mae": float(np.mean(np.abs(valid["target_vol"] - valid[name]))),
             "rmse": float(np.sqrt(np.mean((valid["target_vol"] - valid[name]) ** 2))),
-            "variance_qlike": float(np.mean(
-                np.maximum(variance_valid["target_variance"], 1e-12)
-                / np.maximum(variance_valid[name] ** 2, 1e-12)
-                - np.log(np.maximum(variance_valid["target_variance"], 1e-12)
-                         / np.maximum(variance_valid[name] ** 2, 1e-12)) - 1
-            )),
+            "variance_qlike": float(np.mean(ratio - np.log(ratio) - 1)),
         }
     common = comparison.dropna(subset=["target_vol", "rolling20_volatility", "one_step_volatility", "garch11_vol", "egarch11_vol"])
     dm = {}
