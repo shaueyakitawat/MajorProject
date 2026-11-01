@@ -1,0 +1,71 @@
+{
+  "rolling": {
+    "qlike_mean": 0.44809116712157854,
+    "qlike_median": 0.1368834889697843,
+    "vmin": 0.007009807437425868
+  },
+  "garch": {
+    "qlike_mean": 0.41355273370949036,
+    "qlike_median": 0.23051371865339332,
+    "vmin": 0.007009807437425868
+  },
+  "egarch": {
+    "qlike_mean": 0.5191555618336835,
+    "qlike_median": 0.174769318872122,
+    "vmin": 0.007009807437425868
+  },
+  "dm_rolling20_vol_vs_garch11_vol": {
+    "mean_loss_diff": 0.0001408855884531594,
+    "dm": 0.28328805040273264,
+    "p_normal_2sided": 0.7769560366641671
+  },
+  "dm_rolling20_vol_vs_egarch11_vol": {
+    "mean_loss_diff": -0.008852026026381963,
+    "dm": -1.7146193444350366,
+    "p_normal_2sided": 0.0864150397370508
+  },
+  "dm_garch11_vol_vs_egarch11_vol": {
+    "mean_loss_diff": -0.008992911614835123,
+    "dm": -1.765779733022756,
+    "p_normal_2sided": 0.07743280994827888
+  },
+  "hmm": {
+    "all_signals": 13,
+    "accepted": 5,
+    "eligible_converged": 9,
+    "accepted_of_all": 0.38461538461538464,
+    "accepted_of_eligible": 0.5555555555555556
+  },
+  "trade_counts": {
+    "ema_crossover|test": {
+      "n": 2,
+      "pnl": 509.3428571428571
+    },
+    "ema_crossover|training": {
+      "n": 2,
+      "pnl": 107.46428571428575
+    },
+    "ema_crossover|validation": {
+      "n": 1,
+      "pnl": -163.2535714285714
+    },
+    "hmm_filtered_ema|test": {
+      "n": 2,
+      "pnl": 509.3428571428571
+    },
+    "hmm_filtered_ema|validation": {
+      "n": 1,
+      "pnl": -163.2535714285714
+    },
+    "volatility_breakout|training": {
+      "n": 2,
+      "pnl": -236.2982142857143
+    },
+    "volatility_breakout|validation": {
+      "n": 3,
+      "pnl": -125.7875
+    }
+  },
+  "data/research/nifty50_index_daily.csv": "d56103561b861ad580fb85ba5ae4cd8105ad422e93be5589a787f3d44c21b19f",
+  "data/research/nifty_options_daily.csv": "664908f7058b4b1696357a11c7dc232224cf631b8ec43867d45b797ad1f5ab3a"
+}

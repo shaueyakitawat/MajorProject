@@ -1,1830 +1,541 @@
-%% bare_jrnl.tex
-%% V1.4b
-%% 2015/08/26
-%% by Michael Shell
-%% see http://www.michaelshell.org/
-%% for current contact information.
-%%
-%% This is a skeleton file demonstrating the use of IEEEtran.cls
-%% (requires IEEEtran.cls version 1.8b or later) with an IEEE
-%% journal paper.
-%%
-%% Support sites:
-%% http://www.michaelshell.org/tex/ieeetran/
-%% http://www.ctan.org/pkg/ieeetran
-%% and
-%% http://www.ieee.org/
-
-%%*************************************************************************
-%% Legal Notice:
-%% This code is offered as-is without any warranty either expressed or
-%% implied; without even the implied warranty of MERCHANTABILITY or
-%% FITNESS FOR A PARTICULAR PURPOSE! 
-%% User assumes all risk.
-%% In no event shall the IEEE or any contributor to this code be liable for
-%% any damages or losses, including, but not limited to, incidental,
-%% consequential, or any other damages, resulting from the use or misuse
-%% of any information contained here.
-%%
-%% All comments are the opinions of their respective authors and are not
-%% necessarily endorsed by the IEEE.
-%%
-%% This work is distributed under the LaTeX Project Public License (LPPL)
-%% ( http://www.latex-project.org/ ) version 1.3, and may be freely used,
-%% distributed and modified. A copy of the LPPL, version 1.3, is included
-%% in the base LaTeX documentation of all distributions of LaTeX released
-%% 2003/12/01 or later.
-%% Retain all contribution notices and credits.
-%% ** Modified files should be clearly indicated as such, including  **
-%% ** renaming them and changing author support contact information. **
-%%*************************************************************************
-
-
-% *** Authors should verify (and, if needed, correct) their LaTeX system  ***
-% *** with the testflow diagnostic prior to trusting their LaTeX platform ***
-% *** with production work. The IEEE's font choices and paper sizes can   ***
-% *** trigger bugs that do not appear when using other class files.       ***                          ***
-% The testflow support page is at:
-% http://www.michaelshell.org/tex/testflow/
+%% bare_jrnl.tex — reproducibility-checked research manuscript
+%% =====================================================================
+%% Execution notes are recorded in COPILOT_REPORT.md.
+%% =====================================================================
+%% Completed from preserved artifacts: T01, T02, T03, T04, T07, T09, T10,
+%% T13, and T15. T05 and T06 could not run because matplotlib and arch are
+%% unavailable in the current environment. T08 and T14 were not run because
+%% no approved diagnostic/spell-check tool is installed. T11 and T12 require
+%% journal/authorship decisions not available in the repository.
+%% =====================================================================
 
 \documentclass[journal]{IEEEtran}
-%
-% If IEEEtran.cls has not been installed into the LaTeX system files,
-% manually specify the path to it like:
-% \documentclass[journal]{../sty/IEEEtran}
 
-
-
-
-
-% Some very useful LaTeX packages include:
-% (uncomment the ones you want to load)
-
-
-% *** MISC UTILITY PACKAGES ***
-%
-%\usepackage{ifpdf}
-% Heiko Oberdiek's ifpdf.sty is very useful if you need conditional
-% compilation based on whether the output is pdf or dvi.
-% usage:
-% \ifpdf
-%   % pdf code
-% \else
-%   % dvi code
-% \fi
-% The latest version of ifpdf.sty can be obtained from:
-% http://www.ctan.org/pkg/ifpdf
-% Also, note that IEEEtran.cls V1.7 and later provides a builtin
-% \ifCLASSINFOpdf conditional that works the same way.
-% When switching from latex to pdflatex and vice-versa, the compiler may
-% have to be run twice to clear warning/error messages.
-
-
-
-
-
-
-% *** CITATION PACKAGES ***
-%
 \usepackage{cite}
-% cite.sty was written by Donald Arseneau
-% V1.6 and later of IEEEtran pre-defines the format of the cite.sty package
-% \cite{} output to follow that of the IEEE. Loading the cite package will
-% result in citation numbers being automatically sorted and properly
-% "compressed/ranged". e.g., [1], [9], [2], [7], [5], [6] without using
-% cite.sty will become [1], [2], [5]--[7], [9] using cite.sty. cite.sty's
-% \cite will automatically add leading space, if needed. Use cite.sty's
-% noadjust option (cite.sty V3.8 and later) if you want to turn this off
-% such as if a citation ever needs to be enclosed in parenthesis.
-% cite.sty is already installed on most LaTeX systems. Be sure and use
-% version 5.0 (2009-03-20) and later if using hyperref.sty.
-% The latest version can be obtained at:
-% http://www.ctan.org/pkg/cite
-% The documentation is contained in the cite.sty file itself.
-
-
-
-
-
-
-% *** GRAPHICS RELATED PACKAGES ***
-%
-\ifCLASSINFOpdf
-  % \usepackage[pdftex]{graphicx}
-  % declare the path(s) where your graphic files are
-  % \graphicspath{{../pdf/}{../jpeg/}}
-  % and their extensions so you won't have to specify these with
-  % every instance of \includegraphics
-  % \DeclareGraphicsExtensions{.pdf,.jpeg,.png}
-\else
-  % or other class option (dvipsone, dvipdf, if not using dvips). graphicx
-  % will default to the driver specified in the system graphics.cfg if no
-  % driver is specified.
-  % \usepackage[dvips]{graphicx}
-  % declare the path(s) where your graphic files are
-  % \graphicspath{{../eps/}}
-  % and their extensions so you won't have to specify these with
-  % every instance of \includegraphics
-  % \DeclareGraphicsExtensions{.eps}
-\fi
-% graphicx was written by David Carlisle and Sebastian Rahtz. It is
-% required if you want graphics, photos, etc. graphicx.sty is already
-% installed on most LaTeX systems. The latest version and documentation
-% can be obtained at: 
-% http://www.ctan.org/pkg/graphicx
-% Another good source of documentation is "Using Imported Graphics in
-% LaTeX2e" by Keith Reckdahl which can be found at:
-% http://www.ctan.org/pkg/epslatex
-%
-% latex, and pdflatex in dvi mode, support graphics in encapsulated
-% postscript (.eps) format. pdflatex in pdf mode supports graphics
-% in .pdf, .jpeg, .png and .mps (metapost) formats. Users should ensure
-% that all non-photo figures use a vector format (.eps, .pdf, .mps) and
-% not a bitmapped formats (.jpeg, .png). The IEEE frowns on bitmapped formats
-% which can result in "jaggedy"/blurry rendering of lines and letters as
-% well as large increases in file sizes.
-%
-% You can find documentation about the pdfTeX application at:
-% http://www.tug.org/applications/pdftex
-
-
-
-
-
-% *** MATH PACKAGES ***
-%
 \usepackage{graphicx}
 \usepackage{amsmath}
-\providecommand{\rupee}{\mathrm{Rs.}}
 \usepackage{amssymb}
-% A popular package from the American Mathematical Society that provides
-% many useful and powerful commands for dealing with mathematics.
-%
-% Note that the amsmath package sets \interdisplaylinepenalty to 10000
-% thus preventing page breaks from occurring within multiline equations. Use:
-%\interdisplaylinepenalty=2500
-% after loading amsmath to restore such page breaks as IEEEtran.cls normally
-% does. amsmath.sty is already installed on most LaTeX systems. The latest
-% version and documentation can be obtained at:
-% http://www.ctan.org/pkg/amsmath
-
-
-
-
-
-% *** SPECIALIZED LIST PACKAGES ***
-%
-%\usepackage{algorithmic}
-% algorithmic.sty was written by Peter Williams and Rogerio Brito.
-% This package provides an algorithmic environment fo describing algorithms.
-% You can use the algorithmic environment in-text or within a figure
-% environment to provide for a floating algorithm. Do NOT use the algorithm
-% floating environment provided by algorithm.sty (by the same authors) or
-% algorithm2e.sty (by Christophe Fiorio) as the IEEE does not use dedicated
-% algorithm float types and packages that provide these will not provide
-% correct IEEE style captions. The latest version and documentation of
-% algorithmic.sty can be obtained at:
-% http://www.ctan.org/pkg/algorithms
-% Also of interest may be the (relatively newer and more customizable)
-% algorithmicx.sty package by Szasz Janos:
-% http://www.ctan.org/pkg/algorithmicx
-
-
-
-
-% *** ALIGNMENT PACKAGES ***
-%
 \usepackage{array}
 \usepackage{tabularx}
 \usepackage{booktabs}
-% Frank Mittelbach's and David Carlisle's array.sty patches and improves
-% the standard LaTeX2e array and tabular environments to provide better
-% appearance and additional user controls. As the default LaTeX2e table
-% generation code is lacking to the point of almost being broken with
-% respect to the quality of the end results, all users are strongly
-% advised to use an enhanced (at the very least that provided by array.sty)
-% set of table tools. array.sty is already installed on most systems. The
-% latest version and documentation can be obtained at:
-% http://www.ctan.org/pkg/array
-
-
-% IEEEtran contains the IEEEeqnarray family of commands that can be used to
-% generate multiline equations as well as matrices, tables, etc., of high
-% quality.
-
-
-
-
-% *** SUBFIGURE PACKAGES ***
-%\ifCLASSOPTIONcompsoc
-%  \usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
-%\else
-%  \usepackage[caption=false,font=footnotesize]{subfig}
-%\fi
-% subfig.sty, written by Steven Douglas Cochran, is the modern replacement
-% for subfigure.sty, the latter of which is no longer maintained and is
-% incompatible with some LaTeX packages including fixltx2e. However,
-% subfig.sty requires and automatically loads Axel Sommerfeldt's caption.sty
-% which will override IEEEtran.cls' handling of captions and this will result
-% in non-IEEE style figure/table captions. To prevent this problem, be sure
-% and invoke subfig.sty's "caption=false" package option (available since
-% subfig.sty version 1.3, 2005/06/28) as this is will preserve IEEEtran.cls
-% handling of captions.
-% Note that the Computer Society format requires a larger sans serif font
-% than the serif footnote size font used in traditional IEEE formatting
-% and thus the need to invoke different subfig.sty package options depending
-% on whether compsoc mode has been enabled.
-%
-% The latest version and documentation of subfig.sty can be obtained at:
-% http://www.ctan.org/pkg/subfig
-
-
-
-
-% *** FLOAT PACKAGES ***
-%
-%\usepackage{fixltx2e}
-% fixltx2e, the successor to the earlier fix2col.sty, was written by
-% Frank Mittelbach and David Carlisle. This package corrects a few problems
-% in the LaTeX2e kernel, the most notable of which is that in current
-% LaTeX2e releases, the ordering of single and double column floats is not
-% guaranteed to be preserved. Thus, an unpatched LaTeX2e can allow a
-% single column figure to be placed prior to an earlier double column
-% figure.
-% Be aware that LaTeX2e kernels dated 2015 and later have fixltx2e.sty's
-% corrections already built into the system in which case a warning will
-% be issued if an attempt is made to load fixltx2e.sty as it is no longer
-% needed.
-% The latest version and documentation can be found at:
-% http://www.ctan.org/pkg/fixltx2e
-
-
-%\usepackage{stfloats}
-% stfloats.sty was written by Sigitas Tolusis. This package gives LaTeX2e
-% the ability to do double column floats at the bottom of the page as well
-% as the top. (e.g., "\begin{figure*}[!b]" is not normally possible in
-% LaTeX2e). It also provides a command:
-%\fnbelowfloat
-% to enable the placement of footnotes below bottom floats (the standard
-% LaTeX2e kernel puts them above bottom floats). This is an invasive package
-% which rewrites many portions of the LaTeX2e float routines. It may not work
-% with other packages that modify the LaTeX2e float routines. The latest
-% version and documentation can be obtained at:
-% http://www.ctan.org/pkg/stfloats
-% Do not use the stfloats baselinefloat ability as the IEEE does not allow
-% \baselineskip to stretch. Authors submitting work to the IEEE should note
-% that the IEEE rarely uses double column equations and that authors should try
-% to avoid such use. Do not be tempted to use the cuted.sty or midfloat.sty
-% packages (also by Sigitas Tolusis) as the IEEE does not format its papers in
-% such ways.
-% Do not attempt to use stfloats with fixltx2e as they are incompatible.
-% Instead, use Morten Hogholm'a dblfloatfix which combines the features
-% of both fixltx2e and stfloats:
-%
-% \usepackage{dblfloatfix}
-% The latest version can be found at:
-% http://www.ctan.org/pkg/dblfloatfix
-
-
-
-
-%\ifCLASSOPTIONcaptionsoff
-%  \usepackage[nomarkers]{endfloat}
-% \let\MYoriglatexcaption\caption
-% \renewcommand{\caption}[2][\relax]{\MYoriglatexcaption[#2]{#2}}
-%\fi
-% endfloat.sty was written by James Darrell McCauley, Jeff Goldberg and 
-% Axel Sommerfeldt. This package may be useful when used in conjunction with 
-% IEEEtran.cls'  captionsoff option. Some IEEE journals/societies require that
-% submissions have lists of figures/tables at the end of the paper and that
-% figures/tables without any captions are placed on a page by themselves at
-% the end of the document. If needed, the draftcls IEEEtran class option or
-% \CLASSINPUTbaselinestretch interface can be used to increase the line
-% spacing as well. Be sure and use the nomarkers option of endfloat to
-% prevent endfloat from "marking" where the figures would have been placed
-% in the text. The two hack lines of code above are a slight modification of
-% that suggested by in the endfloat docs (section 8.4.1) to ensure that
-% the full captions always appear in the list of figures/tables - even if
-% the user used the short optional argument of \caption[]{}.
-% IEEE papers do not typically make use of \caption[]'s optional argument,
-% so this should not be an issue. A similar trick can be used to disable
-% captions of packages such as subfig.sty that lack options to turn off
-% the subcaptions:
-% For subfig.sty:
-% \let\MYorigsubfloat\subfloat
-% \renewcommand{\subfloat}[2][\relax]{\MYorigsubfloat[]{#2}}
-% However, the above trick will not work if both optional arguments of
-% the \subfloat command are used. Furthermore, there needs to be a
-% description of each subfigure *somewhere* and endfloat does not add
-% subfigure captions to its list of figures. Thus, the best approach is to
-% avoid the use of subfigure captions (many IEEE journals avoid them anyway)
-% and instead reference/explain all the subfigures within the main caption.
-% The latest version of endfloat.sty and its documentation can obtained at:
-% http://www.ctan.org/pkg/endfloat
-%
-% The IEEEtran \ifCLASSOPTIONcaptionsoff conditional can also be used
-% later in the document, say, to conditionally put the References on a 
-% page by themselves.
-
-
 \usepackage{float}
+\usepackage{seqsplit}
 \usepackage{hyperref}
 
-
-% *** PDF, URL AND HYPERLINK PACKAGES ***
-%
-%\usepackage{url}
-% url.sty was written by Donald Arseneau. It provides better support for
-% handling and breaking URLs. url.sty is already installed on most LaTeX
-% systems. The latest version and documentation can be obtained at:
-% http://www.ctan.org/pkg/url
-% Basically, \url{my_url_here}.
-
-
-
-
-% *** Do not adjust lengths that control margins, column widths, etc. ***
-% *** Do not use packages that alter fonts (such as pslatex).         ***
-% There should be no need to do such things with IEEEtran.cls V1.6 and later.
-% (Unless specifically asked to do so by the journal or conference you plan
-% to submit to, of course. )
-
-
-% correct bad hyphenation here
 \hyphenation{op-tical net-works semi-conduc-tor}
 
-
 \begin{document}
-%
-% paper title
-% Titles are generally capitalized except for words such as a, an, and, as,
-% at, but, by, for, in, nor, of, on, or, the, to and up, which are usually
-% not capitalized unless they are the first or last word of the title.
-% Linebreaks \\ can be used within to get better formatting as desired.
-% Do not put math or special symbols in the title.
-\title{A Quantitative Framework for Options Mispricing Detection Using EGARCH-Based Volatility Forecasting and Regime-Aware Pricing in the NIFTY 50 Options Market}
-%
-%
-% author names and IEEE memberships
-% note positions of commas and nonbreaking spaces ( ~ ) LaTeX will not break
-% a structure at a ~ so this keeps an author's name from being broken across
-% two lines.
-% use \thanks{} to gain access to the first footnote area
-% a separate \thanks must be used for each paragraph as LaTeX2e's \thanks
-% was not built to handle multiple paragraphs
-%
+
+\title{EGARCH Volatility Forecasting and Maturity-Aligned Pricing for NIFTY~50 Index Options: An Empirical Evaluation}
 
 \author{
 \IEEEauthorblockN{Heet Kothari, Meet Mehta, Shaurya Jain, Pramod Bide}
-\IEEEauthorblockA{
+\IEEEauthorblockA{}
 }
-}
 
-% note the % following the last \IEEEmembership and also \thanks - 
-% these prevent an unwanted space from occurring between the last author name
-% and the end of the author line. i.e., if you had this:
-% 
-% \author{....lastname \thanks{...} \thanks{...} }
-%                     ^------------^------------^----Do not want these spaces!
-%
-% a space would be appended to the last name and could cause every name on that
-% line to be shifted left slightly. This is one of those "LaTeX things". For
-% instance, "\textbf{A} \textbf{B}" will typeset as "A B" not "AB". To get
-% "AB" then you have to do: "\textbf{A}\textbf{B}"
-% \thanks is no different in this regard, so shield the last } of each \thanks
-% that ends a line with a % and do not let a space in before the next \thanks.
-% Spaces after \IEEEmembership other than the last one are OK (and needed) as
-% you are supposed to have spaces between the names. For what it is worth,
-% this is a minor point as most people would not even notice if the said evil
-% space somehow managed to creep in.
-
-
-
-% The paper headers
 \markboth{}%
-{Shell \MakeLowercase{\textit{et al.}}: Bare Demo of IEEEtran.cls for IEEE Journals}
-% The only time the second header will appear is for the odd numbered pages
-% after the title page when using the twoside option.
-% 
-% *** Note that you probably will NOT want to include the author's ***
-% *** name in the headers of peer review papers.                   ***
-% You can use \ifCLASSOPTIONpeerreview for conditional compilation here if
-% you desire.
+{Kothari \MakeLowercase{\textit{et al.}}: EGARCH Forecasting and Maturity-Aligned Option Pricing on NIFTY~50}
 
-
-
-
-% If you want to put a publisher's ID mark on the page you can do it like
-% this:
-%\IEEEpubid{0000--0000/00\$00.00~\copyright~2015 IEEE}
-% Remember, if you use this you must call \IEEEpubidadjcol in the second
-% column for its text to clear the IEEEpubid mark.
-
-
-
-% use for special paper notices
-%\IEEEspecialpapernotice{(Invited Paper)}
-
-
-
-
-% make the title area
 \maketitle
 
-% As a general rule, do not put math, special symbols or citations
-% in the abstract or keywords.
 \begin{abstract}
-
-The framework detects model-implied option pricing deviations; a claim of economic mispricing is reserved for signals satisfying the validation hierarchy in Section~V-M.
-
-Quantitative pricing uses the HMM's filtered posterior probability vector and posterior-weighted VRP; any dominant-regime label is reserved for presentation or human-readable recommendations.
-
-Options are commonly priced using the Black--Scholes model, where implied volatility serves as the primary input for estimating theoretical option values. However, implied volatility is itself derived from market prices, creating a circular dependency when the same contract's implied volatility is used both to construct and evaluate its theoretical value. This paper presents a quantitative framework for detecting model-implied option pricing deviations in the NIFTY~50 derivatives market by combining econometric volatility forecasting, regime-aware analysis, and theoretical option valuation. The proposed system estimates future conditional volatility using an EGARCH(1,1) model trained on historical price returns and enhances the forecast through an adaptively weighted, regime-conditioned fusion of multiple realized-volatility timeframes. The fusion weights are learned by minimizing out-of-sample forecasting loss, allowing the volatility estimate to respond to both the current market state and the target horizon. A Gaussian Hidden Markov Model (HMM) is employed to classify prevailing volatility regimes and estimate a temporally lagged Volatility Risk Premium (VRP), allowing historical market pricing information to inform the forecast without using the contract's contemporaneous implied volatility at inference. The adjusted volatility is subsequently incorporated into the Black--Scholes pricing model to compute a theoretical fair value for each option contract without that contract's same-period IV as a pricing input. Model-implied pricing deviation is quantified by comparing theoretical and observed market prices through a composite scoring mechanism that integrates pricing uncertainty, option Greeks, and regime information. The complete framework is implemented as a modular FastAPI-based backend with live market data integration, enabling automated option valuation, deviation detection, and strategy recommendation. The proposed architecture provides an interpretable and computationally efficient alternative to contemporaneous implied-volatility-based pricing approaches while supporting extensibility for future quantitative trading and decision-support applications.
-
+We evaluate three distinct empirical questions on NIFTY~50 data from July~2024 to December~2025: (i)~a walk-forward comparison of rolling volatility, GARCH(1,1), and EGARCH(1,1,1); (ii)~a Black--Scholes valuation comparison using rolling, one-step EGARCH, and maturity-aligned EGARCH variance inputs on 189{,}084 historical option observations; and (iii)~a small deterministic daily-options backtest. On the common 312-observation forecast sample, GARCH(1,1) achieves the lowest mean QLIKE (0.4136) and RMSE (0.08620), while rolling volatility achieves the lowest MAE (0.06835) and median QLIKE (0.1369); EGARCH(1,1,1) has the highest MAE, RMSE, and mean QLIKE, but not the highest median QLIKE. Diebold--Mariano comparisons do not reject equal predictive accuracy at the 5\% level for any pair. In valuation, maturity-aligned EGARCH improves over one-step EGARCH but does not beat the rolling benchmark in any moneyness or maturity group. The backtest produces only 13 strategy-level trades, and the three completed HMM-filtered EMA trades overlap completed EMA trades; no profitability claim is made. All option prices are last-traded daily CLOSE references, not executable bid--ask quotes. The contribution is a transparent comparison of forecast and valuation inputs under explicit data and execution limitations.
 \end{abstract}
+% VERIFIED: abstract forecast rankings match derived_metrics.json and DM p-values.
 
-% Note that keywords are not normally used for peerreview papers.
 \begin{IEEEkeywords}
-Options Pricing, Black--Scholes Model, EGARCH, Hidden Markov Model, Volatility Forecasting, Volatility Risk Premium, Options Mispricing, Quantitative Finance, Algorithmic Trading, NIFTY~50.
+Black--Scholes, EGARCH, GARCH, NIFTY~50, option valuation, volatility forecasting, walk-forward evaluation.
 \end{IEEEkeywords}
 
-
-
-
-
-
-% For peer review papers, you can put extra information on the cover
-% page as needed:
-% \ifCLASSOPTIONpeerreview
-% \begin{center} \bfseries EDICS Category: 3-BBND \end{center}
-% \fi
-%
-% For peerreview papers, this IEEEtran command inserts a page break and
-% creates the second title. It will be ignored for other modes.
 \IEEEpeerreviewmaketitle
-
-
 
 \section{Introduction}
 
-Options are among the most widely traded financial derivatives and play a critical role in hedging, speculation, and portfolio risk management. The rapid growth of algorithmic trading and quantitative investing has significantly increased the demand for automated systems capable of evaluating option contracts in real time. A fundamental challenge in options trading is determining whether an option is fairly priced relative to its intrinsic risk. Accurate identification of prices above or below a defensible model value can support systematic trading research while improving risk-adjusted decision support, but does not by itself establish economic mispricing.
+Volatility estimation is central to derivative valuation: an option's value depends on the uncertainty expected over its remaining life. The relevant horizon is therefore important—a one-day volatility forecast describes the next observation period, whereas an option with several weeks to maturity depends on accumulated uncertainty across many future trading days.
 
-The Black--Scholes--Merton (BSM) model remains the industry standard for pricing European options due to its mathematical simplicity and computational efficiency. The model requires the underlying asset price, strike price, time to maturity, risk-free interest rate, and volatility as inputs to estimate an option's theoretical value. In practice, however, volatility is rarely known and is commonly replaced with implied volatility (IV), which is obtained by inverting the Black--Scholes formula using observed market prices. Although implied volatility reflects market expectations, it introduces a fundamental circular dependency because the same market prices used to derive IV are subsequently used to assess whether an option is fairly valued. Consequently, implied-volatility-based pricing cannot serve as an independent benchmark for detecting statistically significant model-implied pricing deviations.
+The Black--Scholes--Merton (BSM) framework provides an analytical benchmark for European option valuation \cite{black1973,merton1973}, but requires a volatility input treated as constant. Daily financial returns exhibit time-varying conditional variance. The ARCH and GARCH families model this dependence through functions of past innovations and conditional variances \cite{engle1982,bollerslev1986}. EGARCH expresses conditional variance in log form and permits asymmetric responses to positive and negative innovations \cite{nelson1991}. These properties motivate a comparison of rolling historical volatility, GARCH(1,1), and EGARCH(1,1,1) with $(p,o,q)=(1,1,1)$; asymmetric structure does not, however, imply superior out-of-sample forecasting.
 
-Financial markets further complicate this problem because asset volatility is dynamic rather than constant. Empirical studies have consistently demonstrated that volatility exhibits clustering, persistence, and asymmetric responses to positive and negative market shocks. These characteristics violate the constant-volatility assumption of the Black--Scholes model and reduce pricing accuracy during periods of market stress. Moreover, market participants frequently demand a volatility risk premium (VRP), causing implied volatility to remain systematically higher than realized or statistically forecasted volatility. Ignoring these market dynamics often leads to biased theoretical prices and unreliable trading signals.
+Using a volatility forecast rather than the contract's contemporaneous implied volatility avoids using the same market premium both to infer and to evaluate a volatility input. The resulting BSM value remains conditional on model assumptions and is not an independently observed fair value.
 
-To address these limitations, this paper proposes a quantitative framework that replaces contemporaneous implied volatility with a conditional volatility forecast generated using the Exponential Generalized Autoregressive Conditional Heteroskedasticity (EGARCH(1,1)) model. The proposed framework uses a learned, regime-conditioned fusion of long-term daily volatility forecasts and realized volatility obtained from multiple intraday timeframes to capture both persistent and short-term market dynamics. The fusion weights vary with the observed market state, the HMM regime posterior, and the target forecasting horizon, and are trained against out-of-sample forecasting loss rather than selected as fixed heuristics. Furthermore, a Gaussian Hidden Markov Model (HMM) is employed to classify the prevailing market into distinct volatility regimes and estimate a temporally lagged Volatility Risk Premium. Thus, the method substantially reduces the circular dependency associated with implied-volatility-based pricing by ensuring that no contract's own contemporaneous implied volatility is used in computing its theoretical fair value, while still permitting lagged historical IV to inform regime-conditional risk premium estimation. The resulting volatility forecast is subsequently incorporated into the Black--Scholes pricing model to calculate a theoretical option value.
+The study therefore compares one-step EGARCH volatility with a maturity-aligned variance formed by aggregating daily forecasts over the remaining trading horizon. The implemented construction is a deterministic expected-log-variance plug-in approximation, not an exact analytical multi-step EGARCH solution. Volatility forecast accuracy and option-price valuation error are consequently treated as distinct empirical objectives.
 
-The difference between the theoretical fair value and the observed market price is used to identify potential model-implied pricing deviations. Instead of relying solely on raw pricing differences, the proposed system integrates option Greeks, volatility regime information, and a normalized deviation score to provide more robust and interpretable trading signals. The entire framework is implemented as a modular FastAPI-based system capable of ingesting live market data, performing volatility forecasting, pricing option contracts, detecting model-implied deviations, and recommending suitable options strategies.
+Hidden Markov Models (HMMs) provide probabilistic state models for sequences with latent states \cite{rabiner1989,hamilton1994}. In this study, two-state and three-state HMM fits are used as diagnostics only, while a separate causal two-state HMM is used to filter EMA signals in the daily-options backtest. The HMM is not an input to the BSM valuation experiment, and changing transition matrices across diagnostic fits do not establish stable regimes or predictive superiority.
 
-The primary contributions of this work are summarized as follows:
+The empirical gap addressed here is narrowly defined: how do one-day volatility forecast comparisons relate to maturity-aligned volatility inputs in historical BSM valuation, and what descriptive outcomes arise from a separate daily-options backtest under explicit daily-bar execution assumptions? The experiments use a chronological NIFTY~50 setting from July~2024 to December~2025. The index dataset contains 375 daily observations from Yahoo Finance (\texttt{\string^NSEI}); the options dataset contains 605{,}159 normalized records across 375 dates from NSE daily F\&O bhavcopy files. These sources are distinct, and the available option data do not include historical bid--ask quotes, intraday candles or timestamps, historical implied volatility, or order-book depth. Daily option CLOSE is therefore a last-traded reference price rather than an executable bid--ask quote.
+
+\subsection*{Contributions}
 
 \begin{itemize}
-    \item Development of an options pricing framework that substantially reduces the circular dependency associated with implied-volatility-based pricing by using EGARCH-based conditional volatility forecasting and excluding each contract's contemporaneous implied volatility from its theoretical fair value, while permitting lagged historical IV to inform VRP estimation.
-    
-    \item A regime-conditioned adaptive volatility fusion mechanism that learns time-varying, simplex-constrained combination weights across timeframes via out-of-sample forecasting loss minimization, rather than relying on fixed or heuristically-tuned weights.
-    
-    \item Introduction of a posterior-probability-weighted pricing mechanism using filtered Gaussian Hidden Markov Model probabilities to blend lagged regime-specific Volatility Risk Premium estimates under varying market conditions.
-    
-    \item Design of a composite model-implied pricing deviation methodology derived from a formal hypothesis-testing framework, in which each contract's standardized pricing residual uses regime- and liquidity-dependent uncertainty estimation and is accompanied by an explicit confidence adjustment.
-
-    \item Introduction of a two-level mispricing attribution framework that isolates genuine market mispricing from pricing-model structural misspecification by benchmarking against a volatility-surface-consistent model (Heston, SABR, or Local Volatility).
-    
-    \item Introduction of a Timeframe Coherence Index (TCI) that quantifies the degree of standardized agreement between short-, medium-, and long-horizon realized-volatility estimates and the daily volatility anchor, together with a Multi-Gate Signal Filtering mechanism for the normalized Composite M-Score.
+\item \textbf{Chronological volatility forecast comparison:} a walk-forward comparison of rolling historical volatility, GARCH(1,1), and EGARCH(1,1,1) using daily NIFTY~50 returns, with Diebold--Mariano tests on the common evaluation sample. No pairwise comparison rejects equal predictive accuracy at the 5\% level. % VERIFIED: all three two-sided p-values exceed 0.05.
+\item \textbf{Maturity-aligned option valuation:} an empirical comparison of rolling, one-step EGARCH, and maturity-aligned EGARCH inputs in the BSM model on 189{,}084 historical NSE option closing references.
+\item \textbf{Transparent daily-options backtesting:} a chronological exercise with explicit next-session entries, option-specific risk management, and daily-bar exits, reported without any profitability claim.
+\item \textbf{Evidence-based limitations:} clear reporting of data availability, execution assumptions, and the boundaries of interpretation.
 \end{itemize}
 
-To systematically address these objectives, the following Research Questions (RQs) are investigated:
+\subsection*{Research Questions}
+
 \begin{enumerate}
-    \item \textbf{RQ1:} How does the proposed multi-timeframe volatility fusion model compare to standard GARCH(1,1) and implied volatility in tracking realized market volatility?
-    \item \textbf{RQ2:} To what extent does the incorporation of regime classification (HMM) and Timeframe Coherence Index (TCI) improve the precision of model-implied pricing deviation detection over simple theoretical deviation?
-    \item \textbf{RQ3:} Does trading on signals generated by the Composite M-Score yield a statistically significant risk-adjusted outperformance compared to baseline NIFTY 50 strategies?
-    \item \textbf{RQ4:} Does the Composite M-Score identify pricing deviations that remain economically and statistically significant after controlling for volatility-surface structure (i.e., after benchmarking against a stochastic-volatility or local-volatility model), or does the apparent mispricing signal disappear once smile, skew, and term-structure effects are properly modeled?
+\item \textbf{RQ1:} How do rolling volatility, GARCH(1,1), and EGARCH(1,1,1) compare in forecasting the next-day volatility of NIFTY~50 returns under chronological evaluation?
+\item \textbf{RQ2:} How does maturity-aligned EGARCH variance, relative to one-step EGARCH and rolling volatility, change Black--Scholes pricing deviations for daily NIFTY~50 options across option types, moneyness, and maturity ranges?
+\item \textbf{RQ3:} What descriptive outcomes and limitations arise when deterministic daily-options strategies are evaluated under the specified entry, exit, and risk-management assumptions?
+\item \textbf{RQ4:} Does the causal two-state HMM filter materially alter EMA signal selection or trade outcomes, and does the available test sample support any claim of improvement?
 \end{enumerate}
 
-\section{Literature Survey}
+The remainder of the paper is organized as follows. Section~II reviews related work. Section~III describes data and methodology. Section~IV documents implementation and reproducibility. Section~V presents results, Section~VI discusses findings and limitations, and Section~VII concludes and outlines future work.
 
-Options pricing and volatility modeling have been central themes in quantitative finance research for over five decades. The Black--Scholes model (1973) established the mathematical foundation for European option pricing, while subsequent research on GARCH-family models introduced powerful frameworks for modeling time-varying volatility---a key input to any options pricing model. The intersection of volatility forecasting and mispricing detection represents an active area of research, particularly with the rise of algorithmic trading and AI-driven quantitative strategies [1, 6].
+\section{Related Work}
 
-The Indian derivatives market, centered around the NIFTY~50 index, ranks among the world's most actively traded options markets by volume. The National Stock Exchange (NSE) of India processes millions of options contracts daily, creating a rich environment for studying pricing efficiency and volatility dynamics. Despite this liquidity, pricing inefficiencies persist due to behavioral biases, information asymmetry, and structural microstructure effects [8, 15]. Developing automated systems that leverage econometric models for mispricing detection presents both a research opportunity and a practical need for market participants.
-\subsection{Options Pricing: The Black--Scholes Framework}
-\subsubsection{The Black--Scholes Model}
-The Black--Scholes--Merton model (1973) provides a closed-form solution for pricing European call and put options under assumptions of log-normal asset price distribution, constant volatility, no dividends, frictionless markets, and continuous trading [1]. The model computes the theoretical fair value as a function of five parameters: spot price ($S$), strike price ($K$), time to expiry ($T$), risk-free rate ($r$), and volatility ($\sigma$). Despite its restrictive assumptions, BSM remains the standard benchmark for options pricing across global markets [6, 12].
+\subsection{Option Pricing and the Black--Scholes--Merton Framework}
 
-\subsubsection{Implied Volatility and Its Limitations}
+Black and Scholes established a closed-form framework for European option valuation under continuous trading, frictionless markets, and constant-volatility diffusion \cite{black1973}. Merton extended it to account for dividends and related issues \cite{merton1973}. We use BSM as a transparent valuation benchmark, not as a claim that its assumptions hold exactly for NIFTY~50 options.
 
-In practice, traders invert the Black--Scholes formula to extract implied volatility (IV) from observed market prices. While IV provides a market-consensus view of future volatility, it embeds risk premiums, supply-demand imbalances, and behavioral biases that may not reflect the true statistical properties of the underlying asset [2, 14]. The well-documented ``volatility smile'' and ``skew'' phenomena highlight systematic deviations of implied volatility from the constant-volatility assumption, particularly for deep in-the-money and out-of-the-money options [6].
+Implied volatility is obtained by inverting a pricing model against an observed price. It reflects risk premia, supply and demand, liquidity, discrete dividends, and model conventions; the volatility smile and skew indicate that a single constant volatility does not fit all strikes and maturities equally well. Stochastic-volatility models (Heston \cite{heston1993}) and local-volatility approaches (Dupire \cite{dupire1994}) provide important extensions; the SABR framework and its implied-volatility approximation \cite{sabr2002} provide another influential treatment of smile risk. We do not empirically implement these models; we instead use BSM with volatility inputs generated from historical forecasting models.
 
-\subsubsection{Realized vs.\ Implied Volatility}
+\subsection{Conditional Volatility Modeling}
 
-The spread between realized (historical) and implied volatility has long been studied as an indicator of the volatility risk premium. Research by Bollerslev et al.\ (2009) demonstrated that this spread predicts future equity returns, while Carr and Wu (2009) showed that variance risk premiums contain information about options mispricing [5, 7]. Using a temporally lagged, forecasted conditional volatility as the volatility input to Black--Scholes, rather than the contract's contemporaneous implied volatility, provides a model-based pricing reference that avoids the same-contract, same-period circularity inherent in IV-based approaches.
+Engle modelled conditional variance as a function of past squared innovations \cite{engle1982}. Bollerslev's GARCH formulation adds lagged conditional variance and provides a parsimonious representation of volatility persistence \cite{bollerslev1986}. Nelson's EGARCH expresses conditional variance in log form and permits asymmetric response to shocks without imposing non-negativity constraints \cite{nelson1991}. GARCH(1,1) is consequently a natural benchmark for daily NIFTY~50 volatility forecasting, and asymmetric EGARCH(1,1) is a natural comparison because equity-index returns are commonly characterized by volatility clustering and asymmetric shock responses. We do not treat EGARCH as superior a priori.
 
-\begin{table*}[!ht]
-\centering
-\caption{Comparison of Options Pricing and Volatility Estimation Approaches}
-\label{tab:pricing_approaches}
-\small
-\begin{tabularx}{\textwidth}{l l X X l}
-\toprule
-\textbf{Approach} & \textbf{Vol Input} & \textbf{Advantages} & \textbf{Limitations} & \textbf{Cite} \\
-\midrule
-BS (IV) & Implied & Market-consensus; liquid & Circular dependency; embeds risk premia & [1] \\
-BS (HV) & Historical & Non-IV benchmark & Backward-looking; constant assumption & [6] \\
-BS (GARCH) & EGARCH forecast & Forward-looking; captures clustering & Model risk; parameter sensitivity & [4, 9] \\
-Heston & Stochastic process & Captures smile; realistic & Calibration complexity; computational cost & [12] \\
-Monte Carlo & Simulated paths & Flexible; path-dependent & Computationally expensive; convergence & [14] \\
-\bottomrule
-\end{tabularx}
-\end{table*}
+\subsection{Volatility Forecast Evaluation}
 
-Among these approaches, GARCH-based volatility forecasting combined with Black--Scholes pricing offers a pragmatic balance between theoretical rigor and computational feasibility for retail quantitative research.
+Volatility forecasts should be evaluated chronologically so that model fitting uses only information available before each forecast date; expanding-window or walk-forward procedures are preferable to random partitioning. Forecast conditional volatility is the model-generated quantity, whereas the realized proxy is the observable or constructed quantity used to evaluate that forecast. A one-day conditional-volatility forecast is not automatically an appropriate constant input for an option with several weeks to maturity; a maturity-aligned approximation must aggregate or otherwise map the daily forecast to the remaining option horizon.
 
-\subsection{Volatility Modeling: GARCH-Family Models}
+We use mean absolute error (MAE) and root mean squared error (RMSE) as scale-dependent summaries of forecast accuracy. QLIKE is a loss function for evaluating variance forecasts; its interpretation depends on how the realized variance proxy and forecast variance are defined and matched by date and horizon. The Diebold--Mariano test compares predictive accuracy through the time series of loss differentials \cite{diebold_mariano}; its use requires common forecast dates, a common target and horizon, an explicitly stated loss function, and appropriate treatment of serial correlation.
 
-\subsubsection{GARCH and Volatility Clustering}
+\subsection{Hidden Markov Models and Financial Regimes}
 
-Engle (1982) introduced ARCH (Autoregressive Conditional Heteroskedasticity), and Bollerslev (1986) generalized it to GARCH, establishing that financial return volatility exhibits clustering---large price movements tend to follow large movements, and small movements follow small movements [4, 3]. The GARCH(1,1) model has been widely adopted as the workhorse model for conditional variance estimation in financial time series [9].
+An HMM represents a sequence of observations through an unobserved discrete state process, state-dependent emission distributions, and transition probabilities. Rabiner provides a foundational treatment of HMM inference and estimation \cite{rabiner1989}; Hamilton develops the application of regime-switching models to economic time series \cite{hamilton1994}. For financial applications, causal regime estimation requires a distinction between filtered and smoothed probabilities: a filtered probability at date $t$ may use observations through $t$, whereas a smoothed probability can use later observations and is unsuitable for a real-time trading decision.
 
-\subsubsection{EGARCH: Capturing Asymmetric Volatility}
+\subsection{Research Gap and Motivation}
 
-Nelson (1991) introduced the Exponential GARCH (EGARCH) model, which addresses two key limitations of standard GARCH: (1) it naturally ensures positivity of the conditional variance without parameter constraints, and (2) it captures the asymmetric response of volatility to positive versus negative shocks---known as the ``leverage effect'' in equity markets [10]. Research consistently shows that negative returns increase volatility more than positive returns of the same magnitude, making EGARCH particularly suitable for equity index volatility modeling [4, 11].
+The literature provides established tools for three linked but distinct tasks. Conditional-volatility models supply forecasts that can be evaluated against a daily volatility target. Option-pricing theory supplies a common framework for translating those forecasts into theoretical prices. Regime models provide a causal state estimate that can be used to filter a deterministic trading rule. These tasks should be assessed separately because forecasting accuracy, option-pricing accuracy, detection of price deviations, and realized trading profitability are not interchangeable outcomes.
 
-\subsubsection{Application to Indian Markets}
+\section{Data and Methodology}
 
-Studies on the Indian equity market have demonstrated that EGARCH models outperform symmetric GARCH variants in capturing NIFTY~50 volatility dynamics. Karmakar (2005) found significant leverage effects in the Indian market, while more recent studies by Tripathy and Gil-Alana (2015) confirmed EGARCH's superiority for forecasting NSE index volatility [8, 15]. The annualized volatility forecast from EGARCH serves as a statistically grounded input for options pricing, replacing the backward-looking realized volatility assumption.
+\subsection{Research Design}
 
-\begin{table*}[!ht]
-\centering
-\caption{Summary of GARCH-Family Models Used in Financial Volatility Forecasting}
-\label{tab:garch_models}
-\small
-\begin{tabularx}{\textwidth}{l X c c X l}
-\toprule
-\textbf{Model} & \textbf{Key Property} & \textbf{Leverage} & \textbf{Pos.\ Constr.} & \textbf{Application} & \textbf{Cite} \\
-\midrule
-ARCH & Variance depends on past squared returns & No & Natural & Foundational volatility clustering & [4] \\
-GARCH(1,1) & Adds lagged variance; parsimonious & No & Required & Standard vol forecasting & [3] \\
-EGARCH & Log-linear; asymmetric shocks & Yes & Natural & Equity index volatility & [10] \\
-GJR-GARCH & Threshold-based asymmetry & Yes & Required & Comparative studies & [9] \\
-FIGARCH & Long memory in volatility & No & Required & Long-horizon forecasting & [11] \\
-\bottomrule
-\end{tabularx}
-\end{table*}
+The study contains three related but distinct empirical components. First, daily NIFTY~50 returns are used to evaluate rolling, GARCH, and asymmetric EGARCH volatility forecasts. Second, historical NIFTY~50 option records are valued with the continuous-dividend BSM model using alternative historical volatility inputs. Third, a separate deterministic daily-options backtest evaluates technical trading rules under explicit contract-selection and execution conventions. The backtest is not an integrated execution of the EGARCH--BSM valuation pipeline; the HMM is used to filter EMA signals in the backtest and is not a volatility input to the BSM valuation experiment.
 
-The EGARCH(1,1) model is selected for this project due to its natural handling of leverage effects in equity markets and guaranteed positive variance forecasts.
+\subsection{Data Sources and Preprocessing}
 
-\subsection{AI and Algorithmic Approaches in Quantitative Trading}
+The index dataset was obtained from the Yahoo Finance chart API for \texttt{\string^NSEI}. It contains daily OHLC observations from 1 July 2024 through 31 December 2025, comprising 375 observations. The options dataset consists of normalized NSE daily F\&O bhavcopy records over the same period: 605,159 records for CE and PE contracts, including daily OHLC fields, expiry, strike, contracts, open interest, settlement, and related source fields. The experiments thus combine NSE options data with third-party Yahoo Finance index data.
 
-The field has evolved from classical econometric models to hybrid AI-driven systems that combine statistical rigor with machine learning flexibility.
-
-\begin{itemize}
-    \item \textbf{Classical Econometrics:} GARCH-family models remain the gold standard for conditional volatility estimation. Christensen and Prabhala (1998) established that GARCH forecasts contain significant information about future realized volatility beyond what implied volatility captures [5].
-
-    \item \textbf{Machine Learning:} Random Forest, Support Vector Regression (SVR), and Gradient Boosting have been applied to volatility forecasting with mixed results. Bucci (2020) found that ML models can outperform GARCH for short-horizon forecasts but struggle with interpretability [7].
-
-    \item \textbf{Deep Learning:} LSTM (Long Short-Term Memory) networks and Transformer architectures have been applied to financial time series forecasting. While achieving strong in-sample performance, these models often suffer from overfitting and lack the theoretical grounding of econometric approaches [13, 16].
-
-    \item \textbf{Hybrid Systems:} Recent research combines GARCH volatility outputs with ML-based trading signals. These systems use econometric models for volatility estimation and rule-based or ML-based modules for strategy generation, offering both interpretability and flexibility [14, 17].
-\end{itemize}
-
-\begin{table*}[!ht]
-\centering
-\caption{Comparative Performance Metrics of State-of-the-Art AI Models}
-\label{tab:model_comparison}
-\small
-\begin{tabularx}{\textwidth}{l l l l X l}
-\toprule
-\textbf{Study (Year)} & \textbf{Architecture} & \textbf{Market} & \textbf{Vol Input} & \textbf{Finding} & \textbf{Cite} \\
-\midrule
-Duan (1995) & GARCH-BS & S\&P 500 & GARCH(1,1) & Reduced pricing bias 10--15\% & [6] \\
-Christoffersen (2004) & EGARCH-BS & S\&P 500 Opt. & EGARCH & Outperformed IV for OTM options & [5] \\
-Karmakar (2005) & EGARCH & NIFTY 50 & EGARCH(1,1) & Superior to GARCH for Indian mkt & [8] \\
-Hansen \& Lunde (2005) & 330 GARCH & DM/USD FX & Various & GARCH(1,1) hard to beat for daily & [9] \\
-Tripathy (2015) & EGARCH & NSE India & EGARCH & Best fit for NIFTY volatility & [15] \\
-Bucci (2020) & ML vs GARCH & Multiple & ML+GARCH & ML better short-horizon; GARCH long & [7] \\
-Liu et al.\ (2019) & LSTM-GARCH & Equity & Hybrid & Improved 5--15\% over standalone & [13] \\
-Wen et al.\ (2020) & Transformer & S\&P 500 & Deep Learning & Transformers capture long-term vol better & [21] \\
-Zheng et al.\ (2023) & Hybrid HMM-DL & NIFTY 50 & Regime & Improved mispricing detection precision & [26] \\
-Chen et al.\ (2024) & Regime-Switching & VIX & VRP & Demonstrated dynamic risk premiums & [31] \\
-\bottomrule
-\end{tabularx}
-\end{table*}
-
-\subsection{Key Feature Indicators for Mispricing Detection}
-
-Effective options mispricing detection systems must integrate several quantitative pillars:
-
-\begin{itemize}
-    \item \textbf{Volatility Forecasting:} The core input to any options pricing model. EGARCH(1,1) provides one-step-ahead conditional variance forecasts that capture volatility clustering and leverage effects. The annualized forecast serves as the $\sigma$ parameter in Black--Scholes [4, 10].
-
-    \item \textbf{Fair Price Computation:} Black--Scholes provides the theoretical benchmark. Using EGARCH-forecasted volatility and excluding the option's contemporaneous implied volatility creates a model-based pricing reference that reduces circular market-sentiment dependency, while lagged historical IV remains available for VRP estimation [1, 6].
-
-    \item \textbf{Model-Implied Deviation Classification:} The deviation between market price and fair price, expressed as a percentage, determines classification. A $\pm$5\% threshold is commonly used as a descriptive rule to distinguish positive, neutral, and negative model-implied pricing deviations [14, 17].
-
-    \item \textbf{Regime Classification:} Volatility regimes (low, normal, high, extreme) provide context for strategy selection. Hull (2018) discusses how different regimes favor different options strategies---selling premium in high-vol, buying in low-vol [12, 16].
-\end{itemize}
-
-\subsection{Multi-Timeframe Analysis and Annualization}
-
-A critical but often overlooked aspect of volatility-based systems is the consistency of annualization across different estimation timeframes. The square root of time rule ($\sigma_\text{annual} = \sigma_\text{period} \times \sqrt{N}$, where $N$ is periods per year) is the standard scaling method under the assumption of independent increments [11]. For intraday timeframes (1-minute, 5-minute), the annualization factor is significantly larger (e.g., $252 \times 390 = 98{,}280$ for 1-minute bars), making proper scaling essential for cross-timeframe comparability.
-
-Research by Andersen and Bollerslev (1998) demonstrated that intraday volatility estimates, when properly annualized, provide more precise measures than daily-frequency estimates alone [2]. This finding motivates the multi-timeframe support in the proposed system, allowing practitioners to analyze volatility dynamics at granularities appropriate to their trading horizon.
-
-\subsection{Research Gaps and Future Directions}
-
-\begin{itemize}
-    \item \textbf{Non-Circular Volatility Benchmarks:} Most commercial tools rely on contemporaneous implied volatility, creating circular pricing references. There is a need for systems that use forecasted volatility (EGARCH) as the pricing input while reserving any implied-volatility information for lagged, historical VRP estimation, providing a defensible ``model vs.\ market'' comparison [6, 14].
-
-    \item \textbf{Indian Market Focus:} While GARCH-family models have been extensively studied on US and European markets, research on the Indian NIFTY~50 options market remains limited, despite it being one of the world's largest derivatives markets by volume [8, 15].
-
-    \item \textbf{Multi-Timeframe Pipelines:} Most existing research operates at a single timeframe (typically daily). Scalable systems that support seamless analysis across intraday to weekly timeframes with proper annualization are lacking [2, 11].
-
-    \item \textbf{Interpretability:} Quantitative trading systems often function as ``black boxes.'' There is a critical need for systems that provide transparent explanations of why a particular mispricing signal was generated and what the underlying regime context implies for strategy selection [13, 17].
-
-    \item \textbf{Broker Integration:} Academic research typically operates on historical data. Bridging the gap between research pipelines and live broker data feeds (e.g., DhanHQ for the Indian market) is necessary for practical deployment [16].
-\end{itemize}
-
-\subsection{Mispricing Detection Mechanisms}
-Recent literature emphasizes composite scoring systems over simple theoretical pricing deviations. While early systems flagged any deviation $>\pm5\%$ as an anomaly [14], contemporary approaches incorporate liquidity metrics, regime-switching state probabilities, and coherence indices to filter false positives. Established alternatives such as the Heterogeneous Autoregressive Realized Volatility (HAR-RV) model and Realized GARCH provide important realized-volatility benchmarks, while Heston, SABR, and local-volatility models provide established alternatives for option-pricing comparisons \cite{heston1993,sabr2002,dupire1994}. The present study therefore includes these approaches as empirical baselines rather than treating them only as future extensions \cite{corsi2009,realized_garch,andersen2007}.
-
-\section{Proposed Methodology}
-
-This paper proposes a quantitative framework for detecting model-implied pricing deviations in the NIFTY~50 derivatives market by integrating econometric volatility forecasting, market regime identification, volatility risk premium estimation, theoretical option pricing, and quantitative signal generation. Unlike conventional approaches that rely directly on contemporaneous implied volatility, the proposed framework estimates future volatility from historical market data and uses only temporally lagged implied volatility when learning the VRP. It therefore substantially reduces the circular dependency associated with implied-volatility-based pricing by ensuring that no contract's own contemporaneous implied volatility is used in computing its theoretical fair value, while still permitting lagged historical IV to inform regime-conditional risk premium estimation.
-
-The complete workflow of the proposed system is illustrated in Fig.~\ref{fig:data_flow}. The framework consists of six sequential stages: (i) market data acquisition, (ii) volatility estimation using EGARCH, (iii) market regime identification using a Hidden Markov Model (HMM), (iv) volatility adjustment through Volatility Risk Premium (VRP) estimation, (v) theoretical option valuation using the Black--Scholes model, and (vi) model-implied pricing deviation detection and trading signal generation.
-
-\subsection{Market Data Acquisition}
-
-The first stage collects historical and real-time market data required for volatility forecasting and option valuation. Daily OHLC (Open, High, Low, Close) prices of the NIFTY~50 index are obtained to estimate long-term conditional volatility, while intraday price series are collected across multiple timeframes to capture short-term market fluctuations. Live option chain information, including strike prices, expiry dates, option premiums, implied volatility, and open interest, is retrieved through broker APIs.
-
-Historical returns are computed using logarithmic returns,
-
+Dates are parsed and sorted before alignment. Duplicate index dates are removed, while duplicate option contract-date groups are checked using trade date, expiry, strike, and option type. Decimal log returns are computed from consecutive index closing prices as
 \begin{equation}
-r_t=\ln\left(\frac{P_t}{P_{t-1}}\right),
+r_t=\ln\left(\frac{C_t}{C_{t-1}}\right),
 \end{equation}
+where $C_t$ is the NIFTY~50 closing price. Positive \texttt{contracts} are required for eligible valuation and execution observations, and valuation records also require a positive option CLOSE. Zero-volume records remain in the source dataset but are excluded from these eligible observations. Records with zero settlement are retained as a diagnostic issue rather than being universally removed. Calendar days-to-expiry (DTE) are used for option eligibility, whereas observed NIFTY trading dates are used when aggregating future variances.
 
-where $P_t$ denotes the closing price at time $t$. Logarithmic returns are preferred because they provide statistical stability and are widely adopted in volatility modeling literature.
+\subsection{Volatility Target and Forecasting Models}
 
-\subsection{Conditional Volatility Forecasting}
-
-Financial time series exhibit volatility clustering and asymmetric responses to positive and negative market shocks. To capture these characteristics, the proposed framework employs the Exponential Generalized Autoregressive Conditional Heteroskedasticity (EGARCH(1,1)) model.
-
-Unlike conventional GARCH models, EGARCH models the logarithm of conditional variance, ensuring positive variance forecasts without imposing non-negativity constraints on model parameters. Furthermore, EGARCH naturally incorporates leverage effects, allowing negative returns to have a stronger impact on future volatility than positive returns of equal magnitude.
-
-The estimated conditional variance is annualized and used as the primary volatility input for subsequent option pricing.
-
-\subsection{Multi-Timeframe Volatility Integration}
-
-Although EGARCH provides statistically robust long-term volatility forecasts, financial markets often experience short-term fluctuations that are not immediately reflected in daily models. Therefore, realized volatility is estimated across multiple intraday intervals including 1-minute, 5-minute, 15-minute, 1-hour, and daily timeframes.
-
-Each realized volatility estimate is annualized using the square-root-of-time rule,
-
+The evaluated next-day volatility proxy is the annualized absolute log return,
 \begin{equation}
-\sigma_{\text{annual}}
-=
-\sigma_{\text{period}}
-\sqrt{N},
+\sigma^{\mathrm{target}}_{t+1}=\left|r_{t+1}\right|\sqrt{252}.
 \end{equation}
+This is a one-day realized proxy based on the next closing-price return; it is not an intraday realized-variance estimator or a direct observation of latent volatility.
 
-where $N$ represents the number of observation periods within one trading year.
-
-The framework combines long-term EGARCH forecasts with recent realized volatility through learned, regime-conditional weights. These weights depend on the observed market state, the posterior probabilities of the HMM regimes, and the target forecasting horizon, allowing the resulting estimate to reflect both persistent market behavior and current trading activity without assuming that one fixed combination is appropriate in every condition.
-
-\subsection{Market Regime Identification}
-
-Financial markets alternate between periods of low and high volatility. Pricing models that ignore these structural shifts often produce inaccurate theoretical valuations. To capture changing market conditions, a Gaussian Hidden Markov Model (HMM) is employed, with its filtered posterior probability vector used as the operational regime representation.
-
-The HMM represents the market as a data-selected number of discrete volatility regimes based on observed volatility features. Downstream quantitative calculations use the full filtered posterior distribution over states. Low, Normal, High, and Extreme labels are used only as an interpretable four-state description if the model-selection procedure selects $K=4$; they are not imposed as an a priori assumption.
-
-Each regime represents a distinct probability distribution governing market behavior. The number of hidden states $K$ is treated as an empirically selected hyperparameter rather than fixed a priori. Candidate values $K\in\{2,3,4,5,6\}$ are evaluated using information criteria, regime persistence, and downstream validation performance. The filtered posterior vector is inferred using a moving-window approach rather than an expanding window to quickly adapt to structural breaks without stale data skewing regime probabilities. The HMM window used to fit and update the regime model and classify time $t$ uses a rolling $N_{\mathrm{train}}=60$ trading-day estimation window containing only observations strictly prior to $t$, ensuring that no future or contemporaneous information leaks into regime identification.
-Model selection via the Bayesian Information Criterion (BIC) confirms $K=4$ states as optimal ($\mathrm{BIC}=3365.2$), with states $0,1,2,3$ dynamically mapped to qualitative regimes (``Low'', ``Normal'', ``High'', and ``Extreme'') by sorting estimated conditional variances ($\sigma \approx 9.2\%$, $13.5\%$, $21.4\%$, and $36.8\%$).
-
-\subsection{Volatility Risk Premium Estimation}
-
-Implied volatility generally exceeds statistically forecasted volatility because option buyers are willing to pay a premium for downside protection. This difference is commonly referred to as the Volatility Risk Premium (VRP). Instead of directly adopting the contemporaneous implied volatility of the contract being evaluated, the proposed framework estimates the expected premium using information available before the pricing time.
-
-The forecasted EGARCH volatility is then adjusted using a temporally lagged, posterior-probability-weighted premium mixture,
-
+The rolling benchmark is the sample standard deviation of the most recent 20 returns with \texttt{ddof=1}, annualized by $\sqrt{252}$. An EWMA benchmark is also evaluated with $\lambda=0.94$. The GARCH benchmark uses a constant mean, normal innovations, and $(p,o,q)=(1,0,1)$. Both conditional-volatility models use an expanding historical estimation window with a minimum of 60 observations and produce one-step forecasts. For EGARCH we use constant mean, normal innovations, $(p,o,q)=(1,1,1)$, and returns multiplied by 100 before fitting; the conditional log variance under the \texttt{arch} parameterization is
 \begin{equation}
-\sigma_{\text{adjusted},t}
-=
-\sigma_{\text{EGARCH},t}
-+
-\sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
+\begin{split}
+\log(\sigma_t^2) &= \omega+\alpha_1\left(\left|e_{t-1}\right|-\sqrt{\frac{2}{\pi}}\right)\\
+&\quad +\gamma_1 e_{t-1}+\beta_1\log(\sigma_{t-1}^2),
+\end{split}
 \end{equation}
+where \(e_t=\frac{\epsilon_t}{\sigma_t}\).
+Here $\omega$ is the log-variance intercept, $\alpha_1$ measures the response to shock magnitude, $\gamma_1$ captures signed-shock asymmetry, and $\beta_1$ measures log-variance persistence. Forecast variance on the percentage scale is divided by $10{,}000$ to obtain decimal daily variance; taking its square root gives decimal daily volatility, and multiplying by $\sqrt{252}$ gives annualized volatility. Walk-forward fits with nonzero convergence flags or invalid forecasts are recorded as failures and are not replaced with synthetic values.
 
-Although variances are strictly additive in standard probability models, we follow the established practitioner convention of linearly adjusting log-volatility (or standard deviation) by an empirical premium factor, simplifying real-time computation without significant loss of predictive power [12, 23]. Each regime premium is estimated from lagged historical information with strict temporal separation from the option being priced. The posterior mixture varies continuously during transitions rather than switching discontinuously when a hard label changes; a shift from posterior probabilities $(0.51,0.49)$ to $(0.49,0.51)$ therefore changes the adjustment only negligibly. The estimator in (\ref{eq:lagged_vrp}) uses information available no later than time $t$ with an exact lag of $k=1$ trading day ($IV_{t-1}$) to produce the forecast for $t+1$, preserving strict temporal causality.
+\subsection{Maturity-Aligned Variance Construction}
 
-\subsection{Theoretical Option Valuation}
-
-The constant-volatility Black--Scholes model is a structural approximation that does not directly represent several features of the NIFTY options market. The implied-volatility smile and skew generate strike-dependent volatility patterns that a single volatility input cannot reproduce, while term-structure and maturity effects make the appropriate volatility dependent on time to expiry. Jump risk and stochastic volatility introduce non-Gaussian returns and time-varying distributional dynamics beyond the continuous-path, constant-volatility assumptions of Black--Scholes. In addition, bid--ask bounce, quote discreteness, and the discrete availability of strikes create microstructure effects that can affect observed option prices independently of the latent theoretical value.
-
-Consequently, a model-implied pricing deviation obtained by comparing a market price with a BSM value may partly reflect BSM structural misspecification rather than a genuine market inefficiency. A sophisticated EGARCH/HMM/VRP volatility input does not remove this pricing-model risk when it is inserted into a constant-volatility BSM formula. This limitation motivates the two-level mispricing attribution design introduced after the strategy-recommendation stage and formalized in Section V: the signal must be tested against a volatility-surface-consistent benchmark before it is interpreted as surface-independent evidence.
-
-The adjusted volatility is supplied to the Black--Scholes pricing model together with the underlying asset price, strike price, risk-free interest rate, and time to expiration.
-
-The framework computes theoretical prices for both call and put options using the Black--Scholes formulation. In addition to option prices, the model estimates the primary option Greeks including Delta ($\Delta$), Gamma ($\Gamma$), Theta ($\Theta$), Vega ($\mathcal{V}$), and Rho ($\rho$). These sensitivity measures provide additional information regarding option risk characteristics and are later incorporated into trading signal generation.
-
-\subsection{Model-Implied Pricing Deviation Detection}
-
-The theoretical option price is compared with the observed market premium to quantify pricing inefficiency. The percentage deviation is computed as
-
+For an option with $N$ observed NIFTY trading dates through expiry, the first daily percentage-scale variance is the analytical one-step EGARCH forecast. Because the employed library interface does not expose analytical multi-step EGARCH forecasts in the original implementation, later values were originally propagated deterministically. The present version replaces that plug-in with a controlled approximation and we distinguish it explicitly from the exact conditional expectation. For $h\ge 2$,
 \begin{equation}
-\text{Model-Implied Pricing Deviation (\%)}
-=
-\frac{P_{\text{market}}-P_{\text{fair}}}
-{P_{\text{fair}}}
-\times100.
+\widehat h^{(\%)}_{t+h}=\exp\left(\omega+\beta_1\log\widehat h^{(\%)}_{t+h-1}\right),
 \end{equation}
-
-Positive values indicate prices above the model fair value, whereas negative values indicate prices below the model fair value; neither sign alone establishes economic mispricing.
-
-To improve robustness, the framework combines pricing deviation, volatility regime, option Greeks, and liquidity constraints into a composite decision score. Based on predefined thresholds, options are classified into three categories:
-
-\begin{itemize}
-    \item Below Model Value
-    \item Near Model Value
-    \item Above Model Value
-\end{itemize}
-
-This classification enables traders to identify contracts exhibiting statistically significant model-implied pricing deviations from their estimated fair values.
-
-\subsection{Strategy Recommendation}
-
-The final stage translates quantitative outputs into actionable trading insights. Quantitative pricing uses the full filtered posterior vector and its posterior-weighted VRP; a dominant-regime label may be derived only for human-readable strategy recommendations, not for the fair-value calculation. The framework combines this recommendation context with the degree of model-implied pricing deviation to suggest suitable options strategies.
-
-For example, high-volatility regimes with positive model-implied pricing deviations may favor premium-selling strategies, whereas low-volatility environments with negative deviations may indicate favorable premium-buying opportunities. These are model-conditioned strategy indications rather than proof of economic mispricing.
-
-\subsection{Two-Level Mispricing Attribution Design}
-
-The framework separates structural-model deviation from surface-independent deviation through two pricing levels. Model 1 is the current structural baseline: the regime-adjusted volatility produced by the EGARCH, HMM, and VRP pipeline is supplied to constant-volatility Black--Scholes, producing $P_{\mathrm{BSM,adjusted}}$ and the deviation $M1_{\mathrm{dev}}=P_{\mathrm{market}}-P_{\mathrm{BSM,adjusted}}$. Model 2 is a volatility-surface-consistent benchmark, implemented using Heston, SABR, or Local Volatility and calibrated to the observed smile, skew, and term structure at each market snapshot; it produces $P_{\mathrm{surface}}$ and $M2_{\mathrm{dev}}=P_{\mathrm{market}}-P_{\mathrm{surface}}$.
-
-The residual attribution asks whether the Model 1 signal remains after the surface structure represented by Model 2 has been controlled. A small or statistically insignificant residual across most contracts would imply that much of the apparent Model 1 deviation is explained by BSM misspecification rather than genuine market inefficiency. A large and statistically significant residual after this control would provide stronger, though still model-relative, evidence of surface-independent economic mispricing.
-
-\section{Computational Framework}
-
-The proposed theoretical framework is implemented via a scalable, full-stack architecture optimized for low-latency quantitative trading. At the core is a modular FastAPI-based backend that orchestrates market data ingestion, distributed computation, and live signal generation. The state management layer effectively separates static historical analysis from high-frequency intraday streams. 
-
-To bridge the gap between academic modeling and real-world deployment, the system integrates seamlessly with broker APIs (e.g., Upstox/DhanHQ) to ingest multi-timeframe OHLCV tick data and real-time options chain snapshots. These streams are buffered into memory and immediately broadcasted to the quantitative microservices via asynchronous event loops. 
-
-Furthermore, the entire application is containerized using Docker, allowing for rapid deployment and elastic scaling across distributed clusters. Integrated CI/CD pipelines automate environment provisioning and continuous testing, ensuring that updates to the econometric models—like the multi-timeframe EGARCH estimator and HMM state matrices—can be deployed directly to the live trading server without imposing downtime. Analytical computations heavily leverage vectorized operations in NumPy and Pandas, enabling the system to evaluate extensive option chains and generate Composite M-Scores within sub-50ms latency profiles perfectly tailored for institutional-grade quantitative environments.
-
-\begin{figure*}[!t]
-\centering
-\includegraphics[width=\textwidth]{images/quantlens_terminal/11_pipeline_operations.png}
-\caption{Algorithmic data-flow mapping the progression of OHLCV tick data through the multi-timeframe EGARCH estimator, into the HMM Regime filter, generating adjusted inputs for the Black--Scholes pricing core and resulting in the Composite M-Score.}
-\label{fig:data_flow}
-\end{figure*}
-
-\section{Mathematical Formulation}
-
-This section presents the mathematical foundations of the proposed framework. The option valuation pipeline integrates econometric volatility forecasting, volatility regime classification, theoretical option pricing, and quantitative model-implied deviation analysis. The complete formulation consists of logarithmic return computation, EGARCH volatility estimation, realized volatility calculation, Hidden Markov Model (HMM) regime identification, Volatility Risk Premium (VRP) adjustment, Black--Scholes option pricing, option Greeks, and deviation quantification.
-
-\subsection{Logarithmic Returns}
-
-Financial time series are first transformed into continuously compounded (logarithmic) returns to stabilize variance and facilitate econometric modeling. The return at time $t$ is computed as
-
+which ignores the $\alpha_1$- and $\gamma_1$-weighted innovation contributions in expectation. Because $E[\exp(X)]\neq\exp(E[X])$ in general, the resulting multi-step variance is a Jensen-type lower bound on the analytical multi-step conditional variance. We therefore report it as an \emph{expected-log-variance plug-in}; a Monte-Carlo bias estimate was not produced in the current environment. The values are converted to decimal daily variances by $\widehat v_{t+h}=\widehat h^{(\%)}_{t+h}/10{,}000$. The maturity-aligned annualized volatility is
 \begin{equation}
-r_t=\ln\left(\frac{P_t}{P_{t-1}}\right),
+\widehat\sigma_{\mathrm{horizon}}=\left[\frac{252}{N}\sum_{h=1}^{N}\widehat v_{t+h}\right]^{1/2}.
 \end{equation}
+Calendar DTE determines eligibility and $T$, while actual observed trading dates determine $N$ and the variance sum.
 
-where
+\subsection{Black--Scholes Option Valuation}
 
-\begin{itemize}
-    \item $P_t$ denotes the closing price at time $t$,
-    \item $P_{t-1}$ denotes the previous closing price.
-\end{itemize}
-
-Logarithmic returns possess desirable statistical properties such as time additivity and approximate normality, making them suitable for volatility modeling.
-
-\subsection{EGARCH(1,1) Volatility Model}
-
-To model conditional volatility, the proposed framework employs the Exponential Generalized Autoregressive Conditional Heteroskedasticity (EGARCH(1,1)) model.
-
-The conditional variance is defined as
-
+The research valuation uses continuous-dividend BSM pricing. With annualized volatility $\sigma$,
 \begin{equation}
-\ln(\sigma_t^2)
-=
-\omega
-+
-\beta
-\ln(\sigma_{t-1}^2)
-+
-\alpha
-\left(
-\frac{|\epsilon_{t-1}|}{\sigma_{t-1}}
--
-\sqrt{\frac{2}{\pi}}
-\right)
-+
-\gamma
-\frac{\epsilon_{t-1}}{\sigma_{t-1}},
-\end{equation}
-
-where
-
-\begin{itemize}
-    \item $\sigma_t^2$ is the conditional variance,
-    \item $\omega$ is the constant term,
-    \item $\alpha$ measures the magnitude effect,
-    \item $\beta$ captures volatility persistence,
-    \item $\gamma$ represents the leverage effect,
-    \item $\epsilon_t$ denotes the residual return.
-\end{itemize}
-
-Unlike conventional GARCH models, EGARCH guarantees positive variance through logarithmic modeling while capturing asymmetric market responses.
-
-\subsection{Realized Volatility}
-
-Short-term market fluctuations are measured using realized volatility computed from intraday returns.
-
-For a window containing $n$ observations,
-
-\begin{equation}
-RV
-% Throughout this paper, a model--market price gap is termed a model-implied pricing deviation; economic mispricing is reserved for deviations that satisfy the validation hierarchy in Section~V-M.
-=
-\sqrt{
-% Consequently, implied-volatility-based pricing cannot serve as an independent benchmark for detecting statistically significant model-implied pricing deviations.
-\sum r_i^2
-}
-% The difference between the theoretical fair value and the observed market price is used to identify potential model-implied pricing deviations. Instead of relying solely on raw pricing differences, the proposed system integrates option Greeks, volatility regime information, and a normalized deviation score to provide more robust and interpretable trading signals. The entire framework is implemented as a modular FastAPI-based system capable of ingesting live market data, performing volatility forecasting, pricing option contracts, detecting model-implied deviations, and recommending suitable options strategies.
-\end{equation}
-% \item Design of a composite model-implied pricing deviation methodology derived from a formal hypothesis-testing framework, in which each contract's standardized pricing residual uses regime- and liquidity-dependent uncertainty estimation and is accompanied by an explicit confidence adjustment.
-Realized volatility complements the long-term EGARCH forecast by incorporating recent market activity.
-
-\subsection{Annualized Volatility}
-
-To ensure comparability across different timeframes, volatility estimates are annualized using
-
-\begin{equation}
-\sigma_{annual}
-=
-\sigma_{period}
-\sqrt{N},
-\end{equation}
-
-where
-
-\begin{itemize}
-    \item $\sigma_{period}$ is the volatility estimated over the observation period,
-    \item $N$ represents the number of trading periods in one year.
-\end{itemize}
-
-For daily observations, $N=252$, whereas intraday intervals are adjusted according to the number of trading minutes.
-
-\subsection{Hidden Markov Model}
-
-Market conditions are modeled using a Gaussian Hidden Markov Model (HMM).
-
-The hidden state sequence is represented as
-
-\begin{equation}
-S_t
-\in
-\{Low,\ Normal,\ High,\ Extreme\},
-\end{equation}
-
-where each state corresponds to a distinct volatility regime.
-
-The transition probabilities satisfy
-
-\begin{equation}
-A_{ij}
-=
-P(S_t=j|S_{t-1}=i),
-\end{equation}
-
-while the observation probability follows
-
-\begin{equation}
-P(O_t|S_t=i)
-=
-\mathcal{N}
-(\mu_i,\Sigma_i),
-\end{equation}
-
-where
-
-\begin{itemize}
-    \item $O_t$ represents the observed volatility features,
-    \item $\mu_i$ denotes the state mean,
-    \item $\Sigma_i$ denotes the covariance matrix.
-\end{itemize}
-
-The forward algorithm is the primary operational output of the HMM. It produces the filtered posterior probabilities
-
-\begin{equation}
-\label{eq:filtered_regime_posterior}
-\pi_{t,k}=P(S_t=k\mid O_{1:t}),\qquad k=1,\ldots,K,
-\end{equation}
-
-using only observations available up to and including time $t$. These filtered probabilities, rather than a one-hot state or scalar regime label, are consumed by the VRP, adaptive-fusion, and M-Score components. Smoothed backward-pass probabilities $P(S_t=k\mid O_{1:T})$ are not used operationally because conditioning on future observations would introduce look-ahead bias. The Viterbi sequence may be retained only as a secondary, presentational output for regime labels in Fig. 2 and for descriptive duration statistics; it is not an input to quantitative pricing computation. For classification at time $t$, HMM fitting and filtering use only observations available strictly before $t$ within a fixed rolling window of 60 trading days, re-estimated at each daily step consistently with the Walk-Forward Evaluation Protocol.
-
-\subsubsection{HMM State-Count Model Selection}
-
-The state count $K$ is treated as a hyperparameter selected from $\{2,3,4,5,6\}$ rather than assumed from qualitative labels. Let $\theta_K$ denote the fitted parameters of a candidate $K$-state Gaussian HMM, $\mathcal{L}(\theta_K)$ its fitted likelihood, $p_K$ the number of free parameters, and $n$ the number of observations. The information criteria are
-
-\begin{equation}
-\mathrm{AIC}_K = 2p_K - 2\ln\left(\mathcal{L}(\theta_K)\right),
-\end{equation}
-
-\begin{equation}
-\mathrm{BIC}_K = p_K\ln(n) - 2\ln\left(\mathcal{L}(\theta_K)\right).
-\end{equation}
-
-BIC is the preferred primary criterion because its stronger complexity penalty guards against over-segmenting the volatility series into spurious micro-regimes. It is considered alongside AIC, persistence diagnostics, and downstream validation rather than used in isolation. For state $i$, the expected duration implied by the transition matrix is
-
-\begin{equation}
-\mathrm{E}[D_i] = \frac{1}{1-p_{ii}}.
-\end{equation}
-
-Candidate models are rejected if they produce implausibly short durations or rapidly oscillating regimes, even when their information criteria improve, because unstable states would make VRP estimates and adaptive fusion weights unstable. The operational minimum-duration constraint requires $\mathrm{E}[D_i] \ge 5.0$ trading days for all states to prevent rapid state chatter; among specifications satisfying this constraint, the model minimizing BIC on the rolling validation window is selected ($K=4$).
-
-The fitted transition matrix $A$ is reported empirically with the selected model. Diagonal dominance, reflected by high $p_{ii}$ values, is expected and desirable because it indicates persistent regimes; the off-diagonal structure reveals whether transitions are typically gradual (for example, Low$\rightarrow$Normal$\rightarrow$High) or whether direct jumps such as Normal$\rightarrow$Extreme are common.
-
-\subsection{Volatility Risk Premium}
-
-The Volatility Risk Premium (VRP) is defined historically as the difference between implied volatility and statistically forecasted volatility,
-
-\begin{equation}
-VRP_t
-=
-IV_t
--
-\sigma_{forecast,t}.
-\end{equation}
-
-For pricing at time $t$, the expected premium is generated strictly from information available before that pricing decision. Specifically,
-
-\begin{equation}
-\label{eq:lagged_vrp}
-\widehat{VRP}_{t+1} = f_{\phi}\left(\boldsymbol{\pi}_t, IV_{t-k}, RV_t, X_t\right), \qquad k\geq 1,
-\end{equation}
-
-where $\boldsymbol{\pi}_t=[\pi_{t,1},\ldots,\pi_{t,K}]$ denotes the filtered HMM posterior vector, $IV_{t-k}$ denotes implied volatility observed at least $k$ periods earlier and never the IV of the contract currently being evaluated, $RV_t$ denotes realized volatility, and $X_t$ denotes other market-state features available at the forecast origin. The one-step-ahead estimate produced by (\ref{eq:lagged_vrp}) uses an exact lag of $k=1$ trading day ($IV_{t-1}$) over a 60-day rolling estimation window, re-estimated daily strictly prior to the forecast origin.
-
-The posterior-weighted expected VRP is
-
-\begin{equation}
-\label{eq:posterior_weighted_vrp}
-\widehat{VRP}_{t}=\sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
-\end{equation}
-
-\begin{equation}
-\label{eq:adjusted_lagged_vrp}
-\sigma_{\mathrm{adj},t} = \sigma_{\mathrm{EGARCH},t} + \sum_{k=1}^{K}\pi_{t,k}\widehat{VRP}_{k,t}.
-\end{equation}
-
-Each $\widehat{VRP}_{k,t}$ is estimated by the lagged, out-of-sample procedure above using historical IV and other information available no later than the forecast origin, never the contract's contemporaneous IV. The filtered mixture varies continuously and degrades gracefully during regime transitions rather than jumping when an argmax label flips. For example, a hard-assignment shift from $\boldsymbol{\pi}_t=(0.51,0.49)$ to $(0.49,0.51)$ switches the full premium between two regimes, whereas the posterior mixture changes only negligibly and reflects genuine uncertainty. The estimator may use historical IV to learn the risk premium charged in the past, but the adjusted volatility remains temporally separated from the option observation used for model-implied deviation assessment.
-
-\subsection{Toward a Cross-Sectional Regime-Conditional VRP Surface}
-
-The scalar regime-conditional VRP can be extended to a cross-sectional surface that accounts for contract characteristics and market liquidity:
-
-\begin{equation}
-\label{eq:vrp_surface}
-VRP_{t,K,T} = f\left(\boldsymbol{\pi}_t,\mathrm{Moneyness}_{K,T},T,\mathrm{Liquidity}_t,RV_t\right),
-\end{equation}
-
-where $K$ is the strike, $T$ is time to maturity, $\mathrm{Moneyness}_{K,T}$ denotes the option's moneyness, and $\mathrm{Liquidity}_t$ captures order-flow, volume, and open-interest information. Conditioning on moneyness and maturity is more defensible than applying a single regime-average scalar because the volatility risk premium varies across the implied-volatility skew and across the term structure. In particular, out-of-the-money puts are a well-known stylized example of contracts that can carry a larger premium than at-the-money options, while premiums can also differ materially across maturities \cite{carr_wu_2009}. In the current production deployment, the scalar regime-conditional VRP in (\ref{eq:posterior_weighted_vrp}) serves as the active pricing adjustment, while the full cross-sectional VRP surface in (\ref{eq:vrp_surface}) is formulated as a modular future extension.
-
-\subsection{Black--Scholes Option Pricing}
-
-The adjusted volatility is incorporated into the Black--Scholes model.
-
-The intermediate variables are
-
-\begin{equation}
-d_1
-=
-\frac{
-\ln(S/K)
-+
-(r+\sigma^2/2)T
-}
-{\sigma\sqrt{T}},
-\end{equation}
-
-\begin{equation}
-d_2
-=
-d_1
--
-\sigma\sqrt{T},
-\end{equation}
-
-where
-
-\begin{itemize}
-    \item $S$ is the spot price,
-    \item $K$ is the strike price,
-    \item $r$ is the risk-free interest rate,
-    \item $T$ denotes time to expiry,
-    \item $\sigma$ is the adjusted volatility.
-\end{itemize}
-
-The theoretical European call price is
-
-\begin{equation}
-C
-=
-SN(d_1)
--
-Ke^{-rT}N(d_2),
-\end{equation}
-
-while the theoretical put price is
-
-\begin{equation}
-P
-=
-Ke^{-rT}N(-d_2)
--
-SN(-d_1).
-\end{equation}
-
-\subsection{Option Greeks}
-
-To evaluate option sensitivities, the framework utilizes standard analytical Black--Scholes partial derivatives (Greeks) for Delta ($\Delta$), Gamma ($\Gamma$), Vega ($\mathcal{V}$), Theta ($\Theta$), and Rho ($\rho$). The detailed mathematical derivations for these sensitivities are rigorously documented and can be found in Hull (2022) [10]. Within our architecture, these factors are actively computed to characterize uncertainty in the model-implied pricing deviation score according to structural risks.
-
-\subsection{Multi-Timeframe Volatility Fusion}
-
-To reconcile inconsistencies between long-term econometric forecasts and short-term volatility perturbations, we introduce an adaptive fusion mechanism whose weights respond to the current market state, the filtered regime posterior vector, and the target forecasting horizon. Let $X_t$ denote a vector of current market-state features, let $\boldsymbol{\pi}_t=[\pi_{t,1},\ldots,\pi_{t,K}]$ denote the HMM posterior probability vector, and let $\tau$ denote the target horizon. The time-varying fusion weights are generated by
-
-\begin{equation}
-\label{eq:adaptive_fusion_weights}
-\mathbf{w}_t(\tau) = f_{\theta}\left(X_t,\boldsymbol{\pi}_t,\tau\right),
-\end{equation}
-
-where $\sigma_{RV,i,t}$ designates the annualized realized volatility calculated over the $i$-th intraday scale and the daily EGARCH forecast is indexed by $0$. The fused volatility is therefore
-
-\begin{equation}
-\label{eq:adaptive_fusion}
-\sigma_{\mathrm{fusion},t}(\tau) = w_{t,0}(\tau)\sigma_{\mathrm{EGARCH},t}(\tau) + \sum_{i=1}^{k} w_{t,i}(\tau)\sigma_{RV,i,t}.
-\end{equation}
-
-The weights satisfy the simplex constraint
-
-\begin{equation}
-\label{eq:fusion_simplex}
-\mathbf{w}_t(\tau) \in \Delta^{k} = \left\{\mathbf{w}\in\mathbb{R}^{k+1}: w_i\geq 0\ \forall i,\quad \sum_{i=0}^{k}w_i=1\right\}.
-\end{equation}
-
-This constraint guarantees that the fused volatility remains a convex combination of its inputs, preserving interpretability unlike an unconstrained regression. The weights are learned by minimizing an out-of-sample forecasting objective,
-
-\begin{equation}
-\label{eq:fusion_objective}
-\mathbf{w}^{*}_t(\tau) = \arg\min_{\mathbf{w}_t(\tau)\in\Delta^{k}}\ \mathrm{E}^{\mathrm{WF}}\left[\left(\sigma_{\mathrm{realized},t+\tau} - \sigma_{\mathrm{fusion},t}(\tau;\mathbf{w}_t)\right)^2\right],
-\end{equation}
-
-where $\mathrm{E}^{\mathrm{WF}}$ denotes evaluation over historical rolling walk-forward windows: each weight estimate is fit using information available before the forecast origin and evaluated on subsequent observations, never by fitting to the full in-sample period. The Walk-Forward Evaluation Protocol in Section~VI-B-1 is the mechanism that enforces this temporal ordering for fusion-weight fitting. Conditioning the weights on the full posterior vector $\boldsymbol{\pi}_t$, rather than a one-hot state label, allows low-confidence transitions to produce smooth changes in weights: longer-horizon EGARCH forecasts can receive greater weight when high-frequency realized volatility is noisy, while short-horizon realized volatility can receive greater weight when the posterior shifts toward high-volatility states. The function $f_{\theta}(\cdot)$ may be implemented using a constrained regression, a small gradient-boosted model, or a softmax-parameterized linear combiner over posterior-probability features.
-
-\subsection{Timeframe Coherence Index (TCI)}
-
-The Timeframe Coherence Index (TCI) quantifies the degree of standardized agreement between realized-volatility estimates at multiple horizons and the daily volatility anchor. For each timeframe, volatility is standardized using a rolling 30-trading-day estimation window, matching the 30-day epoch used for the M-Score. The standardized volatility vector is
-
-\begin{equation}
-\label{eq:tci_vector}
-\mathbf{v}_t = \left[z_{30}(\sigma_{RV,1min,t}),z_{30}(\sigma_{RV,5min,t}),z_{30}(\sigma_{RV,15min,t}),z_{30}(\sigma_{RV,1hour,t}),z_{30}(\sigma_{RV,daily,t})\right],
-\end{equation}
-
-where $z_{30}(\cdot)$ denotes the rolling z-score for the corresponding timeframe. The rolling mean and standard deviation used by $z_{30}(\cdot)$ at time $t$ are computed only from historical observations available up to $t$ and are not allowed to include future observations. Using the daily estimate as the anchor because it is the most stable and least noisy measure, the unbounded agreement score is defined as
-
-\begin{equation}
-\label{eq:tci}
-TCI_t = 1 - \frac{1}{K}\sum_{i=1}^{K}\left|z_{30}(\sigma_{RV,i,t}) - z_{30}(\sigma_{RV,daily,t})\right|, \qquad K=4,
-\end{equation}
-
-where $i$ indexes the 1-minute, 5-minute, 15-minute, and 1-hour estimates. Thus, all available timeframes are used rather than an arbitrarily selected pair. As a raw score, $TCI_t$ is not mathematically guaranteed to lie in $[0,1]$ because z-scores are unbounded; it is expected to concentrate near that range when volatility measures across timeframes are correlated, but pathological observations can produce negative values. For downstream use, we apply the explicitly defined clipped index
-
-\begin{equation}
-\label{eq:tci_clipped}
-TCI^{\mathrm{clip}}_t = \max\left(0,\min\left(1,TCI_t\right)\right) \in [0,1].
-\end{equation}
-
-$TCI_t$ approaching $1$ indicates strong agreement across timeframes, whereas $TCI_t$ approaching $0$ after clipping, or becoming negative before clipping, indicates strong disagreement and possible regime-transition noise. Long-memory persistence metrics (such as the Hurst exponent $H$) are evaluated as separate regime-persistence covariates in the adaptive fusion weight function $f_{\theta}(X_t,\boldsymbol{\pi}_t,\tau)$ rather than confounded within TCI.
-
-\subsection{Composite Mispricing M-Score}
-
-The Composite M-Score is formulated as a hypothesis-testing statistic rather than as an assembled combination of pricing and market indicators. The null hypothesis is
-
-\begin{equation}
-\label{eq:mscore_null}
-H_0: P_{\mathrm{market},t} = P_{\mathrm{fair},t},
-\end{equation}
-
-which states that the option is fairly priced and that any observed difference is attributable to estimation or market noise. The base test statistic is the standardized pricing residual
-
-\begin{equation}
-\label{eq:mscore_residual}
-Z_t = \frac{P_{\mathrm{market},t} - P_{\mathrm{fair},t}}{\widehat{\sigma}_{\epsilon,t}},
-\end{equation}
-
-where $\widehat{\sigma}_{\epsilon,t}$ is the estimated standard error of the fair-value prediction at time $t$. To first order, the delta method gives the volatility-error contribution as $\widehat{\sigma}_{\epsilon,t} \approx \mathcal{V}_t\widehat{\sigma}_{\mathrm{vol\ error},t}$, because Vega converts uncertainty in the volatility forecast into price uncertainty. Vega therefore enters as a sensitivity-based error-propagation term rather than as an arbitrary normalization. Gamma is not multiplied by Vega in the denominator: it enters separately through the uncertainty model as a convexity-risk covariate, accounting for second-order model error that a purely linear Vega-based propagation misses when the underlying moves between valuation and observation.
-
-The full uncertainty estimate is represented as a covariate-based function,
-
-\begin{equation}
-\label{eq:mscore_uncertainty}
-\widehat{\sigma}_{\epsilon,t} = g\left(\mathcal{V}_t,\Gamma_t,\boldsymbol{\pi}_t,\mathrm{Liquidity}_t\right),
-\end{equation}
-
-where $\boldsymbol{\pi}_t$ is the filtered posterior vector and $\mathrm{Liquidity}_t$ denotes liquidity information such as spreads, volume, or open interest. The function $g(\cdot)$ may be estimated from validation residuals; its probability-weighted regime and liquidity covariates allow uncertainty to vary smoothly through transitions and to widen in extreme posterior states or illiquid contracts rather than imposing a fixed sensitivity correction. No particular coefficients or functional form are assumed here.
-
-The final score separates statistical evidence from contextual confidence:
-
-\begin{equation}
-\label{eq:mscore}
-M_{\mathrm{score},t} = Z_t\,C\left(TCI^{\mathrm{clip}}_t,VRP_{\mathrm{dev},t}\right), \qquad 0\leq C(\cdot)\leq1.
-\end{equation}
-
-Here, $Z_t$ answers ``how statistically significant is this pricing residual under $H_0$?'', whereas $C(\cdot)$ answers ``how much should this significance be trusted given current market conditions?'' The confidence factor down-weights the standardized residual when cross-timeframe coherence is low or when the VRP estimate is far from its regime baseline. The outer robust $Z(\cdot)$ transformation used in the earlier formulation is dropped because $Z_t$ is already a standardized residual; applying a second moving-window robust normalization would obscure its test-statistic interpretation and create double normalization. The 30-day epoch used for any robust Z-score normalization is strictly backward-looking, using only observations from $[t-30,t)$ to normalize the statistic at time $t$, ensuring no future information leakage. Specifically, the uncertainty function is parameterized as $\widehat{\sigma}_{\epsilon,t} = \mathcal{V}_t\widehat{\sigma}_{\mathrm{vol\ error},t} + \frac{1}{2}\Gamma_t S_t^2\sigma_{\mathrm{fused},t}^2\Delta t$, directly scaling by Vega and Gamma convexity risk, while the confidence adjustment is formulated as $C(TCI^{\mathrm{clip}}_t, VRP_{\mathrm{dev},t}) = TCI^{\mathrm{clip}}_t \cdot \exp(-|z_{\mathrm{vrp},t}|/2)$. In production, the normalized multi-signal M-score is calculated as $M = 0.50\,z_{\mathrm{price}} + 0.20\,z_{\mathrm{vrp}} + 0.15\,z_{\mathrm{vega}} + 0.10\,z_{\mathrm{gamma}}$ with threshold $|M| \ge 1.20$.
-
-\subsection{Two-Level Mispricing Attribution Formulation}
-
-Let Model 1 denote the current regime-adjusted constant-volatility BSM pipeline and Model 2 denote a calibrated volatility-surface-consistent benchmark. Their price deviations and the attribution residual are defined as
-
-\begin{equation}
-\label{eq:two_level_deviations}
 \begin{aligned}
-M1_{\mathrm{dev},t} &= P_{\mathrm{market},t}-P_{\mathrm{BSM,adjusted},t},\\
-M2_{\mathrm{dev},t} &= P_{\mathrm{market},t}-P_{\mathrm{surface},t}.
+d_1&=\frac{\ln(S/K)+(r-q+\sigma^2/2)T}{\sigma\sqrt T},\qquad d_2=d_1-\sigma\sqrt T,\\
+C&=Se^{-qT}N(d_1)-Ke^{-rT}N(d_2),\\
+P&=Ke^{-rT}N(-d_2)-Se^{-qT}N(-d_1).
 \end{aligned}
 \end{equation}
+Here $S$ is the Yahoo Finance NIFTY close, $K$ is the NSE strike, $r$ is the risk-free rate, $q$ is the continuous dividend yield, $T$ is calendar DTE divided by 365.25, and $N(\cdot)$ is the standard normal CDF. Phase~2 uses $r=0.06$ and $q=0.0125$; Phase~1 also evaluates a $7\%$ risk-free-rate sensitivity. The comparison observation is the NSE daily option CLOSE, which is neither a bid--ask quote nor a guaranteed executable price. The resulting valuation difference is therefore a model--market price comparison and does not by itself establish arbitrage or economic mispricing. Importantly, BSM assumes a single constant volatility, whereas NIFTY~50 options exhibit a pronounced smile; a substantial fraction of the reported pricing errors is therefore attributable to the smile rather than to the volatility-input forecast.
 
-The residual attribution is
+\subsection{Forecast Evaluation}
 
+For annualized volatility forecasts $\widehat\sigma_t$ and the matching target $\sigma^{\mathrm{target}}_t$, the implemented errors are
 \begin{equation}
-\label{eq:residual_m_attribution}
-\mathrm{Residual}_{M,t}=M1_{\mathrm{dev},t}-M2_{\mathrm{dev},t}.
+\begin{aligned}
+\mathrm{MAE}&=\frac{1}{m}\sum_{t=1}^{m}\left|\sigma^{\mathrm{target}}_t-\widehat\sigma_t\right|,\\
+\mathrm{RMSE}&=\left[\frac{1}{m}\sum_{t=1}^{m}(\sigma^{\mathrm{target}}_t-\widehat\sigma_t)^2\right]^{1/2}.
+\end{aligned}
 \end{equation}
-
-If $\mathrm{Residual}_{M,t}$ is small or statistically insignificant across most contracts, the Model 1 signal is largely attributable to BSM structural misspecification and is explained away by the volatility surface. If it remains large and statistically significant after Model 2 controls for smile, skew, and term structure, the result provides stronger, though still model-relative, evidence of surface-independent economic mispricing. Paired out-of-sample empirical tests for this decomposition are evaluated in Section~VI-J.
-
-\subsection{Transaction Cost Adjustment}
-
-To distinguish gross backtest performance from an executable estimate, net return is defined as
-
+For variance evaluation, we lower-bound both arguments at a \emph{variance floor} $v_{\min}$, taken as the in-sample sample variance of the training target. This prevents near-zero forecasts from dominating the loss. The reported QLIKE is the mean and median over dates with a feasible ratio,
 \begin{equation}
-\label{eq:net_return_costs}
-\mathrm{Return}_{\mathrm{net},t} = \mathrm{Return}_{\mathrm{gross},t} - \mathrm{TransactionCost}_t - \mathrm{Slippage}_t - \mathrm{SpreadCost}_t.
+\begin{aligned}
+\mathrm{QLIKE}
+&=\frac{1}{m}\sum_{t=1}^{m}\left[
+\frac{v^{\mathrm{target}}_t}{\widehat v_t}
+-\ln\left(\frac{v^{\mathrm{target}}_t}{\widehat v_t}\right)-1\right],\\
+\widehat v_t&=\max\{(\widehat\sigma_t)^2, v_{\min}\}.
+\end{aligned}
 \end{equation}
-
-$\mathrm{TransactionCost}_t$ comprises brokerage (\rupee{}20 per executed order) and applicable statutory charges under the official NSE/SEBI schedule: Securities Transaction Tax (STT, 0.0625\% on option premium sell-turnover), NSE exchange transaction charge (0.05\% of premium turnover), SEBI regulatory fee (\rupee{}10 per crore), GST (18\% on brokerage plus exchange fees), and Stamp Duty (0.003\% on buy turnover).
-
-Slippage is modeled as an order-size and liquidity effect. A provisional functional form is
-
+The Diebold--Mariano comparison in \texttt{dm\_test} uses squared-error losses for this annualized volatility target. For two forecasts $a$ and $b$,
 \begin{equation}
-\label{eq:slippage_cost}
-\mathrm{Slippage}_t = \kappa\frac{Q_t}{\mathrm{OI}_t},
+d_t=(\sigma^{\mathrm{target}}_t-\widehat\sigma_{a,t})^2-(\sigma^{\mathrm{target}}_t-\widehat\sigma_{b,t})^2,
+\qquad \bar d=\frac{1}{m}\sum_{t=1}^{m}d_t.
 \end{equation}
-
-where $Q_t$ is the order size and $\mathrm{OI}_t$ is the available open interest at the relevant strike, with the slippage coefficient calibrated to $\kappa = 0.05$ from empirical NIFTY bid--ask spread and fill records.
-
-Spread cost uses the half-spread convention for each entry and exit, representing execution at the corresponding bid or ask relative to the mid-price:
-
+With Newey--West lag $L=5$, the long-run variance estimate is
 \begin{equation}
-\label{eq:spread_cost}
-\mathrm{SpreadCost}_t = \frac{1}{2}\left(\mathrm{Ask}_{\mathrm{entry},t}-\mathrm{Bid}_{\mathrm{entry},t}\right) + \frac{1}{2}\left(\mathrm{Ask}_{\mathrm{exit},t}-\mathrm{Bid}_{\mathrm{exit},t}\right).
+\widehat V=\frac{1}{m}\left[\widehat\gamma_0+2\sum_{\ell=1}^{L}\left(1-\frac{\ell}{L+1}\right)\widehat\gamma_\ell\right],
+\qquad DM=\frac{\bar d}{\sqrt{\widehat V}},
 \end{equation}
+where $\widehat\gamma_\ell$ is the sample autocovariance of $d_t$ at lag $\ell$. The reported $p$-value uses a two-sided normal approximation. This test is not applied to option-pricing errors in the research scripts.
 
-The option lot size used for position sizing is $L_{\mathrm{lot}}=65$ contracts per lot (in accordance with the revised NSE derivatives specification applicable for the 2024--2026 period), with standard backtest execution scaled at a 3-lot unit ($Q_t = 195$ contracts).
+\subsection{Two-State HMM Regime Filtering}
 
-Execution delay is explicitly modeled with order fills executed at the opening price of the subsequent 5-minute interval (a 1-period execution delay) rather than at the contemporaneous signal-generation price, preventing look-ahead execution bias.
+The empirical HMM diagnostic evaluates both two-state and three-state Gaussian HMMs. Its feature is the annualized 20-observation rolling standard deviation of daily log returns. Each model uses a trailing 120-observation window, diagonal covariance, \texttt{n\_iter=500}, \texttt{tol=1e-4}, and \texttt{random\_state=42}. The training-window mean and standard deviation are used for standardization, and states are ranked by their fitted feature means.
 
-\subsection{From Model-Implied Deviation to Economic Mispricing: A Validation Hierarchy}
+The approved backtest uses a two-state HMM only. It requires at least 120 prior feature observations and fits strictly on observations before the EMA signal date. The current signal-date feature is appended only to calculate the endpoint filtered posterior probability. Future observations and full-sequence smoothed probabilities are not used. Bullish EMA signals are accepted only in the lower-volatility ranked state, while bearish EMA signals are accepted only in the higher-volatility ranked state.
 
-A model-implied pricing deviation is not, by itself, evidence that the market is economically mispriced; the fair value remains subject to model and estimation error. A deviation is escalated to a claim of economic mispricing only when it satisfies the following hierarchy:
+\subsection{Daily Options Backtesting Framework}
 
-\begin{enumerate}
-    \item \textbf{Statistical significance:} $|M_{\mathrm{score},t}|$ exceeds a pre-specified significance threshold under the fair-pricing null hypothesis and the uncertainty model in (\ref{eq:mscore_null})--(\ref{eq:mscore}).
-    \item \textbf{Net-of-cost persistence:} the deviation remains economically meaningful after transaction costs, bid--ask spread, and slippage. A minimum operational condition is
-    \begin{equation}
-    \label{eq:cost_persistence}
-    |P_{\mathrm{market},t}-P_{\mathrm{fair},t}| > \mathrm{TransactionCost}_t.
-    \end{equation}
-    % Net-of-cost persistence is empirically demonstrated across 901 audited ledger executions in Section VI-L.
-    \item \textbf{Liquidity independence:} the deviation is not explained by low liquidity or a wide bid--ask spread after controlling for liquidity covariates consistent with $g(\cdot)$ in (\ref{eq:mscore_uncertainty}).
-    % Liquidity controls verify that detected mispricings concentrate in liquid near-the-money strikes (ATM and ATM+-100).
-    \item \textbf{Subsequent convergence:} the market price is observed to converge toward the model fair value over a pre-specified holding window. The current results do not yet present the independent ground-truth convergence check required for this criterion.
-    % Convergence is operationalized over a 1-day holding horizon with a 1.0% threshold.
-    \item \textbf{Statistically significant net returns:} a strategy conditioned on the signal produces net-of-cost returns statistically distinguishable from zero or from a relevant benchmark. The existing Sharpe-ratio and Diebold--Mariano results partially address this criterion, but they require re-validation after the Concern 1--4 formulation changes and the present terminology correction.
-\end{enumerate}
+The backtest is a separate deterministic experiment using daily option OHLC records. The EMA strategy uses 10- and 30-period EMAs; an upward cross selects a CE and a downward cross selects a PE. The volatility-breakout strategy compares the current close with the previous 20 completed-session high and low, and requires the current ATR-to-close ratio to be at least the frozen training-period median ($0.011011458635943187$). The fourth strategy applies the causal two-state HMM filter to the EMA signals. An RSI reversal strategy was specified but, as reported in §V.E, generated no completed trades; it is therefore not discussed further.
 
-The current implementation rigorously defines criterion (i) through the corrected M-Score framework and partially addresses criterion (v) through the reported Sharpe-ratio and Diebold--Mariano statistics. Criteria (ii)--(iv) require the additional validation identified above; therefore, the present paper does not claim that economic mispricing has been fully demonstrated.
+The chronological partitions are training (1 July--31 December 2024), validation (1 January--30 June 2025), and test (1 July--31 December 2025). Contracts must have the direction implied by the signal, positive \texttt{contracts} and open interest, 15--45 calendar DTE, and a strike within 2.5\% of spot. After these eligibility filters, contracts are selected deterministically by minimum absolute strike distance, nearest expiry, strike, option type, source schema, and source URL, in that order.
 
-\subsection{Diebold--Mariano Test Specification}
+Signals generated after the index close on date $t$ enter on the next available session at the selected option open, and the same contract is retained throughout the trade. Contract-specific ATR(14) uses only valid positive-volume bars before entry. The stop is $\mathrm{entry}-1.5\,\mathrm{ATR}$ and the target is the entry plus twice the initial risk. The entry day is holding session one, and the maximum holding period is ten valid option sessions. Subsequent opening gaps through a stop or target exit at the open. Within a daily candle, the stop is checked before the target; unresolved positions exit at the final valid close. Only one position per strategy is permitted, so overlapping signals are skipped. Gross P\&L is reported in option price points only; no rupee P\&L, lot-size-adjusted return, transaction-cost-adjusted return, or intraday execution precision is claimed.
 
-For two competing forecasts, let $L_{A,t}$ and $L_{B,t}$ denote their losses at evaluation time $t$, and define the loss differential as $d_t=L_{A,t}-L_{B,t}$. The default hypothesis test is two-sided:
+\section{Implementation and Reproducibility}
 
-\begin{equation}
-H_0:\ \mathrm{E}[L_A-L_B]=0,
-\end{equation}
+\subsection{Software Organization}
 
-which states that the two methods have equal predictive accuracy, against
+The repository contains a FastAPI-based application with modular backend services, a frontend, and separate research scripts. The live application and its presentation telemetry are kept conceptually separate from the isolated historical experiments reported in this paper; its outputs and legacy proxy backtest are not treated as research evidence unless explicitly called by a research script.
 
-\begin{equation}
-H_1:\ \mathrm{E}[L_A-L_B]\neq0.
-\end{equation}
-
-The loss function is specified as squared error $L(\hat{\sigma},\sigma) = (\hat{\sigma}-\sigma)^2$ for volatility forecasting and absolute pricing error $L(\hat{P},P) = |\hat{P}-P|$ for option pricing evaluations. All reported DM tests are two-sided with forecast horizon $h=1$ trading day. The out-of-sample test sample comprises $n=574$ paired observations, and the Newey--West HAC bandwidth is set to $q = \lfloor 4(n/100)^{2/9} \rfloor = 5$ lags. Significance thresholds are $\alpha=0.05$ ($^{**}$) and $\alpha=0.01$ ($^{***}$). DM statistics assess equal predictive accuracy for the specified loss and horizon.
-
-\section{Experimental Setup and Results}
+The volatility and option-valuation experiments are implemented in \texttt{scripts/run\_empirical\_research.py} and \texttt{scripts/run\_phase2\_horizon\_validation.py}. The separate daily-options backtest is implemented in \texttt{scripts/research\_backtest/engine.py}. This organization prevents the HMM signal filter used by the backtest from being interpreted as an input to the historical BSM valuation experiment.
 
 \subsection{Experimental Environment}
-All experiments were conducted on a production-grade quantitative pipeline implemented in Python~3.12. The backend is exposed via a FastAPI asynchronous REST API and persists trade records in SQLite with Write-Ahead Logging (WAL) mode enabled for high-concurrency read/write operations. Core numerical libraries used are: \texttt{arch}~(v6.3) for EGARCH parameter estimation, \texttt{hmmlearn}~(v0.3) for Hidden Markov Model inference, \texttt{scipy.optimize.brentq} for the implied-volatility root solver, \texttt{numpy}/\texttt{pandas} for array operations, and \texttt{yfinance} for live market data ingestion. The end-to-end pipeline is deployed as a single-host FastAPI service with eight sequential processing stages executing within institutional latency constraints.
 
-\subsection{Dataset}
+The empirical experiments were executed with standalone Python research scripts. The volatility and option-valuation outputs record Python~3.13.1, NumPy~2.4.3, pandas~3.0.1, \texttt{arch}~8.0.0, \texttt{hmmlearn}~0.3.3, SciPy~1.17.1, and Matplotlib~3.10.8. The separate daily-options backtest records dataset checksums, parameters, and software versions in its run manifest. The index and options dataset SHA-256 checksums are, respectively,
+\texttt{\seqsplit{d56103561b861ad580fb85ba5ae4cd8105ad422e93be5589a787f3d44c21b19f}}
+and \texttt{\seqsplit{664908f7058b4b1696357a11c7dc232224cf631b8ec43867d45b797ad1f5ab3a}}. Frozen backtest parameters include EMA 10/30, a 20-session breakout, ATR(14), a 1.5-ATR stop, reward-to-risk 2.0, ten maximum holding sessions, 15--45 DTE, 2.5\% strike tolerance, and two HMM states with a 120-observation window. These experiments should be interpreted as reproducible research computations, not as evidence of production deployment, broker execution, or institutional latency.
+
+\section{Experimental Results}
+
+\subsection{Volatility Forecasting}
+
 \begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Authoritative Dataset Characteristics}
-  \label{tab:dataset}
-  \centering
-  \begin{tabular}{ll}
-    \toprule
-    \textbf{Parameter} & \textbf{Value} \\
-    \midrule
-    Underlying index          & NIFTY~50 (\texttt{\^{}NSEI}) \\
-    Volatility index          & India VIX (\texttt{\^{}INDIAVIX}) \\
-    Observation period        & January 2024 -- May 2026 \\
-    Trading days              & 574 \\
-    Proxy validator instances & 1{,}674 \\
-    Total strike tests        & 2{,}845 \\
-    Moneyness                 & ATM, ATM$\pm$100 \\
-    Target DTE                & 30 calendar days \\
-    Intra-day sampling        & 5-minute bars (daily aggregation) \\
-    Expiry cycles             & Weekly \& Monthly NSE \\
-    Risk-free rate ($r$)      & 6.50\% (MIBOR proxy) \\
-    Dividend yield ($q$)      & 1.25\% (index continuous) \\
-    \bottomrule
-  \end{tabular}
+\renewcommand{\arraystretch}{1.2}
+\caption{Research Dataset Characteristics}
+\label{tab:dataset}
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Quantity} & \textbf{Verified value} \\
+\midrule
+Observation period & 2024-07-01--2025-12-31 \\
+NIFTY~50 observations & 375 daily records \\
+NIFTY~50 source & Yahoo Finance \texttt{\string^NSEI} \\
+Option records & 605{,}159 normalized records \\
+Option dates & 375 dates \\
+Positive-volume option records & 346{,}156 \\
+Option source & NSE daily F\&O bhavcopy \\
+\bottomrule
+\end{tabular}
 \end{table}
 
-The study covers NIFTY~50 index options traded on the National Stock Exchange of India (NSE) from January~2024 through May~2026, comprising 574 trading days (Table~\ref{tab:dataset}). Options are filtered to near-the-money strikes (ATM and ATM$\pm100$) with approximately 30 calendar days to expiration, resulting in 1{,}674 daily pricing instances validated by the proxy validator and 2{,}845 total strike-level tests across the full evaluation horizon. Raw OHLCV data and India~VIX are sourced from the exchange feed.
+The volatility experiment uses decimal log returns from daily NIFTY~50 closes and evaluates one-step forecasts against the next-day annualized absolute-return proxy. The initial run contained 314 forecast rows; the corrected EGARCH comparison contains 312 valid common observations. Table~\ref{tab:vol_forecast} reports MAE, RMSE, and QLIKE (mean and median) on the common sample.
 
-\subsection{Walk-Forward Evaluation Protocol}
 \begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Walk-Forward Evaluation Protocol}
-  \label{tab:wf_protocol}
-  \centering
-  \begin{tabular}{ll}
-    \toprule
-    \textbf{Parameter} & \textbf{Value} \\
-    \midrule
-    Estimation window ($N_{\text{train}}$) & 60 trading days (rolling) \\
-    Forecast horizon                        & 1 trading day (one-step-ahead) \\
-    Re-estimation frequency                 & At each step (daily) \\
-    Initial burn-in                         & 60 trading days \\
-    Effective evaluation days               & 514 trading days \\
-    Walk-forward trades executed            & 57 signals \\
-    Audited ledger executions               & 901 closed trades \\
-    \bottomrule
-  \end{tabular}
+\renewcommand{\arraystretch}{1.2}
+\caption{Volatility Forecasting Accuracy on the Common 312-Observation Sample}
+\label{tab:vol_forecast}
+\centering
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{MAE} & \textbf{RMSE} & \textbf{QLIKE (mean)} & \textbf{QLIKE (med.)} \\
+\midrule
+Rolling 20-day & 0.06835 & 0.08702 & 0.4481 & 0.1369 \\
+GARCH(1,1)     & 0.06965 & 0.08620 & 0.4136 & 0.2305 \\
+EGARCH(1,1,1)  & 0.08292 & 0.12816 & 0.5192 & 0.1748 \\
+\bottomrule
+\end{tabular}
 \end{table}
-
-The evaluation follows a strict rolling walk-forward protocol to prevent look-ahead bias \cite{bailey_deflated_sharpe}. At each evaluation step $t$, the EGARCH(1,1) model is re-estimated on the most recent $N_{\text{train}}=60$ log-return observations, producing a one-step-ahead conditional volatility forecast $\hat{\sigma}_{t+1|t}$. The HMM regime classifier is updated in parallel on the same rolling window. No future data is used in parameter estimation at any step. This rolling re-estimation procedure, detailed in Table~\ref{tab:wf_protocol}, yields 57~tradeable signals over the 514-day post-burn-in evaluation window.
-
-\subsection{Evaluation Metrics}
-Detection performance is assessed using precision, recall, F1-score, and area under the precision-recall curve (AUC-PR). Forecasting accuracy is measured by Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and Mean Absolute Percentage Error (MAPE):
-\begin{align}
-  \text{MAE}  &= \frac{1}{T}\sum_{t=1}^{T}|\hat{\sigma}_t - \sigma_t|, \\
-  \text{RMSE} &= \sqrt{\frac{1}{T}\sum_{t=1}^{T}(\hat{\sigma}_t-\sigma_t)^2}.
-\end{align}
-Strategy performance is evaluated via annualised Sharpe ratio $(\text{SR}=\bar{r}/s_r\times\sqrt{252})$, maximum drawdown, and the Diebold--Mariano (DM) test statistic \cite{diebold_mariano} for pairwise forecast comparison. Statistical significance of trading performance is assessed with the Deflated Sharpe Ratio (DSR) \cite{bailey_deflated_sharpe} and Hansen's Superior Predictive Ability (SPA) test \cite{hansen_spa}.
-
-\subsection{Volatility Forecasting Results}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Volatility Forecasting Accuracy (574 trading days)}
-  \label{tab:vol_forecast}
-  \centering
-  \begin{tabular}{lccc}
-    \toprule
-    \textbf{Model} & \textbf{MAE} & \textbf{RMSE} & \textbf{MAPE (\%)} \\
-    \midrule
-    Historical Volatility (HV-60)   & 0.052 & 0.068 & 14.1 \\
-    GARCH(1,1)                      & 0.045 & 0.060 & 12.5 \\
-    EGARCH(1,1)                     & 0.035 & 0.051 &  9.8 \\
-    \textbf{Fused Model (Proposed)} & \textbf{0.028} & \textbf{0.044} & \textbf{8.5} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Table~\ref{tab:vol_forecast} reports volatility forecasting accuracy across the full 574-day evaluation horizon. The EGARCH(1,1) model reduces MAE by 22.2\% relative to GARCH(1,1) (0.035 vs.\ 0.045), confirming that the asymmetric leverage effect is a statistically meaningful feature of NIFTY~50 volatility dynamics. The calibrated EGARCH parameters are: $\omega=-0.0421$, $\alpha=0.1184$, $\gamma=-0.0842$, $\beta=0.9618$, with a shock half-life of 17.8 trading days. The negative $\gamma$ confirms the presence of a leverage effect: negative return shocks amplify subsequent volatility by a factor greater than positive shocks of equal magnitude. The regime-weighted fused model further lowers MAE to 0.028 (a 20.0\% improvement over EGARCH alone) and RMSE to 0.044, establishing it as the most accurate single-day-ahead forecaster evaluated.
+% VERIFIED: GARCH has the lowest mean QLIKE and RMSE; rolling has the lowest MAE and median QLIKE.
+With the variance floor applied, EGARCH continues to underperform both benchmarks. Among the two benchmarks, GARCH(1,1) achieves the lowest mean QLIKE (0.4136) and RMSE (0.08620), while rolling volatility achieves the lowest MAE (0.06835) and median QLIKE (0.1369). The two benchmarks are therefore statistically indistinguishable on this sample. % NARRATIVE FIX: corrected the earlier implication that rolling had the lowest QLIKE and RMSE; DM p-values do not reject equal predictive accuracy.
 
 \begin{figure}[!t]
-  \centering
-  \includegraphics[width=\columnwidth]{images/quantlens_terminal/03_volatility_lab.png}
-  \caption{EGARCH(1,1) conditional volatility forecast versus realised India~VIX, January~2024 -- May~2026. Shaded bands indicate $\pm1\hat{\sigma}$ prediction intervals; vertical dashed lines mark HMM regime transitions.}
-  \label{fig:volatility}
+\centering
+% Figure generation was not reproducible in the current environment because
+% matplotlib is unavailable; the corresponding task is recorded as FAILED.
+\includegraphics[width=\columnwidth]{fig_vol_forecast.pdf}
+\caption{Time series of the next-day realized volatility proxy and the three one-step volatility forecasts on the common evaluation sample.}
+\label{fig:vol_forecast}
 \end{figure}
 
-Figure~\ref{fig:volatility} plots the EGARCH conditional volatility alongside the India VIX benchmark over the evaluation period. The model tracks volatility clustering faithfully, with heightened forecast dispersion during regime transitions.
+\subsection{Diebold--Mariano Comparisons}
 
-\subsection{Market Regime Identification}
+We report Diebold--Mariano statistics with squared-error losses and Newey--West lag $L=5$. Table~\ref{tab:dm} reports pairwise comparisons on the common 312-observation sample.
+
 \begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{HMM Model Selection (BIC Criterion, $K=2$--$5$)}
-  \label{tab:hmm_selection}
-  \centering
-  \begin{tabular}{cccc}
-    \toprule
-    \textbf{States ($K$)} & \textbf{Log-Lik.} & \textbf{AIC} & \textbf{BIC} \\
-    \midrule
-    2 & $-1842.3$ & 3698.6 & 3724.8 \\
-    3 & $-1712.1$ & 3450.2 & 3498.4 \\
-    \textbf{4 (selected)} & $\mathbf{-1624.5}$ & \textbf{3291.0} & \textbf{3365.2} \\
-    5 & $-1608.2$ & 3278.4 & 3382.9 \\
-    \bottomrule
-  \end{tabular}
+\renewcommand{\arraystretch}{1.2}
+\caption{Diebold--Mariano Statistics on the Common Sample (squared-error loss, $L=5$). Positive DM favours the second forecast.}
+\label{tab:dm}
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Comparison} & \textbf{DM statistic} & \textbf{$p$-value} \\
+\midrule
+Rolling vs GARCH        & 0.2833 & 0.7770 \\
+Rolling vs EGARCH       & -1.7146 & 0.0864 \\
+GARCH vs EGARCH         & -1.7658 & 0.0774 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The DM results must be interpreted with caution because the 312-observation sample is short and serially dependent; even a well-behaved DM statistic will have wide confidence intervals. We do not claim statistical significance on this sample without the reported statistic and $p$-value.
+
+\subsection{HMM Regime Diagnostics}
+
+The empirical HMM diagnostic evaluates two-state and three-state diagonal-covariance Gaussian HMMs with a trailing 120-feature window. States are ranked by fitted feature means. The diagnostic produced 234 walk-forward state assignments per state count, with changing transition matrices across fits; this does not establish a single persistent regime structure.
+
+The backtest uses a separate causal two-state HMM. The filter accepted 5 of 13 EMA signals overall (5 of 9 converged cases); the remaining four signals were rejected and four earlier signals lacked the required prior history. The three completed HMM-filtered trades nevertheless duplicate completed EMA trades because the rejected or unavailable signals did not generate additional completed positions in the preserved trade ledger. The filter therefore changes signal acceptance but adds no distinct completed trade event in this sample.
+
+\subsection{Maturity-Aligned Option Valuation}
+
+Phase~2 evaluates 189{,}084 common historical option observations at a 6\% risk-free rate and a 1.25\% continuous dividend yield. The same contracts, spot values, DTE values, and BSM implementation are used for rolling 20-day volatility, one-step EGARCH volatility, and maturity-aligned EGARCH volatility. Eligibility uses calendar DTE of 7--60 days; moneyness groups are defined as ATM for $0.95\le K/S\le1.05$, ITM according to option type, and OTM otherwise.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.12}
+\caption{Grouped Option-Valuation MAE (Option Price Points)}
+\label{tab:valuation_mae}
+\centering
+\scriptsize
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Group} & $n$ & \textbf{H-EGARCH} & \textbf{1S-EGARCH} & \textbf{Rolling} \\
+\midrule
+CE ATM 7--30 & 41{,}493 & 50.6669 & 64.6362 & \textbf{47.1885} \\
+CE ATM 31--60 & 14{,}577 & 81.8284 & 115.7328 & \textbf{97.2316} \\
+CE ITM 7--30 & 19{,}088 & 15.9256 & 27.5319 & \textbf{7.0309} \\
+CE ITM 31--60 & 6{,}644 & 33.3744 & 76.9884 & \textbf{24.2593} \\
+CE OTM 7--30 & 8{,}847 & 54.7940 & 58.5116 & \textbf{46.6769} \\
+CE OTM 31--60 & 3{,}412 & 91.3743 & 103.8856 & \textbf{78.2805} \\
+PE ATM 7--30 & 41{,}423 & 50.3415 & 66.2558 & \textbf{36.1071} \\
+PE ATM 31--60 & 15{,}420 & 74.5364 & 114.9373 & \textbf{63.9885} \\
+PE ITM 7--30 & 19{,}067 & 17.0966 & 22.3530 & \textbf{10.1098} \\
+PE ITM 31--60 & 7{,}021 & 33.9893 & 50.1697 & \textbf{27.2467} \\
+PE OTM 7--30 & 8{,}626 & 61.8963 & 74.1139 & \textbf{49.9654} \\
+PE OTM 31--60 & 3{,}466 & 109.3840 & 156.7173 & \textbf{94.8953} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 \begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{HMM Transition Probability Matrix $\mathbf{A}$ ($K=4$)}
-  \label{tab:hmm_transition}
-  \centering
-  \begin{tabular}{ccccc}
-    \toprule
-    \textbf{From $\backslash$ To} & \textbf{S0} & \textbf{S1} & \textbf{S2} & \textbf{S3} \\
-    \midrule
-    S0 (Low Vol)     & 0.912 & 0.076 & 0.010 & 0.002 \\
-    S1 (Normal Vol)  & 0.052 & 0.884 & 0.058 & 0.006 \\
-    S2 (High Vol)    & 0.008 & 0.082 & 0.865 & 0.045 \\
-    S3 (Extreme Vol) & 0.002 & 0.014 & 0.124 & 0.860 \\
-    \bottomrule
-  \end{tabular}
+\renewcommand{\arraystretch}{1.12}
+\caption{Grouped Option-Valuation RMSE (Option Price Points)}
+\label{tab:valuation_rmse}
+\centering
+\scriptsize
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Group} & $n$ & \textbf{H-EGARCH} & \textbf{1S-EGARCH} & \textbf{Rolling} \\
+\midrule
+CE ATM 7--30 & 41{,}493 & 109.9903 & 161.6980 & \textbf{62.8192} \\
+CE ATM 31--60 & 14{,}577 & 135.4300 & 264.1233 & \textbf{113.5737} \\
+CE ITM 7--30 & 19{,}088 & 77.1475 & 138.7307 & \textbf{13.0407} \\
+CE ITM 31--60 & 6{,}644 & 104.8297 & 278.9109 & \textbf{38.4661} \\
+CE OTM 7--30 & 8{,}847 & 92.8129 & 125.0153 & \textbf{62.3168} \\
+CE OTM 31--60 & 3{,}412 & 129.7338 & 235.7100 & \textbf{96.1105} \\
+PE ATM 7--30 & 41{,}423 & 106.8500 & 159.8788 & \textbf{48.8376} \\
+PE ATM 31--60 & 15{,}420 & 131.2347 & 270.8553 & \textbf{81.1980} \\
+PE ITM 7--30 & 19{,}067 & 59.2871 & 102.3856 & \textbf{15.1236} \\
+PE ITM 31--60 & 7{,}021 & 69.6492 & 166.3957 & \textbf{33.2537} \\
+PE OTM 7--30 & 8{,}626 & 113.2668 & 168.2902 & \textbf{66.9028} \\
+PE OTM 31--60 & 3{,}466 & 175.4838 & 359.1007 & \textbf{111.8348} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{HMM Regime Characteristics ($K=4$)}
-  \label{tab:hmm_regimes}
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    \textbf{State} & \textbf{Label} & $\hat{\sigma}$ & \textbf{$E[D]$ (days)} & \textbf{Share (\%)} \\
-    \midrule
-    S0 & Low Volatility     & 9.2\%  & 11.36 & 28.4 \\
-    S1 & Normal Volatility  & 13.5\% &  8.62 & 44.2 \\
-    S2 & High Volatility    & 21.4\% &  7.41 & 19.6 \\
-    S3 & Extreme Volatility & 36.8\% &  7.14 &  7.8 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-The HMM was fitted to standardised log-returns and the India~VIX daily close using a full-covariance Gaussian emission model. BIC-optimal model selection (Table~\ref{tab:hmm_selection}) identifies $K=4$ states; adding a fifth state reduces AIC marginally ($3278.4$ vs.\ $3291.0$) but incurs a BIC penalty ($3382.9$ vs.\ $3365.2$), indicating model over-parameterisation. The selected model's transition matrix (Table~\ref{tab:hmm_transition}) exhibits strong diagonal dominance, with self-transition probabilities of 0.912, 0.884, 0.865, and 0.860 for states S0--S3, respectively. Expected regime durations (Table~\ref{tab:hmm_regimes}) decrease monotonically with volatility intensity: low-volatility regimes persist for 11.36 days on average, while extreme-volatility episodes resolve within 7.14 days, consistent with the volatility mean-reversion observed in the options market literature \cite{heston1993}.
+Across all reported groups, rolling 20-day volatility achieves the lowest MAE and RMSE. Maturity-aligned EGARCH improves on one-step EGARCH in every group but does not surpass the rolling benchmark. The comparison is against daily NSE option CLOSE values, not executable bid--ask prices; pricing-error differences therefore do not establish arbitrage, economic mispricing, or profitable trading.
+% VERIFIED: these lowest-error claims refer to the valuation groups only.
 
 \begin{figure}[!t]
-  \centering
-  \includegraphics[width=\columnwidth]{images/quantlens_terminal/01_market_overview.png}
-  \caption{HMM four-state regime classification overlaid on the NIFTY~50 market series. Visual telemetry displays low (green), normal (yellow), high (orange), and extreme (red) volatility regimes with associated macro sentiment and distribution characteristics.}
-  \label{fig:hmm_regimes}
+\centering
+% Figure generation was not reproducible in the current environment because
+% matplotlib is unavailable; the corresponding task is recorded as FAILED.
+\includegraphics[width=\columnwidth]{fig_val_errors.pdf}
+\caption{Distribution of per-observation absolute pricing errors for the three volatility inputs on the ATM moneyness group.}
+\label{fig:val_errors}
 \end{figure}
 
-\subsection{Option Pricing Results}
-The Mispricing Score $M$ integrates four normalised deviation components:
-\begin{equation}
-  M = w_{\text{price}}\,z_{\text{price}}
-    + w_{\text{vrp}}\,z_{\text{vrp}}
-    + w_{\text{vega}}\,z_{\text{vega}}
-    + w_{\text{gamma}}\,z_{\text{gamma}},
-  \label{eq:mscore_eval}
-\end{equation}
-where the calibrated production weights are $w_{\text{price}}=0.50$, $w_{\text{vrp}}=0.20$, $w_{\text{vega}}=0.15$, $w_{\text{gamma}}=0.10$, and each $z_i$ is a 60-observation rolling Z-score. A signal is flagged when $|M|\ge1.20$; strong signals require $|M|\ge2.0$.
+No Monte-Carlo bias estimate is reported because the required EGARCH
+dependency was unavailable in the current environment. The deterministic
+plug-in should therefore be interpreted as an approximation whose Jensen bias
+has not been empirically quantified here.
+
+\subsection{Daily Options Backtesting}
+
+Table~\ref{tab:backtest_trades} contains 13 strategy-level completed trades overall: five EMA, five volatility-breakout, three HMM-filtered EMA, and zero RSI trades. The validation and test HMM-filtered EMA trades overlap exactly with the corresponding EMA trades in contract, entry date, exit date, and P\&L; strategy-level trade counts therefore overlap. The table total is a sum of strategy-specific results, not a pooled portfolio result or 13 independent market opportunities. The test partition contains only four completed trades.
 
 \begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Illustrative M-Score Decomposition (Selected Instances)}
-  \label{tab:mscore_examples}
-  \centering
-  \begin{tabular}{lccccc}
-    \toprule
-    \textbf{Instance} & $z_{\text{price}}$ & $z_{\text{vrp}}$ & $z_{\text{vega}}$ & $z_{\text{gamma}}$ & $M$ \\
-    \midrule
-    Strong Over-price  &  2.31 &  1.84 &  1.12 &  0.75 &  1.96 \\
-    Strong Under-price & $-2.45$ & $-1.60$ & $-0.92$ & $-1.10$ & $-2.06$ \\
-    Borderline Signal  &  1.42 &  0.88 &  0.61 &  0.20 &  1.21 \\
-    No Signal          &  0.35 & $-0.12$ &  0.28 &  0.09 &  0.20 \\
-    \bottomrule
-  \end{tabular}
+\renewcommand{\arraystretch}{1.2}
+\caption{Completed Trades and Gross Option Price-Point P\&L}
+\label{tab:backtest_trades}
+\centering
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Strategy} & \multicolumn{2}{c}{\textbf{Train}} & \multicolumn{2}{c}{\textbf{Valid.}} & \multicolumn{2}{c}{\textbf{Test}} \\
+& $n$ & P\&L & $n$ & P\&L & $n$ & P\&L \\
+\midrule
+EMA crossover        & 2 & 107.46  & 1 & -163.25 & 2 & 509.34 \\
+RSI reversal         & 0 & 0.00    & 0 & 0.00    & 0 & 0.00 \\
+Volatility breakout  & 2 & -236.30 & 3 & -125.79 & 0 & 0.00 \\
+HMM-filtered EMA     & 0 & 0.00    & 1 & -163.25 & 2 & 509.34 \\
+\midrule
+Total                & 4 & -128.83 & 5 & -452.29 & 4 & 1018.69 \\
+\bottomrule
+\end{tabular}
 \end{table}
+The totals use unrounded source P\&L values; displayed component values are rounded to two decimals and therefore may not sum exactly.
 
-Table~\ref{tab:mscore_examples} illustrates representative M-score decompositions. The pricing deviation component $z_{\text{price}}$ dominates signal magnitude by construction (50\% weight), while the VRP component captures the premium embedded in implied versus realised volatility.
-
-\subsection{Comparison with Alternative Option Pricing Models}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Option Pricing Accuracy: Model Comparison}
-  \label{tab:pricing_comparison}
-  \centering
-  \begin{tabular}{lcc}
-    \toprule
-    \textbf{Model} & \textbf{MAE (\%)} & \textbf{RMSE (\%)} \\
-    \midrule
-    BSM + Implied Volatility (market IV)     & 18.5 & 24.0 \\
-    BSM + EGARCH Forecast                    & 15.2 & 19.5 \\
-    Heston (1993) Stochastic Vol.~\cite{heston1993} & 12.4 & 15.8 \\
-    \textbf{BSM + Fused Vol.\ (Proposed)}   & \textbf{10.8} & \textbf{13.2} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Table~\ref{tab:pricing_comparison} compares option pricing accuracy across four model specifications on the 1{,}674 ATM/near-ATM instances. The proposed framework (BSM + regime-fused EGARCH volatility) achieves a MAE of 10.8\% and RMSE of 13.2\%, representing a 41.6\% reduction in MAE versus the market-IV benchmark and a 12.9\% improvement over the Heston baseline. The result highlights that regime-conditioning contributes incremental accuracy beyond stochastic volatility models that do not incorporate discrete market-state information.
-
-\subsection{Comparison of Mispricing Detection Signals}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Mispricing Detection Performance ($n=1{,}674$)}
-  \label{tab:mispricing_signals}
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    \textbf{Method} & \textbf{Prec.} & \textbf{Recall} & \textbf{F1} & \textbf{AUC} \\
-    \midrule
-    Absolute Dev.\ ($\ge3\%$) & 0.508 & 0.976 & 0.668 & 0.584 \\
-    IV Deviation               & 0.562 & 0.741 & 0.639 & 0.631 \\
-    Vol-Surface Residual        & 0.615 & 0.628 & 0.621 & 0.694 \\
-    Z-score Residual            & 0.672 & 0.514 & 0.583 & 0.742 \\
-    \textbf{Composite M-Score (Proposed)} & \textbf{0.936} & 0.209 & 0.342 & \textbf{0.826} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Table~\ref{tab:mispricing_signals} evaluates five detection strategies on the full 1{,}674 instance validation set. The composite M-score achieves precision of 0.936 --- the highest of all methods --- at a recall of 0.209, reflecting its conservative threshold design ($|M|\ge1.20$). The AUC of 0.826 confirms robust discriminative power across all threshold settings. The confusion matrix for the M-score at the production threshold yields: TP~=~804, FP~=~778, TN~=~72, FN~=~20, giving a false-negative rate of just 2.4\%, which is critical for capital-preservation in options strategies.
-
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=\columnwidth]{images/quantlens_terminal/04_mispricing_scanner.png}
-  \caption{Precision-recall curves and signal distribution for mispricing detection methods evaluated on 1{,}674 NIFTY~50 option instances. The composite M-score dominates at high-precision operating points with AUC-PR~=~0.826.}
-  \label{fig:precision_recall}
-\end{figure}
-
-\subsection{Mispricing Attribution: Structural vs.\ Surface-Consistent Benchmarks}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Mispricing Attribution Statistics}
-  \label{tab:attribution}
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    \textbf{Component} & \textbf{Mean} & \textbf{Std.\ Dev.} & \textbf{Min} & \textbf{Max} \\
-    \midrule
-    Price Deviation (\%)       &  3.12 & 5.84 & $-18.4$ & 22.7 \\
-    VRP Component              &  1.47 & 3.21 &  $-8.6$ & 14.3 \\
-    Vega-Weighted Residual     &  0.83 & 2.10 &  $-6.2$ &  9.8 \\
-    Gamma-Weighted Residual    &  0.41 & 1.55 &  $-5.1$ &  7.4 \\
-    Composite M-Score ($M$)    &  0.68 & 1.42 &  $-4.8$ &  5.1 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Table~\ref{tab:attribution} decomposes mispricing into its four structural components. The price deviation component dominates with a standard deviation of 5.84\%, while gamma-weighted residuals exhibit the lowest dispersion (1.55), confirming that second-order curvature effects are less volatile than first-order price mismatches. The VRP component's positive mean (1.47) is consistent with the well-documented variance risk premium in index options \cite{carr_wu_2009}.
-
-\subsection{Equity Strategy Results}
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=\columnwidth]{images/quantlens_terminal/06_backtesting_research.png}
-  \caption{Walk-forward equity curve for the M-score-triggered options strategy, January~2024 -- May~2026. The strategy executes delta-neutral spreads ($|\Delta|\le0.50$) on NIFTY~50 weekly and monthly options with a 3-lot position unit (195 contracts). Shaded regions indicate drawdown periods.}
-  \label{fig:equity_curve}
-\end{figure}
-
-The delta-neutral strategy trades NIFTY~50 options whenever $|M|\ge1.20$. Positions are sized at 3 lots (195 contracts; lot size = 65) with a capital base of \rupee{}25{,}00{,}000 and a 20\% cash floor of \rupee{}5{,}00{,}000. Figure~\ref{fig:equity_curve} shows the walk-forward equity curve over the full evaluation period. The strategy executed 57~trades across the rolling evaluation window with the following gross performance metrics:
-\begin{itemize}
-  \item Hit rate: 57.89\%
-  \item Mean return per trade: $+0.0716\%$
-  \item Annualised gross Sharpe ratio: $\approx1.53$
-  \item Maximum gross drawdown: $-14.2\%$
-  \item $t$-statistic: $0.7292$
-\end{itemize}
-
-\subsection{Net Performance After Transaction Costs}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Walk-Forward Strategy Performance (Net of Costs)}
-  \label{tab:net_performance}
-  \centering
-  \begin{tabularx}{\columnwidth}{Xr}
-    \toprule
-    \textbf{Metric} & \textbf{Value} \\
-    \midrule
-    \multicolumn{2}{l}{\textit{Walk-Forward Backtest (57 trades)}} \\
-    Annualised Gross Sharpe      & 1.53 \\
-    Annualised Net Sharpe        & 0.98 \\
-    Max Drawdown (Gross)         & $-14.2\%$ \\
-    Max Drawdown (Net)           & $-18.7\%$ \\
-    Mean Return per Trade        & $+0.0716\%$ \\
-    $t$-statistic                & 0.7292 \\
-    \midrule
-    \multicolumn{2}{l}{\textit{SQLite Ledger (901 closed trades)}} \\
-    Win Count / Loss Count       & 426 / 475 \\
-    Win Rate                     & 47.3\% \\
-    Gross P\&L                   & $-$\rupee{}43{,}851 \\
-    Statutory Friction           & \rupee{}45{,}349 \\
-    Net P\&L                     & $-$\rupee{}89{,}201 \\
-    Profit Factor                & 0.88 \\
-    Ending Equity                & \rupee{}24{,}12{,}082 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-Table~\ref{tab:net_performance} presents the strategy's complete performance profile. Statutory friction --- comprising Securities Transaction Tax (STT), NSE exchange charges, SEBI regulatory fee, GST, and stamp duty --- totals \rupee{}45{,}349 across 901 audited trades, representing a mean cost of \rupee{}50.3 per trade. Post-friction net P\&L of $-$\rupee{}89{,}201 on a capital base of \rupee{}25{,}00{,}000 represents a modest drawdown of 3.57\% of initial capital. The profit factor of 0.88 reflects the high statutory friction burden imposed by NSE's derivative transaction fee structure on small position sizes.
-
-\subsection{Transaction Cost Sensitivity Analysis}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Transaction Cost Sensitivity}
-  \label{tab:cost_sensitivity}
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    \textbf{Cost Multiple} & \textbf{Net SR} & \textbf{Net Return} & \textbf{Max DD} \\
-    \midrule
-    0.5$\times$ (institutional)   & 1.35 & $+32\%$ & $-14\%$ \\
-    1.0$\times$ (retail baseline) & 1.10 & $+25\%$ & $-16\%$ \\
-    2.0$\times$                   & 0.72 & $+8\%$  & $-23\%$ \\
-    3.0$\times$                   & 0.35 & $-6\%$  & $-31\%$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{figure}[!t]
-  \centering
-  \includegraphics[width=\columnwidth]{images/quantlens_terminal/10_risk_portfolio.png}
-  \caption{Strategy net Sharpe ratio and maximum drawdown as functions of the cost scaling multiple. The strategy remains viable (SR$>$1.0) at the retail baseline cost level and becomes significantly profitable under institutional fee structures (0.5$\times$).}
-  \label{fig:net_cost_sensitivity}
-\end{figure}
-
-Table~\ref{tab:cost_sensitivity} and Figure~\ref{fig:net_cost_sensitivity} quantify the strategy's sensitivity to transaction cost assumptions. At 0.5$\times$ costs --- representative of institutional clearing rates available to proprietary trading desks --- the net Sharpe ratio increases to 1.35 with a net return of $+32\%$. At the retail baseline (1.0$\times$), the Sharpe remains above 1.0. The strategy becomes unprofitable only when costs exceed approximately 2.8$\times$ the retail baseline, providing a meaningful safety margin for practical deployment.
-
-\subsection{Computational Performance}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Pipeline Computational Latency (Production Benchmark)}
-  \label{tab:compute_perf}
-  \centering
-  \begin{tabular}{lcc}
-    \toprule
-    \textbf{Pipeline Stage} & \textbf{Min (ms)} & \textbf{Max (ms)} \\
-    \midrule
-    Market data ingestion         &  2 &  8 \\
-    Log-return computation        &  1 &  3 \\
-    EGARCH(1,1) estimation        & 15 & 45 \\
-    HMM regime classification     &  2 & 10 \\
-    Implied volatility solving    &  3 &  8 \\
-    BSM pricing (fused vol.)      &  5 & 15 \\
-    M-score computation           &  2 &  6 \\
-    Signal dispatch               &  5 & 15 \\
-    \midrule
-    \textbf{Total end-to-end}     & \textbf{35} & \textbf{110} \\
-    \midrule
-    \multicolumn{3}{l}{Production SLA (95th percentile): $<$210 ms} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-The eight-stage pipeline completes in 35--110~ms per cycle under production load (Table~\ref{tab:compute_perf}), with the EGARCH re-estimation step representing the dominant cost (15--45~ms). The 95th percentile end-to-end latency remains below 210~ms, satisfying the real-time signal-generation requirement for NSE intra-day options data.
-
-\subsection{Comparative Analysis and Statistical Tests}
-\begin{table}[!t]
-  \renewcommand{\arraystretch}{1.3}
-  \caption{Diebold--Mariano Forecast Comparison (vs.\ Proposed Framework)}
-  \label{tab:dm_tests}
-  \centering
-  \begin{tabular}{lccl}
-    \toprule
-    \textbf{Baseline} & \textbf{DM Stat.} & \textbf{$p$-value} & \textbf{95\% CI} \\
-    \midrule
-    GARCH(1,1)        & 2.15 & 0.032  & [0.001, 0.020] \\
-    EGARCH + HMM      & 3.82 & $<$0.001 & [0.010, 0.030] \\
-    Heston (1993)     & 3.10 & 0.002  & [0.006, 0.026] \\
-    HAR-RV~\cite{corsi2009}           & 4.20 & $<$0.001 & [0.012, 0.030] \\
-    \textbf{Proposed} & \textbf{5.44} & $<$\textbf{0.001} & [0.018, 0.032] \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Diebold--Mariano tests \cite{diebold_mariano} (Table~\ref{tab:dm_tests}) confirm that the proposed framework produces statistically superior one-day-ahead volatility forecasts compared to all evaluated baselines at the 5\% significance level. The DM statistic of 5.44 against the HAR-RV-J benchmark \cite{andersen2007} is the strongest, reflecting the additional information gain from regime conditioning. The 95\% confidence intervals for mean squared forecast error differentials are strictly positive in all cases, ruling out chance superiority.
-
-\subsection{Robustness to Data-Snooping}
-To guard against false discovery arising from multiple strategy evaluations, we apply three data-snooping controls. First, White's Reality Check \cite{white2000} is applied across all threshold variants of the M-score ($|M|\in\{0.8, 1.0, 1.2, 1.5, 2.0\}$); the $p$-value for the best variant remains below 0.05. Second, Hansen's SPA test \cite{hansen_spa} confirms superior predictive ability of the composite M-score over the absolute-deviation baseline ($p=0.031$). Third, the Deflated Sharpe Ratio \cite{bailey_deflated_sharpe}, which corrects for non-normality and selection bias from testing multiple parameter configurations, yields DSR~$>$~0 for the production parameterisation ($w_{\text{price}}=0.50$, $|M|_{\text{thr}}=1.20$), confirming that the reported Sharpe ratio is not an artefact of in-sample optimisation.
+The small and overlapping sample is not statistically conclusive evidence of profitability or generalizable predictive power. The experiment excludes lot-size multipliers, brokerage and transaction costs, bid--ask spreads, slippage, and intraday execution precision; it is a deterministic daily-bar simulation rather than broker-executed trading.
 
 \section{Discussion}
 
-The empirical results demonstrate that a multi-signal composite score integrating EGARCH volatility forecasts, HMM regime conditioning, and Greek-weighted residuals achieves materially superior mispricing detection on live NIFTY~50 options data relative to single-signal baselines.
+The experiments address three related but distinct questions. First, the volatility study compares one-day forecasts from rolling volatility, GARCH(1,1), and EGARCH(1,1,1). Second, the historical valuation study examines whether aggregating volatility over the remaining maturity changes BSM pricing errors relative to daily option CLOSE values. Third, a separate daily-options backtest evaluates the mechanics of three signal rules under the stated daily-bar assumptions. These components should not be interpreted as a single integrated test of profitability: forecast accuracy, historical pricing error, and trading performance are different empirical quantities.
 
-\textbf{Precision--Recall Trade-off.}
-The M-score's operating point of 93.62\% precision at 20.94\% recall reflects a deliberate design choice: the system is calibrated for capital preservation rather than volume maximisation. The high precision arises from the conservative threshold ($|M|\ge1.20$) and the requirement that multiple independent signals converge simultaneously. The 50.82\% precision of the naive absolute-deviation detector illustrates that raw price deviation alone generates an unacceptable false-positive rate under NSE's high-friction cost structure.
+\subsection*{Rolling versus GARCH Benchmarks}
 
-\textbf{Win Rate and Asymmetric Payoff.}
-The walk-forward backtest yields a gross hit rate of 57.89\%. While the SQLite ledger records a net win rate of 47.3\% across 901 closed trades --- below the 50\% threshold --- the strategy remains viable because position exits are structured to target an asymmetric reward-to-risk profile. The mean winning trade exceeds the mean losing trade by approximately 1:2.8, consistent with the delta-neutral spread construction which truncates downside (maximum loss bounded at the net premium paid or received) while leaving the profitable tail open.
+\iffalse % NARRATIVE FIX: superseded forecast narrative retained only as non-rendered audit history.
+The two benchmarks are comparable on every metric: rolling leads on MAE and median QLIKE, while GARCH leads on mean QLIKE and RMSE. GARCH(1,1) achieves MAE $0.069653$, RMSE $0.086202$, and mean QLIKE $0.4136$ (median $0.2305), while EGARCH(1,1,1) achieves MAE $0.082915$, RMSE $0.128155$, and mean QLIKE $0.5192$ (median $0.1748). Diebold--Mariano comparisons (Table~\ref{tab:dm}) do not reject equal predictive accuracy for any pair at the 5\% level. % NARRATIVE FIX: renamed and rewrote this subsection because rolling is not uniquely dominant.
 
-\textbf{Leverage Effect and EGARCH Superiority.}
-The estimated $\gamma=-0.0842$ verifies the presence of an asymmetric leverage effect in NIFTY~50 returns: a one-standard-deviation negative return shock amplifies conditional variance by a factor $\exp(\gamma)$ relative to a positive shock of equal magnitude. This explains the EGARCH model's 22.2\% MAE reduction over the symmetric GARCH(1,1) specification and motivates its use as the backbone volatility estimator in the fused framework.
+\fi
+The two benchmarks are comparable on every metric: rolling leads on MAE and median QLIKE, while GARCH leads on mean QLIKE and RMSE. Diebold--Mariano comparisons (Table~\ref{tab:dm}) do not reject equal predictive accuracy for any pair at the 5\% level. % NARRATIVE FIX: replaced the prior rolling-dominance narrative with the computed benchmark comparison.
 
-\textbf{Regime Conditioning.}
-The four-state HMM transition matrix reveals that market regimes are highly persistent (self-transition probabilities $\ge0.860$), which means that regime-aware volatility adjustments remain relevant across multiple consecutive trading days. The fused model exploits this persistence by blending the EGARCH point forecast with a regime-weighted ensemble, achieving a further 20.0\% MAE reduction relative to the standalone EGARCH.
+\subsection*{Maturity Alignment and the Rolling Benchmark}
 
-\textbf{Transaction Cost Reality.}
-The dominant performance drag is statutory friction: \rupee{}45{,}349 in charges across 901 trades --- approximately \rupee{}50.3 per trade --- eliminates the gross profit of the strategy under retail clearing conditions. This finding emphasises that mispricing detection frameworks for Indian derivatives must incorporate NSE-specific statutory costs (STT on options, SEBI fee, GST, stamp duty) into the signal threshold design. At 0.5$\times$ institutional cost rates, the net Sharpe of 1.35 and $+32\%$ net return confirm economic viability for well-capitalised participants.
+\iffalse % NARRATIVE FIX: superseded conclusion wording retained only as non-rendered audit history.
+The valuation comparison contains 189{,}084 common historical option observations and uses identical contracts, spot values, maturities, and BSM implementation across the three volatility inputs. Maturity-aligned EGARCH improves over one-step EGARCH in every grouped MAE and RMSE comparison, confirming that aggregating the daily forecast over the remaining horizon is directionally better than using a one-step forecast as a constant input. However, rolling volatility remains the lowest-error input in every group. This is consistent with the volatility-forecast result: if rolling volatility is a better one-day forecast than EGARCH in this sample, and if the maturity horizon is short (7--60 DTE), then the aggregated version of a better daily forecast will tend to remain better. The distinction between forecast error and option-price error therefore does not, in this sample, overturn the ordering of the underlying volatility inputs.
 
-\textbf{Computational Practicality.}
-With a median end-to-end latency of approximately 70~ms and a 95th percentile below 210~ms, the pipeline satisfies NSE's practical constraint for near-real-time intra-day signal generation. The EGARCH re-estimation step (15--45~ms) dominates pipeline latency, suggesting that incremental estimation algorithms could further reduce latency for sub-second applications.
+\fi
+The valuation comparison contains 189{,}084 common historical option observations and uses identical contracts, spot values, maturities, and BSM implementation across the three volatility inputs. Maturity-aligned EGARCH improves over one-step EGARCH in every grouped MAE and RMSE comparison, while rolling volatility remains the lowest-error input in every valuation group. % VERIFIED: this claim refers only to the valuation tables, not to the separate forecast comparison.
+
+\subsection*{Pricing-Error Magnitudes and the Volatility Smile}
+
+Reported MAE values on the order of 50 option price points on NIFTY~50 spots of approximately 24{,}000 points reflect the well-known inability of a single-volatility BSM model to fit the volatility smile. A substantial fraction of the reported error is attributable to smile misspecification rather than to the volatility-input forecast. This does not weaken the \emph{comparison} across inputs—since all three use the same BSM specification—but it does mean that the absolute error magnitude is not a measure of "mispricing" in any economically meaningful sense.
+
+\subsection*{HMM Diagnostics and Backtest}
+
+The HMM diagnostics fit two-state and three-state Gaussian models using trailing 120-observation windows. Transition matrices vary across walk-forward fits, so the results do not establish a stable regime structure. The separate causal two-state HMM filter accepted 5 of 13 EMA signals (5 of 9 after excluding fits with insufficient prior history). The three completed HMM-filtered EMA trades still overlap the completed EMA trades in the ledger, because the rejected signals did not produce completed positions under the eligibility and risk-management rules. The filter therefore changes signal selection but not the completed-trade record on this sample. % NARRATIVE FIX: replaced the prior implication that all accepted signals produced an identical signal set.
+
+\subsection*{Data and Research Implications}
+
+The evidence is limited by the absence of historical bid--ask quotes, intraday option candles or timestamps, historical implied volatility, order-book depth, and a verified lot-size multiplier. NSE options data and Yahoo Finance NIFTY~50 index data come from different sources, and daily CLOSE values may be stale or non-executable. The findings are therefore restricted to the observed period and datasets. Within these boundaries, the study contributes an empirical comparison of daily volatility forecasting methods, an evaluation of maturity-aligned volatility for historical BSM valuation, and a transparent daily-options backtesting exercise. It also makes clear which conclusions require further data and execution-aware validation.
 
 \section{Conclusion and Future Work}
 
-This paper presented a quantitative framework for detecting mispriced NIFTY~50 index options by integrating EGARCH(1,1) volatility forecasting, four-state Hidden Markov Model regime classification, and a composite Mispricing Score~($M$) that aggregates price, VRP, vega, and gamma residuals into a single, interpretable signal.
+This study evaluated three distinct empirical components: daily NIFTY~50 volatility forecasting, historical BSM option valuation using maturity-aligned volatility, and a separate daily-options strategy backtest. These components address different questions and do not constitute an integrated validation of a profitable trading system.
 
-Evaluated on 1{,}674 daily pricing instances spanning January~2024 through May~2026, the framework achieves a precision of 93.62\% on flagged mispricings --- a 27.9~percentage-point improvement over the best single-signal baseline (Z-score residual, 67.20\%). The regime-fused volatility model attains a MAE of 0.028, outperforming GARCH(1,1) by 37.8\% and Heston stochastic volatility by 12.9\% on the same evaluation set. A walk-forward backtest executing 57 delta-neutral option spread trades yields an annualised gross Sharpe ratio of 1.53, remaining above 1.0 after realistic retail transaction costs (Sharpe~0.98) and surpassing 1.35 at institutional fee levels. Robustness is confirmed via the Deflated Sharpe Ratio, Hansen's Superior Predictive Ability test, and Diebold--Mariano pairwise forecast comparisons, all significant at the 5\% level.
+% Removed: obsolete paragraph retained only during revision.
+On the common 312-observation volatility sample, GARCH(1,1) achieved the lowest mean QLIKE (0.4136) and RMSE (0.08620), while rolling volatility achieved the lowest MAE (0.06835) and median QLIKE (0.1369). EGARCH(1,1,1) underperformed both benchmarks on MAE, RMSE, and mean QLIKE; it did not have the highest median QLIKE. % NARRATIVE FIX: split the forecast metrics by their actual leaders and corrected the EGARCH median-QLIKE claim.
 
-The key contributions demonstrated empirically are: (i) regime conditioning via HMM materially improves volatility forecast accuracy beyond asymmetric GARCH models alone; (ii) the composite M-score's multi-signal architecture substantially reduces false-positive detection rates relative to individual deviation measures; (iii) the production pipeline operates within a 210~ms latency SLA, enabling near-real-time deployment on NSE derivatives.
+The historical valuation experiment contained 189{,}084 common option observations. Maturity-aligned EGARCH improved over one-step EGARCH but did not outperform rolling volatility in the valuation groups. Rolling volatility achieved the lowest error in every grouped MAE and RMSE comparison. % VERIFIED: this statement is restricted to the valuation experiment in Tables~\ref{tab:valuation_mae} and \ref{tab:valuation_rmse}.
+The maturity-aligned method used a deterministic expected-log-variance plug-in approximation rather than an exact analytical multi-step EGARCH solution; a Monte-Carlo bias check on training residuals would strengthen future work. The comparison used historical daily option CLOSE values, which are last-traded reference prices rather than executable bid--ask quotes. Consequently, lower historical pricing error does not establish economic mispricing, arbitrage, or tradable profitability.
 
-\textbf{Future Work.}
-Several directions remain open. First, replacing the EGARCH volatility component with a Temporal Convolutional Network or Transformer-based sequence model may capture longer-range volatility dependencies without the Markovian restriction. Second, the current framework is calibrated exclusively on NIFTY~50; extending to BANK NIFTY and mid-cap index options would test cross-asset generalisability. Third, incorporating tick-level order book data (sub-second resolution) could enable signal generation at intra-day frequencies, further reducing the transaction cost per unit of edge. Fourth, a reinforcement learning execution layer, trained to optimise entry timing within the detected mispricing window, may improve the net win rate beyond the current 47.3\% while preserving the asymmetric payoff structure.
+The separate daily-options backtest produced 13 strategy-level trades across all partitions, including four strategy-level test trades. Those four test trades corresponded to only two distinct test trade events because the HMM-filtered EMA trades exactly overlapped the EMA trades in contracts, entry dates, exit dates, and P\&L. The RSI rule generated no completed trades. Reported P\&L was gross option price-point P\&L, not rupee P\&L or net investment return. The small and overlapping sample does not support claims that any strategy was profitable, robust, or economically viable.
+
+Within the evaluated sample, the research contribution is an empirical comparison of rolling, GARCH, and EGARCH forecasts; an evaluation of maturity-aligned volatility aggregation for historical BSM valuation; and a transparent daily-options backtesting exercise under explicit execution assumptions. The results also identify methodological and data limitations that constrain interpretation and motivate further validation rather than implying universal model superiority or guaranteed performance improvement.
+
+\subsection*{Limitations}
+
+The experiments lacked historical bid--ask quotes, intraday option candles or timestamps, historical implied volatility, order-book depth, and a verified lot-size multiplier. NSE options data and Yahoo Finance NIFTY~50 index data came from different sources, and daily CLOSE values may be stale or non-executable. Interpretation is further constrained by the short 375-date sample, the small backtest sample, overlapping strategy-level trades, and the absence of verified transaction costs, slippage, and executable bid--ask spreads. The reported prices are model prices, not market prices; a substantial fraction of the reported pricing error is attributable to the BSM volatility smile, which no historical volatility forecast can correct.
+
+\subsection*{Future Work}
+
+Future volatility research may evaluate additional realized-volatility benchmarks, investigate EGARCH forecast calibration and numerical stability, compare alternative specifications and more accurate multi-step conditional-variance forecasts, and extend walk-forward evaluation across longer periods and different market conditions. Option-valuation research may obtain historical bid--ask and intraday data, evaluate models against more reliable market-price references, implement stochastic-volatility and local-volatility alternatives (Heston, SABR, Dupire) to address the smile, and investigate more accurate maturity-specific variance forecasting. Trading evaluation may incorporate verified lot sizes, transaction costs, spreads, slippage, and execution constraints, while increasing the out-of-sample sample size. Statistical uncertainty analysis should be undertaken only when sufficient independent observations are available, alongside independent evaluation of HMM regime stability.
 
 \begin{thebibliography}{99}
 
 \bibitem{black1973}
-F. Black and M. Scholes,
-``The Pricing of Options and Corporate Liabilities,''
-\emph{Journal of Political Economy},
-vol. 81, no. 3, pp. 637--654, 1973.
+F. Black and M. Scholes, ``The Pricing of Options and Corporate Liabilities,'' \emph{Journal of Political Economy}, vol. 81, no. 3, pp. 637--654, 1973.
 
 \bibitem{merton1973}
-R. C. Merton,
-``Theory of Rational Option Pricing,''
-\emph{Bell Journal of Economics},
-vol. 4, no. 1, pp. 141--183, 1973.
+R. C. Merton, ``Theory of Rational Option Pricing,'' \emph{Bell Journal of Economics}, vol. 4, no. 1, pp. 141--183, 1973.
 
 \bibitem{engle1982}
-R. F. Engle,
-``Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation,''
-\emph{Econometrica},
-vol. 50, no. 4, pp. 987--1007, 1982.
+R. F. Engle, ``Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation,'' \emph{Econometrica}, vol. 50, no. 4, pp. 987--1007, 1982.
 
 \bibitem{bollerslev1986}
-T. Bollerslev,
-``Generalized Autoregressive Conditional Heteroskedasticity,''
-\emph{Journal of Econometrics},
-vol. 31, no. 3, pp. 307--327, 1986.
+T. Bollerslev, ``Generalized Autoregressive Conditional Heteroskedasticity,'' \emph{Journal of Econometrics}, vol. 31, no. 3, pp. 307--327, 1986.
 
 \bibitem{nelson1991}
-D. B. Nelson,
-``Conditional Heteroskedasticity in Asset Returns: A New Approach,''
-\emph{Econometrica},
-vol. 59, no. 2, pp. 347--370, 1991.
+D. B. Nelson, ``Conditional Heteroskedasticity in Asset Returns: A New Approach,'' \emph{Econometrica}, vol. 59, no. 2, pp. 347--370, 1991.
 
 \bibitem{duan1995}
-J.-C. Duan,
-``The GARCH Option Pricing Model,''
-\emph{Mathematical Finance},
-vol. 5, no. 1, pp. 13--32, 1995.
+J.-C. Duan, ``The GARCH Option Pricing Model,'' \emph{Mathematical Finance}, vol. 5, no. 1, pp. 13--32, 1995.
 
 \bibitem{heston1993}
-S. L. Heston,
-``A Closed-Form Solution for Options with Stochastic Volatility with Applications to Bond and Currency Options,''
-\emph{Review of Financial Studies},
-vol. 6, no. 2, pp. 327--343, 1993.
+S. L. Heston, ``A Closed-Form Solution for Options with Stochastic Volatility with Applications to Bond and Currency Options,'' \emph{Review of Financial Studies}, vol. 6, no. 2, pp. 327--343, 1993.
 
 \bibitem{rabiner1989}
-L. R. Rabiner,
-``A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition,''
-\emph{Proceedings of the IEEE},
-vol. 77, no. 2, pp. 257--286, 1989.
+L. R. Rabiner, ``A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition,'' \emph{Proceedings of the IEEE}, vol. 77, no. 2, pp. 257--286, 1989.
 
 \bibitem{hull2022}
-J. C. Hull,
-\emph{Options, Futures, and Other Derivatives},
-11th ed.
-Pearson, 2022.
+J. C. Hull, \emph{Options, Futures, and Other Derivatives}, 11th ed. Pearson, 2022.
 
 \bibitem{tsay2010}
-R. S. Tsay,
-\emph{Analysis of Financial Time Series},
-3rd ed.
-Wiley, 2010.
+R. S. Tsay, \emph{Analysis of Financial Time Series}, 3rd ed. Wiley, 2010.
 
 \bibitem{glasserman2004}
-P. Glasserman,
-\emph{Monte Carlo Methods in Financial Engineering}.
-Springer, 2004.
+P. Glasserman, \emph{Monte Carlo Methods in Financial Engineering}. Springer, 2004.
 
 \bibitem{wilmott2006}
-P. Wilmott,
-\emph{Paul Wilmott on Quantitative Finance},
-2nd ed.
-John Wiley \& Sons, 2006.
+P. Wilmott, \emph{Paul Wilmott on Quantitative Finance}, 2nd ed. John Wiley \& Sons, 2006.
 
 \bibitem{hamilton1994}
-J. D. Hamilton,
-\emph{Time Series Analysis}.
-Princeton University Press, 1994.
+J. D. Hamilton, \emph{Time Series Analysis}. Princeton University Press, 1994.
 
 \bibitem{sabr2002}
-P. S. Hagan, D. Kumar, A. Lesniewski, and D. Woodward,
-``Managing Smile Risk,''
-\emph{Wilmott Magazine},
-pp. 84--108, 2002.
+P. S. Hagan, D. Kumar, A. Lesniewski, and D. Woodward, ``Managing Smile Risk,'' \emph{Wilmott Magazine}, pp. 84--108, 2002.
 
 \bibitem{shreve2004}
-S. Shreve,
-\emph{Stochastic Calculus for Finance II: Continuous-Time Models}.
-Springer, 2004.
-
-\bibitem{smith2021}
-J. Smith and L. Brown,
-``Transformers for Order Book Modeling,''
-\emph{Quantitative Finance}, vol. 21, no. 5, pp. 200--215, 2021.
-
-\bibitem{zhang2022}
-Y. Zhang et al.,
-``Deep Learning in High-Frequency Volatility Surface Forecasting,''
-\emph{IEEE Trans. Neural Netw. Learn. Syst.}, vol. 33, 2022.
-
-\bibitem{kim2023}
-D. Kim and S. Lee,
-``Regime-Switching Dynamics in Implied Volatility Premiums,''
-\emph{Journal of Banking \& Finance}, vol. 150, 2023.
-
-\bibitem{patel2024}
-A. Patel and V. Sharma,
-``Arbitrage and Coherence in Multi-Timeframe Derivatives Markets,''
-\emph{Journal of Empirical Finance}, vol. 72, 2024.
-
-\bibitem{nguyen2021}
-H. Nguyen,
-``Machine Learning for Options Mispricing: A Survey,''
-\emph{Financial Innovation}, vol. 7, 2021.
-
-\bibitem{wang2023}
-X. Wang et al.,
-``Attention Mechanisms in Financial Sequence Prediction,''
-\emph{Expert Systems with Applications}, vol. 212, 2023.
-
-\bibitem{lu2020}
-Z. Lu,
-``Dynamic Volatility Risk Premium in Index Options,''
-\emph{Journal of Risk and Financial Management}, vol. 13, 2020.
-
-\bibitem{das2022}
-S. Das,
-``Evaluating Diebold-Mariano Tests in Algorithmic Option Strategies,''
-\emph{International Review of Financial Analysis}, vol. 84, 2022.
-
-\bibitem{kumar2023}
-P. Kumar,
-``HMM-driven Statistical Arbitrage in Global Equity Indexes,''
-\emph{Applied Economics}, vol. 55, 2023.
-
-\bibitem{foster2024}
-M. Foster and K. Cheng,
-``Limits to Option Arbitrage in Fast Markets,''
-\emph{Market Microstructure and Liquidity}, vol. 10, 2024.
-
+S. Shreve, \emph{Stochastic Calculus for Finance II: Continuous-Time Models}. Springer, 2004.
 
 \bibitem{corsi2009}
-F.~Corsi, ``A simple approximate long-memory model of realized volatility,''
-\emph{Journal of Financial Econometrics}, vol.~7, no.~2, pp.~174--196, 2009.
+F. Corsi, ``A Simple Approximate Long-Memory Model of Realized Volatility,'' \emph{Journal of Financial Econometrics}, vol. 7, no. 2, pp. 174--196, 2009.
 
 \bibitem{realized_garch}
-P.~R.~Hansen, Z.~Huang, and H.~H.~Shek, ``Realized GARCH: A joint model
-for returns and realized measures of volatility,''
-\emph{Journal of Applied Econometrics}, vol.~27, pp.~877--906, 2012.
+P. R. Hansen, Z. Huang, and H. H. Shek, ``Realized GARCH: A Joint Model for Returns and Realized Measures of Volatility,'' \emph{Journal of Applied Econometrics}, vol. 27, pp. 877--906, 2012.
 
 \bibitem{andersen2007}
-T.~G.~Andersen, T.~Bollerslev, and F.~X.~Diebold,
-``Roughing it up: Including jump components in the measurement, modeling,
-and forecasting of return volatility,''
-\emph{Review of Economics and Statistics}, vol.~89, no.~4, pp.~701--720, 2007.
+T. G. Andersen, T. Bollerslev, and F. X. Diebold, ``Roughing It Up: Including Jump Components in the Measurement, Modeling, and Forecasting of Return Volatility,'' \emph{Review of Economics and Statistics}, vol. 89, no. 4, pp. 701--720, 2007.
 
 \bibitem{bailey_deflated_sharpe}
-D.~H.~Bailey and M.~L\'{o}pez de Prado, ``The deflated Sharpe ratio:
-Correcting for selection bias, backtest overfitting, and non-normality,''
-\emph{Journal of Portfolio Management}, vol.~40, no.~5, pp.~94--107, 2014.
+D. H. Bailey and M. López de Prado, ``The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting, and Non-Normality,'' \emph{Journal of Portfolio Management}, vol. 40, no. 5, pp. 94--107, 2014.
 
 \bibitem{hansen_spa}
-P.~R.~Hansen, ``A test for superior predictive ability,''
-\emph{Journal of Business \& Economic Statistics}, vol.~23, no.~4,
-pp.~365--380, 2005.
+P. R. Hansen, ``A Test for Superior Predictive Ability,'' \emph{Journal of Business \& Economic Statistics}, vol. 23, no. 4, pp. 365--380, 2005.
 
 \bibitem{dupire1994}
-B.~Dupire, ``Pricing with a smile,''
-\emph{Risk}, vol.~7, pp.~18--20, Jan.\ 1994.
+B. Dupire, ``Pricing with a Smile,'' \emph{Risk}, vol. 7, pp. 18--20, Jan. 1994.
 
 \bibitem{diebold_mariano}
-F.~X.~Diebold and R.~S.~Mariano, ``Comparing predictive accuracy,''
-\emph{Journal of Business \& Economic Statistics}, vol.~13, no.~3,
-pp.~253--263, 1995.
+F. X. Diebold and R. S. Mariano, ``Comparing Predictive Accuracy,'' \emph{Journal of Business \& Economic Statistics}, vol. 13, no. 3, pp. 253--263, 1995.
 
 \bibitem{white2000}
-H.~White, ``A reality check for data snooping,''
-\emph{Econometrica}, vol.~68, no.~5, pp.~1097--1126, 2000.
+H. White, ``A Reality Check for Data Snooping,'' \emph{Econometrica}, vol. 68, no. 5, pp. 1097--1126, 2000.
 
 \bibitem{carr_wu_2009}
-P.~Carr and L.~Wu, ``The variance risk premium,''
-\emph{The Review of Financial Studies}, vol.~22, no.~3, pp.~1311--1341, 2009.
+P. Carr and L. Wu, ``The Variance Risk Premium,'' \emph{The Review of Financial Studies}, vol. 22, no. 3, pp. 1311--1341, 2009.
 
 \end{thebibliography}
+
 \end{document}
+

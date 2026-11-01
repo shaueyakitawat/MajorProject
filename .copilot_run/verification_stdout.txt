@@ -1,0 +1,11 @@
+=== dependency check ===
+numpy 2.2.6
+pandas 2.2.3
+=== script execution attempts ===
+run_empirical_research.py
+run_phase2_horizon_validation.py
+research_backtest\engine.py
+=== artifact checks ===
+index_sha256_actual d56103561b861ad580fb85ba5ae4cd8105ad422e93be5589a787f3d44c21b19f
+options_sha256_actual 664908f7058b4b1696357a11c7dc232224cf631b8ec43867d45b797ad1f5ab3a
+trade_rows 13

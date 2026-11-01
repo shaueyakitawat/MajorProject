@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "D:\Projects\option-project\scripts\research_backtest\engine.py", line 19, in <module>
+    import matplotlib.pyplot as plt
+ModuleNotFoundError: No module named 'matplotlib'

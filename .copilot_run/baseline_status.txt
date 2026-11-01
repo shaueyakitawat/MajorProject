@@ -1,0 +1,13 @@
+ M latexcode.tex
+?? .copilot_run/
+?? .github/
+?? docs/research.zip
+?? docs/research/
+?? scripts/audit_phase3_forecasts.py
+?? scripts/download_nifty50_index.py
+?? scripts/download_nse_nifty_options.py
+?? scripts/research_backtest/
+?? scripts/run_empirical_research.py
+?? scripts/run_phase2_horizon_validation.py
+?? scripts/validate_nse_options_dataset.py
+?? tests/
