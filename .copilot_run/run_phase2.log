@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "D:\Projects\option-project\scripts\run_phase2_horizon_validation.py", line 15, in <module>
+    from arch import arch_model
+ModuleNotFoundError: No module named 'arch'

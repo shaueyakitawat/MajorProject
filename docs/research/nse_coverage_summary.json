@@ -1,0 +1,1051 @@
+{
+  "requested_date_range": {
+    "start": "2024-07-01",
+    "end": "2025-12-31",
+    "inclusive_calendar_days": 549
+  },
+  "requested_dates": 549,
+  "download_status_counts": {
+    "downloaded": 375,
+    "not_available_404": 174
+  },
+  "successful_downloads": 375,
+  "failed_or_unavailable_dates": [
+    {
+      "date": "2024-07-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-17",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-07-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-03",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-04",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-10",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-11",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-17",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-18",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-24",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-08-31",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-09-29",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-12",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-19",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-10-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-03",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-09",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-10",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-16",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-17",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-23",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-24",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-11-30",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2024-12-29",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-04",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-11",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-12",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-18",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-19",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-01-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-09",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-16",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-23",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-02-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-09",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-16",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-23",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-29",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-30",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-03-31",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-10",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-12",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-18",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-19",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-04-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-03",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-04",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-10",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-11",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-17",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-18",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-24",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-05-31",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-06-29",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-12",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-19",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-07-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-03",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-09",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-10",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-16",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-17",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-23",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-24",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-30",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-08-31",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-09-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-04",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-11",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-12",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-18",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-19",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-10-26",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-01",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-02",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-05",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-08",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-09",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-15",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-16",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-22",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-23",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-29",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-11-30",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-06",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-07",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-13",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-14",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-20",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-21",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-25",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-27",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    },
+    {
+      "date": "2025-12-28",
+      "status": "not_available_404",
+      "reason": "Both archive URL patterns returned HTTP 404; likely weekend, holiday, or unavailable archive date."
+    }
+  ],
+  "coverage_verified": false,
+  "distinct_trading_dates_represented": 375,
+  "represented_trade_date_min": "2024-07-01",
+  "represented_trade_date_max": "2025-12-31",
+  "total_contract_observations": 605159,
+  "positive_volume_observations": 346156,
+  "sum_contracts": 55605628527.0,
+  "sum_positive_volume_contracts": 55605628527.0,
+  "ce_pe_distribution": {
+    "CE": 299793,
+    "PE": 305366
+  },
+  "expiry_distribution": {
+    "2024-07-04": 930,
+    "2024-07-11": 1808,
+    "2024-07-18": 2342,
+    "2024-07-25": 4412,
+    "2024-08-01": 4242,
+    "2024-08-29": 10770,
+    "2024-09-26": 12446,
+    "2024-12-26": 17667,
+    "2025-03-27": 16934,
+    "2025-06-26": 20932,
+    "2025-12-24": 9532,
+    "2026-06-25": 8697,
+    "2026-12-31": 8895,
+    "2027-06-24": 7065,
+    "2027-12-30": 7510,
+    "2028-06-29": 6882,
+    "2028-12-28": 6911,
+    "2029-06-28": 6882,
+    "2024-08-08": 3844,
+    "2024-08-14": 3844,
+    "2024-08-22": 4076,
+    "2024-10-31": 13728,
+    "2024-09-05": 4354,
+    "2024-09-12": 4172,
+    "2024-09-19": 4486,
+    "2024-10-03": 4884,
+    "2024-11-28": 12468,
+    "2024-10-10": 4252,
+    "2024-10-17": 4180,
+    "2024-10-24": 4468,
+    "2025-09-25": 9296,
+    "2024-11-07": 4264,
+    "2024-11-14": 4328,
+    "2024-11-21": 3938,
+    "2024-12-05": 4792,
+    "2025-01-30": 11904,
+    "2024-12-12": 4034,
+    "2024-12-19": 4154,
+    "2025-01-02": 5494,
+    "2025-02-27": 12668,
+    "2025-01-09": 4110,
+    "2025-01-16": 4390,
+    "2025-01-23": 4056,
+    "2029-12-27": 3768,
+    "2025-02-06": 4770,
+    "2025-02-13": 4340,
+    "2025-02-20": 4348,
+    "2025-03-06": 5314,
+    "2025-04-24": 10672,
+    "2025-03-13": 4314,
+    "2025-03-20": 3852,
+    "2025-04-03": 4824,
+    "2025-05-29": 12512,
+    "2025-04-09": 3826,
+    "2025-04-17": 3904,
+    "2025-04-30": 4784,
+    "2026-03-26": 2202,
+    "2025-05-08": 4412,
+    "2025-05-15": 4676,
+    "2025-05-22": 3916,
+    "2025-07-31": 13002,
+    "2025-06-05": 4326,
+    "2025-06-12": 4516,
+    "2025-06-19": 3996,
+    "2025-07-03": 4966,
+    "2025-08-28": 11306,
+    "2025-07-10": 4162,
+    "2025-07-17": 4234,
+    "2025-07-24": 4280,
+    "2030-06-25": 3254,
+    "2025-08-07": 4062,
+    "2025-08-14": 4122,
+    "2025-08-21": 3942,
+    "2025-09-02": 4290,
+    "2025-12-30": 14950,
+    "2029-12-24": 2665,
+    "2028-06-27": 2663,
+    "2027-12-28": 2984,
+    "2025-09-30": 8638,
+    "2025-10-28": 10370,
+    "2026-03-31": 2588,
+    "2026-06-30": 3409,
+    "2026-12-29": 3514,
+    "2029-06-26": 2663,
+    "2027-06-29": 2778,
+    "2028-12-26": 2770,
+    "2025-09-09": 3470,
+    "2025-09-16": 3430,
+    "2025-09-23": 3678,
+    "2025-11-25": 11098,
+    "2025-10-07": 3950,
+    "2025-10-14": 3954,
+    "2025-10-20": 3830,
+    "2025-11-04": 4926,
+    "2026-09-29": 1468,
+    "2025-11-11": 3886,
+    "2025-11-18": 3960,
+    "2025-12-02": 4646,
+    "2026-01-27": 7308,
+    "2025-12-09": 3902,
+    "2025-12-16": 3972,
+    "2025-12-23": 3888,
+    "2026-02-24": 3924,
+    "2026-01-06": 3128,
+    "2026-01-13": 2318,
+    "2026-01-20": 1524,
+    "2026-02-03": 738,
+    "2026-03-30": 214,
+    "2030-12-31": 22
+  },
+  "dte_distribution": {
+    "count": 605159,
+    "min": 0.0,
+    "p25": 14.0,
+    "median": 29.0,
+    "p75": 73.0,
+    "max": 1826.0,
+    "mean": 180.6375729353773,
+    "zero_count": 15881,
+    "negative_count": 0
+  },
+  "dte_buckets": {
+    "0-7": 90317,
+    "8-30": 231521,
+    "31-60": 102285,
+    "61-90": 63308,
+    ">90": 117728
+  },
+  "missingness": {
+    "strike": 0,
+    "open": 0,
+    "high": 0,
+    "low": 0,
+    "close": 0,
+    "settlement": 0,
+    "contracts": 0,
+    "turnover": 0,
+    "open_interest": 0
+  },
+  "anomalies": {
+    "all_flagged_records": 348,
+    "positive_volume_anomalies": 348,
+    "zero_settlement_traded_records": 348
+  },
+  "schema_counts": {
+    "legacy": 8406,
+    "new": 596753
+  },
+  "duplicate_checks": {
+    "duplicate_contract_groups": 0,
+    "duplicate_rows": 0
+  },
+  "source": "Official NSE daily F&O bhavcopy archive; manifest entries contain URL, raw filename, SHA-256, headers, and row counts."
+}

@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "D:\Projects\option-project\scripts\run_empirical_research.py", line 13, in <module>
+    import matplotlib.pyplot as plt
+ModuleNotFoundError: No module named 'matplotlib'

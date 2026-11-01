@@ -1,0 +1,9 @@
+# Phase 4 Research Backtest Methodology
+
+This isolated daily option backtest uses only the preserved NSE option bhavcopy dataset and aligned daily NIFTY index dataset. Signals use the index close at date t and enter the same contract at the next available session's option OPEN. The entry candle is the first monitored candle and counts as holding session 1; its high/low are checked after entry at the open. Subsequent opening gaps are handled conservatively. Every entry and execution candle requires positive contracts and valid OHLC. Contracts are never substituted after entry. Positions do not overlap within a strategy; later signals are recorded as skipped. A trade cannot cross its evaluation-period end.
+
+Strategies are deterministic EMA(10/30), RSI(14) reversal at 30/70, 20-session previous-high/low breakout filtered by the frozen training median ATR/close, and EMA filtered by a two-state walk-forward HMM. The HMM is fitted only on observations strictly before each signal date.
+
+Option selection requires CE/PE direction, 15-45 calendar DTE, a strike within 2.5% of spot, positive contracts, positive OI and positive close. The option's ATR(14) uses only valid positive OHLC bars strictly before entry. Stop is entry minus 1.5 ATR and target is entry plus twice the initial risk. Opening gaps are executed at OPEN; otherwise stop is checked before target. Same-bar ambiguity is conservatively stop-first. Unresolved positions exit after 10 valid option sessions at CLOSE.
+
+Results are gross option price points only. No lot multiplier, rupee P&L, bid/ask spread, or executable-return claim is made. Transaction-cost sensitivity is deferred pending verified historical lot sizes and fee inputs. Sharpe and Sortino are suppressed because the sample is too small for conventional annualized inference. Every skipped signal is preserved in `data/research/backtest/skipped_signals.csv` and summarized by period in the metrics JSON.

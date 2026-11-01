@@ -1,11 +1,12 @@
 __pycache__/
 *.pyc
 .env
-# data/ unignored to track active audit ledger SQLite DB and compressed datasets
 *.wal
 *.shm
 data/*.csv
+data/nifty_options_daily_tradable.csv
 !data/*.csv.gz
+!data/*.db
 outputs/
 .ipynb_checkpoints/
 .DS_Store
