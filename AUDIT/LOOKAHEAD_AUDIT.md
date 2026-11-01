@@ -90,3 +90,4 @@ We construct an automated test (`tests/test_lookahead_causality.py`) that:
 
 ---
 **Document Status:** Complete. Proceeding to Part 4 (P&L Reconciliation & Reconstructing the Entire Backtest).
+

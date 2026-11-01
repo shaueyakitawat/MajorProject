@@ -45,3 +45,4 @@ $$M_{\mathrm{req}} = \mathrm{SPAN}(S, K, T, \sigma) + \mathrm{ExposureMargin} \a
 
 ---
 **Document Status:** Complete and verified.
+

@@ -93,3 +93,4 @@ The clean, causal trailing regime filter produces an economically coherent distr
 
 ---
 **Document Status:** Complete, reconciled, and reproducible from `outputs/csv_options_backtest_results.json`.
+

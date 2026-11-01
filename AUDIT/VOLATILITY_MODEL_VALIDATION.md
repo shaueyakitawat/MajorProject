@@ -71,3 +71,4 @@ If EGARCH has higher point-forecast MAE, why use it in QuantLens?
 
 ---
 **Document Status:** Complete.
+

@@ -73,3 +73,4 @@ $$\begin{aligned}
 
 ---
 **Conclusion:** The dataset is genuine, official NSE Bhavcopy data across 375 trading sessions. The 605,159 and 346,156 counts are verified. However, the data is daily-resolution, necessitating an honest EOD / Next-Day Open execution framework.
+
