@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 .env
-# data/ unignored to track active audit ledger SQLite DB and compressed datasets
+data
 *.wal
 *.shm
 data/*.csv
