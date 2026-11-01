@@ -90,8 +90,8 @@ class ApiClient {
   }
 
   // Walk-forward Backtest
-  async getBacktest(symbol: string = '^NSEI', timeframe: string = '1d') {
-    return this.request<any>(`/backtest?symbol=${symbol}&timeframe=${timeframe}`);
+  async getBacktest(symbol: string = '^NSEI', timeframe: string = '1d', mode: string = 'options') {
+    return this.request<any>(`/backtest?symbol=${symbol}&timeframe=${timeframe}&mode=${mode}`);
   }
 
   // Trades & Ledger
