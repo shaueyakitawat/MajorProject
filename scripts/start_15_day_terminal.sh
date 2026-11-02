@@ -35,6 +35,7 @@ TRADER_ARGS=(
   --max-closed-trades 50
   --target-margin-roi 2.00
   --max-daily-loss 15000
+  --allow-stale
 )
 
 if command -v caffeinate >/dev/null 2>&1; then
