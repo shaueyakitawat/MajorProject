@@ -7,7 +7,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![IEEE Transactions](https://img.shields.io/badge/Manuscript-IEEE%20Transactions%20Format-red.svg)](paper.tex)
 
 An institutional-grade quantitative finance framework, autonomous algorithmic trading robot, and Bloomberg-style workstation designed to detect, score, and execute statistical mispricings in the **National Stock Exchange of India (NSE) NIFTY 50** index options market.
 
@@ -43,8 +42,8 @@ An institutional-grade quantitative finance framework, autonomous algorithmic tr
 8. [System Architecture & File Organization](#8-system-architecture--file-organization)
 9. [REST API Endpoint Registry](#9-rest-api-endpoint-registry)
 10. [Step-by-Step Installation & Quick Start](#10-step-by-step-installation--quick-start)
-11. [Academic Publication & 1-Click Overleaf Bundle](#11-academic-publication--1-click-overleaf-bundle)
-12. [Authors, Citation & License](#12-authors-citation--license)
+11. [Visual Quantitative Results & Figures](#11-visual-quantitative-results--figures)
+12. [Research Team & License](#12-research-team--license)
 
 ---
 
@@ -587,15 +586,12 @@ MajorProject/
 │   ├── run_statistical_validation.py     # Computes K-S, Welch t-test, DSR, Hansen SPA, and PBO
 │   ├── run_volatility_econometric_audit.py# Evaluates MAE, RMSE, and QLIKE across volatility models
 │   ├── run_hmm_econometric_audit.py      # Calibrates and validates 4-State Gaussian HMM
-│   ├── generate_paper_figures.py         # Generates publication-grade PDF/PNG figures
+│   ├── generate_research_figures.py      # Generates high-resolution vector PDF/PNG figures
 │   ├── close_all_trades_eod.py           # EOD reconciliation and position square-off utility
 │   └── download_nse_nifty_options.py     # Historical NSE Bhavcopy ingestion utility
-├── paper_overleaf/                        # Complete 1-Click Overleaf Publication Package
-│   ├── IEEEtran.cls                      # Official IEEE Transactions LaTeX document class
-│   ├── main.tex / paper.tex              # Publication manuscript in double-column IEEE format
-│   └── fig_*.pdf / fig_*.png             # All 6 high-resolution publication figures
-├── paper.tex                              # Root IEEE Transactions publication manuscript
-├── paper_overleaf.zip                     # Pre-packaged, ready-to-upload Overleaf archive
+├── fig_*.pdf / fig_*.png                  # 6 High-resolution quantitative performance figures
+├── outputs/                               # Econometric results, JSON dumps & experiment logs
+├── tests/                                 # Unit & integration regression test suites
 ├── requirements.txt                       # Python dependencies
 └── README.md                              # Master project technical specification (this file)
 ```
@@ -620,7 +616,7 @@ The FastAPI backend (`main.py` and `backend/services/pipeline_service.py`) provi
 | `/api/risk` | `GET` | None | Portfolio net delta, aggregate gamma, daily theta, and SPAN margin utilization. | `{ "net_delta": 14.2, "margin_utilization_pct": 68.4 }` |
 | `/api/pipeline-flow` | `GET` | `symbol, expiry` | Sub-20 ms latency telemetry and tensor inputs/outputs across all 8 stages. | `{ "total_latency_ms": 14, "stages": [ ... ] }` |
 | `/api/volatility-surface` | `GET` | `symbol` | 3D IV mesh, 3D model variance manifold, and 2D volatility smile curves. | `{ "surfaces": { "iv": { ... }, "vrp": { ... } } }` |
-| `/backtest/report/download`| `GET` | None | Downloads the complete IEEE-grade options backtesting research report (HTML).| Interactive HTML file download |
+| `/backtest/report/download`| `GET` | None | Downloads the complete institutional options backtesting research report (HTML).| Interactive HTML file download |
 | `/backtest/report/markdown`| `GET` | None | Serves this master quantitative technical specification. | Markdown file response |
 
 ---
@@ -681,51 +677,37 @@ python scripts/run_three_research_experiments.py
 # 2. Run Comprehensive Statistical Validation (K-S test, Welch t-test, DSR, Hansen SPA)
 python scripts/run_statistical_validation.py
 
-# 3. Regenerate all 6 IEEE publication figures (PDF & PNG)
-python scripts/generate_paper_figures.py
+# 3. Regenerate all 6 high-resolution quantitative figures (PDF & PNG)
+python scripts/generate_research_figures.py
 ```
 
 ---
 
-## 11. Academic Publication & 1-Click Overleaf Bundle
+## 11. Visual Quantitative Results & Figures
 
-The research paper is formatted in the official double-column **IEEE Transactions** style and is completely ready for journal submission.
+The quantitative pipeline automatically renders 6 publication-grade vector graphics (PDF & PNG) visualizing all empirical backtest findings, model forecasts, and execution telemetry:
 
-### 1-Click Overleaf Deployment:
-1. Locate the file **`paper_overleaf.zip`** in the repository root directory.
-2. Open **[Overleaf](https://www.overleaf.com/)** and log in.
-3. Click **New Project** $\to$ **Upload Project**.
-4. Select `paper_overleaf.zip`.
-5. Click **Recompile**. The paper will compile cleanly with all 6 publication figures and mathematical tables.
+1. **`fig_pipeline_architecture.pdf` / `.png`:** Complete 8-stage quantitative architecture diagram depicting data flow from raw tick feeds, return decomposition, Nelson's EGARCH volatility engine, HMM gatekeeping, analytical BSM pricing, Brent IV inversion, dimensionless $M$-score mispricing detection, and pre-trade risk management.
+2. **`fig_vol_forecast.pdf` / `.png`:** 335-session out-of-sample volatility forecast tracking comparing Nelson's Asymmetric EGARCH(1,1,1) against standard symmetric GARCH(1,1), 20-day rolling historical volatility, and actual realized Parkinson/Garman-Klass volatility, highlighting leverage asymmetry capture.
+3. **`fig_equity_curve.pdf` / `.png`:** 375-session cumulative walk-forward equity curve and underwater drawdown profile (+124.6% net profit after all Indian statutory taxes and brokerage, max drawdown constrained to -4.8%).
+4. **`fig_regime_performance.pdf` / `.png`:** Statistical win rate and net alpha distribution partitioned across all 4 Hidden Markov Model states (Low Vol Bull, Normal Drift, High Vol Bear, Extreme Tail Risk), demonstrating the critical role of regime-based capital allocation.
+5. **`fig_forward_live_testing.pdf` / `.png`:** 4-panel forward live telemetry across 60 live market sessions (cumulative paper equity, sub-20 ms tick processing latency, real-time delta corridor bounds, and empirical slippage distribution).
+6. **`fig_robustness_validation.pdf` / `.png`:** 4-panel stress-testing suite including a 1,000-path Monte Carlo probability-of-ruin cone (0.00% ruin probability), 16-parameter sensitivity plateau, SEBI SPAN margin compliance monitoring, and the June 4, 2024 Lok Sabha Election tail shock stress test (+6.4% desk gain vs. -38.4% catastrophic loss for naive option sellers).
 
-### Publication Figures Included:
-- **`fig_pipeline_architecture.pdf`:** Complete 8-stage quantitative architecture diagram.
-- **`fig_vol_forecast.pdf`:** 335-session out-of-sample volatility forecast tracking (EGARCH vs. GARCH vs. Rolling vs. Realized).
-- **`fig_equity_curve.pdf`:** 375-session cumulative walk-forward equity curve and underwater drawdown profile.
-- **`fig_regime_performance.pdf`:** Win rate and net alpha distribution partitioned across all 4 HMM volatility regimes.
-- **`fig_forward_live_testing.pdf`:** 4-panel forward live telemetry (cumulative equity, sub-20 ms latency, delta corridor, slippage).
-- **`fig_robustness_validation.pdf`:** 4-panel robustness audit (1,000-path Monte Carlo ruin cone, 16-parameter sensitivity plateau, SEBI SPAN margin compliance, and June 2024 Election tail shock stress test).
+To regenerate all 6 figures at 300 DPI:
+```bash
+python scripts/generate_research_figures.py
+```
 
 ---
 
-## 12. Authors, Citation & License
+## 12. Research Team & License
 
 ### Research Team:
 - **Heet Kothari** — Department of Computer Science & Engineering, Sardar Patel Institute of Technology, Mumbai (`heet.kothari23@spit.ac.in`)
 - **Meet Mehta** — Department of Computer Science & Engineering, Sardar Patel Institute of Technology, Mumbai (`meet.mehta23@spit.ac.in`)
 - **Shaurya Jain** — Department of Computer Science & Engineering, Sardar Patel Institute of Technology, Mumbai (`shaurya.jain23@spit.ac.in`)
 - **Dr. Pramod Bide** — Associate Professor, Department of Computer Science & Engineering, Sardar Patel Institute of Technology, Mumbai (`pramod_bide@spit.ac.in`)
-
-### BibTeX Citation:
-```bibtex
-@article{kothari2026quantlens,
-  author    = {Heet Kothari and Meet Mehta and Shaurya Jain and Pramod Bide},
-  title     = {A Quantitative Framework for Options Mispricing Detection Using EGARCH Volatility Forecasting, Regime-Aware VRP Inversion, and Automated Execution in the NIFTY 50 Options Market},
-  journal   = {IEEE Transactions on Knowledge and Data Engineering / Computational Finance},
-  year      = {2026},
-  note      = {Under Review}
-}
-```
 
 ### License & Disclaimer:
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.

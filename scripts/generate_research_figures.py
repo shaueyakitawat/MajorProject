@@ -1,8 +1,8 @@
 """
-scripts/generate_paper_figures.py
+scripts/generate_research_figures.py
 ================================================================================
-Generates publication-quality IEEE Transactions vector figures (PDF & PNG)
-for paper.tex.
+Generates high-resolution vector figures (PDF & PNG) for research results,
+backtest analytics, and quantitative validation.
 ================================================================================
 """
 
