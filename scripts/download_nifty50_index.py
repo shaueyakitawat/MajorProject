@@ -15,7 +15,7 @@ OPTIONS = ROOT / "data" / "research" / "nifty_options_daily.csv"
 OUTPUT = ROOT / "data" / "research" / "nifty50_index_daily.csv"
 RAW = ROOT / "data" / "research" / "raw" / "nifty50_yahoo_chart.json"
 MANIFEST = ROOT / "data" / "research" / "nifty50_index_manifest.json"
-REPORT = ROOT / "docs" / "research" / "nifty50_index_validation_report.md"
+REPORT = ROOT / "docs" / "research" / "nifty50_index_validation_report.json"
 SOURCE_URL = (
     "https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI"
     "?period1=1719792000&period2=1767225600&interval=1d"

@@ -332,9 +332,9 @@ def main() -> int:
     }
     (OUT / "experiment_metrics.json").write_text(json.dumps(metrics_payload, indent=2, default=str) + "\n", encoding="utf-8")
     DOCS.mkdir(parents=True, exist_ok=True)
-    (DOCS / "experiment_methodology.md").write_text(methodology(metrics_payload), encoding="utf-8")
-    (DOCS / "experiment_results.md").write_text(results(metrics_payload, volatility, hmms, valuations), encoding="utf-8")
-    (DOCS / "experiment_data_quality.md").write_text(quality(metrics_payload, option_sample, zero_settlement_audit), encoding="utf-8")
+    (DOCS / "experiment_methodology.json").write_text(methodology(metrics_payload), encoding="utf-8")
+    (DOCS / "experiment_results.json").write_text(results(metrics_payload, volatility, hmms, valuations), encoding="utf-8")
+    (DOCS / "experiment_data_quality.json").write_text(quality(metrics_payload, option_sample, zero_settlement_audit), encoding="utf-8")
     write_diagnostic_reports(index, volatility, hmms, valuations, zero_settlement_audit, metrics_payload)
     print(json.dumps({"index": len(index), "volatility": len(volatility), "hmm": len(hmms),
                       "options": len(option_sample), "valuations": len(valuations),
@@ -370,7 +370,7 @@ def write_diagnostic_reports(
         },
         "note": "Reason counts are overlapping diagnostic predicates; no source rows were deleted.",
     }
-    (DOCS / "zero_settlement_reconciliation.md").write_text(
+    (DOCS / "zero_settlement_reconciliation.json").write_text(
         "# Zero-Settlement Reconciliation\n\n"
         "| Population | Records |\n|---|---:|\n"
         f"| Expanded validation positive-volume settlement-zero records | {len(zero_all)} |\n"
@@ -413,7 +413,7 @@ def write_diagnostic_reports(
         }
     else:
         pricing_distribution = {}
-    (DOCS / "option_pricing_diagnostic_report.md").write_text(
+    (DOCS / "option_pricing_diagnostic_report.json").write_text(
         "# Option Pricing Diagnostic Report\n\n"
         "## Input trace\n\n"
         "- Spot: Yahoo Finance NIFTY 50 close, in index points, joined by `trade_date`.\n"
@@ -433,7 +433,7 @@ def write_diagnostic_reports(
         + "\n\nMAPE and percentage errors become unstable when observed daily CLOSE is zero or near zero; these observations are retained, and median percentage error is reported alongside absolute metrics.\n",
         encoding="utf-8",
     )
-    (DOCS / "egarch_diagnostic_report.md").write_text(
+    (DOCS / "egarch_diagnostic_report.json").write_text(
         "# EGARCH Diagnostic Report\n\n"
         "## Confirmed implementation issue\n\n"
         "The original experiment passed `vol='EGARCH', p=1, q=1` without `o=1`. In `arch`, this specifies a symmetric EGARCH(1,1) with no asymmetry term, not the intended asymmetric EGARCH(1,1). The original script also suppressed warnings and did not record `convergence_flag` or fitted parameters.\n\n"
@@ -447,7 +447,7 @@ def write_diagnostic_reports(
         "The original explosive values were caused primarily by the missing asymmetry order and unchecked optimizer/forecast diagnostics in the short expanding samples; the original outputs are preserved under `data/research/versions/2026-10-31_phase1_original/`.\n",
         encoding="utf-8",
     )
-    (DOCS / "hmm_diagnostic_report.md").write_text(
+    (DOCS / "hmm_diagnostic_report.json").write_text(
         "# HMM Diagnostic Report\n\n"
         "- Features: annualized 20-observation rolling standard deviation of daily log returns.\n"
         "- Each fit uses only a trailing 120 observations strictly before the assignment date; the current feature is appended only for endpoint probability inference.\n"
@@ -458,7 +458,7 @@ def write_diagnostic_reports(
         f"Walk-forward assignments: {len(hmms)}; fit failures: {len(payload['failures']['hmm'])}. Changing transition matrices and state counts are reported; no regime-improvement claim is made.\n",
         encoding="utf-8",
     )
-    (DOCS / "diagnostic_findings.md").write_text(
+    (DOCS / "diagnostic_findings.json").write_text(
         "# Diagnostic Findings\n\n"
         "1. **EGARCH — corrected.** The original call omitted `o=1`, did not record convergence status, and allowed explosive forecasts into valuation. The corrected run uses asymmetric EGARCH(1,1), explicit percentage conversion, convergence checks, and failure records without clipping.\n"
         "2. **BSM units — consistent.** Spot, strike, and option CLOSE are index-price units; DTE is divided by 365.25 once; volatility is an annualized decimal; rates and dividend yield are annual decimals. The large errors are empirical pricing errors against daily CLOSE, not proof of mispricing. MAPE is dominated by small observed prices.\n"

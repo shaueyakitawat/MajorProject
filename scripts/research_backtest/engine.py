@@ -512,9 +512,6 @@ def run() -> dict:
                     "skipped_signals.csv",
                     "performance_metrics.json",
                     "strategy_comparison.csv",
-                    "../../docs/research/backtest_methodology.md",
-                    "../../docs/research/backtest_results.md",
-                    "../../docs/research/backtest_data_limitations.md",
                     "hmm_diagnostics.csv",
                     "execution_bar_diagnostics.csv",
                 ],
@@ -555,60 +552,6 @@ def write_reports(index: pd.DataFrame, trades: pd.DataFrame, payload: dict) -> N
         plt.tight_layout()
         plt.savefig(FIGURES / "research_backtest_drawdowns.png", dpi=150)
         plt.close()
-    (DOCS / "backtest_methodology.md").write_text(
-        "# Phase 4 Research Backtest Methodology\n\n"
-        "This isolated daily option backtest uses only the preserved NSE option "
-        "bhavcopy dataset and aligned daily NIFTY index dataset. Signals use "
-        "the index close at date t and enter the same contract at the next "
-        "available session's option OPEN. The entry candle is the first "
-        "monitored candle and counts as holding session 1; its high/low are "
-        "checked after entry at the open. Subsequent opening gaps are handled "
-        "conservatively. Every entry and execution candle requires positive "
-        "contracts and valid OHLC. Contracts are never substituted after entry. "
-        "Positions do not overlap within a strategy; later signals are recorded "
-        "as skipped. A trade cannot cross its evaluation-period end.\n\n"
-        "Strategies are deterministic EMA(10/30), RSI(14) reversal at 30/70, "
-        "20-session previous-high/low breakout filtered by the frozen training "
-        "median ATR/close, and EMA filtered by a two-state walk-forward HMM. "
-        "The HMM is fitted only on observations strictly before each signal date.\n\n"
-        "Option selection requires CE/PE direction, 15-45 calendar DTE, a strike "
-        "within 2.5% of spot, positive contracts, positive OI and positive close. "
-        "The option's ATR(14) uses only valid positive OHLC bars strictly before "
-        "entry. Stop is entry minus 1.5 ATR and target is entry plus twice the "
-        "initial risk. Opening gaps are executed at OPEN; otherwise stop is "
-        "checked before target. Same-bar ambiguity is conservatively stop-first. "
-        "Unresolved positions exit after 10 valid option sessions at CLOSE.\n\n"
-        "Results are gross option price points only. No lot multiplier, rupee P&L, "
-        "bid/ask spread, or executable-return claim is made. Transaction-cost "
-        "sensitivity is deferred pending verified historical lot sizes and fee "
-        "inputs. Sharpe and Sortino are suppressed because the sample is too "
-        "small for conventional annualized inference. Every skipped signal is preserved in "
-        "`data/research/backtest/skipped_signals.csv` and summarized by period "
-        "in the metrics JSON.\n",
-        encoding="utf-8",
-    )
-    (DOCS / "backtest_results.md").write_text(
-        "# Phase 4 Research Backtest Results\n\n"
-        "The following results were generated from the frozen deterministic "
-        "configuration. They are gross point-based option results, not net or "
-        "executable returns.\n\n"
-        "```json\n" + json.dumps(payload["metrics"], indent=2, default=str) + "\n```\n\n"
-        "No-trade benchmark:\n\n```json\n" + json.dumps(payload["benchmark"], indent=2) + "\n```\n",
-        encoding="utf-8",
-    )
-    (DOCS / "backtest_data_limitations.md").write_text(
-        "# Phase 4 Research Backtest Data Limitations\n\n"
-        "- Options are daily bhavcopy records; intraday execution is unsupported.\n"
-        "- No bid, ask, spread, IV, or order-book data exists.\n"
-        "- Historical lot-size multipliers are unavailable, so no rupee P&L is reported.\n"
-        "- Option CLOSE is a daily last-traded reference; OPEN and OHLC execution are not guaranteed fills.\n"
-        "- Zero-volume records are excluded from execution, while source data is preserved.\n"
-        "- Settlement-zero anomalies remain in the source dataset and are not used as valid execution prices.\n"
-        "- The index source is Yahoo Finance, a third-party source with unresolved redistribution terms.\n"
-        "- Daily bars cannot establish the intraday sequence when stop and target are both crossed; stop-first is conservative.\n"
-        "- Short sample length limits statistical power and generalization.\n",
-        encoding="utf-8",
-    )
 
 
 if __name__ == "__main__":

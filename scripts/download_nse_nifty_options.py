@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = PROJECT_ROOT / "data" / "research" / "nse_bhavcopy_raw"
 NORMALIZED_PATH = PROJECT_ROOT / "data" / "research" / "nifty_options_daily.csv"
 MANIFEST_PATH = PROJECT_ROOT / "docs" / "research" / "nse_data_manifest.json"
-QUALITY_PATH = PROJECT_ROOT / "docs" / "research" / "nse_data_quality_report.md"
+QUALITY_PATH = PROJECT_ROOT / "docs" / "research" / "nse_data_quality_report.json"
 
 DEFAULT_DATES = (date(2024, 7, 1), date(2024, 7, 10))
 OLD_BASE = "https://archives.nseindia.com/content/historical/DERIVATIVES"

@@ -35,13 +35,14 @@ def _atm_label(atm_strike: float | None) -> str:
 
 
 def generate_strategy(
-    mispricing_label: str,
-    regime_label: str,
+    mispricing_label: str = "fair",
+    regime_label: str = "NORMAL_VOL",
     *,
     sigma_adj: float | None = None,
     iv: float | None = None,
     z_score: float | None = None,
-    atm_strike: float | None = None
+    atm_strike: float | None = None,
+    **kwargs
 ) -> dict:
     """
     Generate a structured, delta-neutral strategy recommendation.

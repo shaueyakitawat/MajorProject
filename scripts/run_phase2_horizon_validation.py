@@ -305,7 +305,7 @@ def write_reports(
     metrics: dict,
 ) -> None:
     DOCS.mkdir(parents=True, exist_ok=True)
-    (DOCS / "horizon_forecast_methodology.md").write_text(
+    (DOCS / "horizon_forecast_methodology.json").write_text(
         "# Horizon Forecast Methodology\n\n"
         "Daily returns are decimal log returns. The corrected asymmetric EGARCH specification is "
         "`arch_model(returns*100, mean='Constant', vol='EGARCH', p=1, o=1, q=1, dist='normal', rescale=False)`.\n\n"
@@ -314,7 +314,7 @@ def write_reports(
         f"Risk-free rate is a sensitivity assumption of {RISK_FREE_RATE:.2%}; continuous dividend yield is {DIVIDEND_YIELD:.2%}. Option CLOSE is a daily last-traded reference, not bid/ask or executable price. Package versions are recorded in `data/research/phase2/phase2_metrics.json`.\n",
         encoding="utf-8",
     )
-    (DOCS / "horizon_valuation_comparison.md").write_text(
+    (DOCS / "horizon_valuation_comparison.json").write_text(
         "# Horizon Valuation Comparison\n\n"
         f"Common eligible option rows: **{metrics['sample']['common_option_rows']}**. All approaches use the same contracts, spot, DTE, rate, dividend yield, and BSM implementation.\n\n"
         "```json\n" + json.dumps(metrics["valuation_metrics"], indent=2) + "\n```\n\n"
@@ -322,7 +322,7 @@ def write_reports(
         encoding="utf-8",
     )
     extreme = stability[np.isfinite(stability["volatility"])].sort_values("volatility", ascending=False).head(20)
-    (DOCS / "egarch_stability_analysis.md").write_text(
+    (DOCS / "egarch_stability_analysis.json").write_text(
         "# EGARCH Stability Analysis\n\n"
         f"- Corrected forecast rows: {len(forecasts)}\n"
         f"- Fit/forecast failures: {len(failures)}\n"
@@ -338,7 +338,7 @@ def write_reports(
         + "\n```\n",
         encoding="utf-8",
     )
-    (DOCS / "common_sample_model_comparison.md").write_text(
+    (DOCS / "common_sample_model_comparison.json").write_text(
         "# Common-Sample Model Comparison\n\n"
         "Target: next-day absolute log return multiplied by `sqrt(252)`; variance QLIKE uses the squared target and forecast variance. Models are evaluated on identical non-missing dates.\n\n"
         "```json\n" + json.dumps(metrics["volatility_metrics"], indent=2) + "\n```\n\n"

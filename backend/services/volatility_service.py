@@ -9,12 +9,13 @@ import numpy as np
 from arch import arch_model
 
 import warnings
+warnings.filterwarnings("ignore")
 try:
     from arch.utility.exceptions import ConvergenceWarning
     warnings.simplefilter("ignore", category=ConvergenceWarning)
 except ImportError:
     pass
-warnings.simplefilter("ignore", category=UserWarning)
+
 
 from backend.infrastructure.annualization_engine import apply_dynamic_annualization
 from backend.infrastructure.timeframe_config import get_annualization_factor

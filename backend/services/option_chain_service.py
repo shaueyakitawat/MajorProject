@@ -535,9 +535,9 @@ def get_multi_expiry_chains(
     return results
 
 
-def fetch_option_chain(symbol: str = "NIFTY", expiry: str | None = None) -> dict:
-    """Legacy wrapper for option chain retrieval."""
-    full = get_full_chain(symbol=symbol, expiry_date=expiry)
+def fetch_option_chain(symbol: str = "NIFTY", expiry: str | None = None, depth: int = 15, force_refresh: bool = False, **kwargs) -> dict:
+    """Wrapper for option chain retrieval with full parameter support."""
+    full = get_full_chain(symbol=symbol, expiry_date=expiry, depth=depth, force_refresh=force_refresh)
     
     # Convert chain list to DataFrame style for legacy components
     calls_list = []

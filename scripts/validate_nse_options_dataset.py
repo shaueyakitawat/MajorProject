@@ -13,7 +13,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = PROJECT_ROOT / "data" / "research" / "nifty_options_daily.csv"
-DEFAULT_REPORT = PROJECT_ROOT / "docs" / "research" / "nse_validation_report.md"
+DEFAULT_REPORT = PROJECT_ROOT / "docs" / "research" / "nse_validation_report.json"
 DEFAULT_SUMMARY = PROJECT_ROOT / "data" / "research" / "nse_validation_summary.json"
 DEFAULT_TRADABLE = PROJECT_ROOT / "data" / "research" / "nifty_options_daily_tradable.csv"
 

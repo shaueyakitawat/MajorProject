@@ -1925,11 +1925,11 @@ def download_backtest_report():
 
 @app.get("/backtest/report/markdown", summary="Download Backtesting Report (Markdown)", tags=["Pipeline"])
 def download_backtest_report_md():
-    """Download the IEEE-grade options backtesting research report in Markdown format."""
-    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "CSV_OPTIONS_BACKTEST_REPORT.md")
+    """Download the comprehensive quantitative options research report in Markdown format."""
+    report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "README.md")
     return FileResponse(
         path=report_path,
-        filename="QuantLens_Options_Backtest_IEEE_Report.md",
+        filename="QuantLens_Options_Research_Report.md",
         media_type="text/markdown"
     )
 
@@ -2351,10 +2351,26 @@ async def websocket_market_endpoint(websocket: WebSocket):
 
 # ========== FRONTEND STATIC FILE SERVING ==========
 import os
+_FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist")
 _FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
 
-if os.path.isdir(_FRONTEND_DIR):
-    # Serve static assets (CSS, JS, images)
+if os.path.isdir(_FRONTEND_DIST):
+    _ASSETS_DIR = os.path.join(_FRONTEND_DIST, "assets")
+    if os.path.isdir(_ASSETS_DIR):
+        app.mount("/assets", StaticFiles(directory=_ASSETS_DIR), name="frontend-assets")
+    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="frontend-static")
+
+    @app.get("/styles.css", include_in_schema=False)
+    def serve_styles():
+        return FileResponse(os.path.join(_FRONTEND_DIR, "styles.css"), media_type="text/css")
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/dashboard", include_in_schema=False)
+    @app.get("/app", include_in_schema=False)
+    def serve_frontend():
+        """Serve the compiled production frontend terminal."""
+        return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"))
+elif os.path.isdir(_FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="frontend-static")
     _SRC_DIR = os.path.join(_FRONTEND_DIR, "src")
     if os.path.isdir(_SRC_DIR):

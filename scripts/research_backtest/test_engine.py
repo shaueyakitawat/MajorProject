@@ -1,20 +1,38 @@
+import sys
 import unittest
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from engine import (
-    ATR_PERIOD,
-    add_indicators,
-    execute_signal,
-    hmm_filter_ema,
-    performance,
-    prior_atr,
-    resolve_exit,
-    select_contract,
-    Signal,
-)
+# Support running directly or from repository root
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+try:
+    from engine import (
+        ATR_PERIOD,
+        add_indicators,
+        execute_signal,
+        hmm_filter_ema,
+        performance,
+        prior_atr,
+        resolve_exit,
+        select_contract,
+        Signal,
+    )
+except ImportError:
+    from scripts.research_backtest.engine import (
+        ATR_PERIOD,
+        add_indicators,
+        execute_signal,
+        hmm_filter_ema,
+        performance,
+        prior_atr,
+        resolve_exit,
+        select_contract,
+        Signal,
+    )
+
 
 
 def option_rows(values):

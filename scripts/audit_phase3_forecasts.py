@@ -94,7 +94,7 @@ def main() -> None:
     identity_dm = dm_test(one_loss, one_loss)
 
     DOCS.mkdir(parents=True, exist_ok=True)
-    (DOCS / "forecast_array_audit.md").write_text(
+    (DOCS / "forecast_array_audit.json").write_text(
         "# Forecast Array Audit\n\n"
         f"Comparison rows: **{len(frame)}**, joined one-to-one on `trade_date`.\n\n"
         "## Array summaries\n\n"
@@ -119,7 +119,7 @@ def main() -> None:
         "consistent with floating-point serialization/recomputation.\n",
         encoding="utf-8",
     )
-    (DOCS / "dm_test_validation.md").write_text(
+    (DOCS / "dm_test_validation.json").write_text(
         "# Diebold-Mariano Test Validation\n\n"
         "The Phase 2 implementation constructs losses as squared forecast "
         "errors in `main` (line 383), subtracts them observation by "
@@ -142,7 +142,7 @@ def main() -> None:
         "values.\n",
         encoding="utf-8",
     )
-    (DOCS / "egarch_multistep_implementation_audit.md").write_text(
+    (DOCS / "egarch_multistep_implementation_audit.json").write_text(
         "# EGARCH Multi-step Implementation Audit\n\n"
         "## Package behavior\n\n"
         "The installed `arch` package's `EGARCH._check_forecasting_method` "
